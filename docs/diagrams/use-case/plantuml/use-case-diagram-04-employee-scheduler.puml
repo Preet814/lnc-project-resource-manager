@@ -1,0 +1,48 @@
+@startuml PRM_UseCase_Employee_Scheduler
+title PRM — Employee & Scheduler (BRD Screen 5 + §4.1)
+left to right direction
+skinparam shadowing false
+skinparam package<<Emp>> { BackgroundColor #E8F5E9 BorderColor #2E7D32 }
+skinparam package<<Sched>> { BackgroundColor #ECEFF1 BorderColor #546E7A }
+skinparam package<<Auth>> { BackgroundColor #FFFDE7 BorderColor #F9A825 }
+
+actor Employee
+actor Scheduler
+
+package "AUTHENTICATION" <<Auth>> {
+  usecase "Login" as L
+  usecase "Validate Credentials" as V
+  usecase "Change Password" as CP
+  usecase "Logout" as LO
+}
+
+package "EMPLOYEE" <<Emp>> {
+  usecase "Submit Timesheet" as ST
+  usecase "Log Hours" as LH
+  usecase "Activity Tags" as AT
+  usecase "Validate Timesheet" as VT
+  usecase "View My Timesheets" as VTs
+  usecase "View My Allocations" as VA
+}
+
+package "SCHEDULER" <<Sched>> {
+  usecase "Recompute Utilisation" as RU
+  usecase "Evaluate Project Health" as EP
+  usecase "Flag Missed Timesheets" as FM
+}
+
+Employee --> L
+Employee --> LO
+Employee --> ST
+Employee --> VTs
+Employee --> VA
+Scheduler --> RU
+Scheduler --> EP
+Scheduler --> FM
+
+L ..> V : include
+L <.. CP : extend
+ST ..> LH : include
+ST ..> AT : include
+ST ..> VT : include
+@enduml

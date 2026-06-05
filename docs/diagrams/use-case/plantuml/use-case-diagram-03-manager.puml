@@ -1,0 +1,52 @@
+@startuml PRM_UseCase_Manager
+title PRM — Manager Use Cases (BRD Screen 4)
+left to right direction
+skinparam shadowing false
+skinparam package<<Mgr>> { BackgroundColor #E3F2FD BorderColor #1565C0 }
+skinparam package<<LLM>> { BackgroundColor #FFF3E0 BorderColor #EF6C00 }
+
+actor Manager
+
+package "MANAGER" <<Mgr>> {
+  usecase "Resource Dashboard" as RD
+  usecase "Employee Detail" as ED
+
+  usecase "Allocate Resource" as AR
+  usecase "Validate Allocation" as VAL
+  usecase "Find Resource (AI)" as FAI
+  usecase "Allocate Directly" as AD
+  usecase "End Allocation" as EA
+
+  usecase "My Projects" as MP
+  usecase "Project Health Detail" as PH
+  usecase "AI Risk Summary" as RS
+
+  usecase "Team Timesheets" as TT
+  usecase "AI Assistant" as AA
+  usecase "AI Skill Match" as SM
+}
+
+package "EXTERNAL LLM" <<LLM>> {
+  usecase "LLM Skill Match" as LLM1
+  usecase "LLM Risk Summary" as LLM2
+}
+
+Manager --> RD
+Manager --> AR
+Manager --> MP
+Manager --> TT
+Manager --> AA
+
+RD ..> ED : include
+AR ..> VAL : include
+AR <.. FAI : extend
+AR <.. AD : extend
+AR <.. EA : extend
+MP ..> PH : include
+PH <.. RS : extend
+AA ..> SM : include
+AA ..> RS : include
+FAI ..> SM : include
+SM ..> LLM1 : uses
+RS ..> LLM2 : uses
+@enduml

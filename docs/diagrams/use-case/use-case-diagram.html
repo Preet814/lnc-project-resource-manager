@@ -1,0 +1,227 @@
+
+<style>
+.uc-wrap { margin-bottom: 28px; }
+.uc-wrap h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--color-text-primary); }
+.uc-box { padding: 0; overflow-x: auto; }
+.uc-box svg { width: 100% !important; height: auto !important; font-family: var(--font-sans) !important; }
+.uc-note { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin: 0 0 12px; }
+.uc-legend { font-size: 12px; color: var(--color-text-secondary); padding: 12px 0 4px; line-height: 1.6; }
+</style>
+
+<p class="uc-note">
+  PRM use case diagrams (BRD). <strong>Open this file in a browser</strong> — no PlantUML server, no URL size limit.
+  Source: <code>requirements/PRM_BRD.md</code> · Companion: <code>use-case-diagram.md</code>
+</p>
+
+<div class="uc-wrap">
+  <h3>1 — System overview</h3>
+  <div id="uc1" class="uc-box"></div>
+</div>
+<div class="uc-wrap">
+  <h3>2 — Admin (Screen 3)</h3>
+  <div id="uc2" class="uc-box"></div>
+</div>
+<div class="uc-wrap">
+  <h3>3 — Manager (Screen 4) + external LLM</h3>
+  <div id="uc3" class="uc-box"></div>
+</div>
+<div class="uc-wrap">
+  <h3>4 — Employee (Screen 5) + Scheduler (§4.1)</h3>
+  <div id="uc4" class="uc-box"></div>
+</div>
+
+<p class="uc-legend">
+  <strong>Legend:</strong> Rounded boxes = use cases · Solid arrow = actor uses · Dotted = include / extend ·
+  Purple / Blue / Green / Grey / Orange = Admin / Manager / Employee / Scheduler / LLM ·
+  PlantUML: <code>plantuml/use-case-diagram-01</code> … <code>04</code>.puml
+</p>
+
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  flowchart: { curve: 'basis', padding: 12, htmlLabels: true },
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '11px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+  },
+});
+
+const d1 = `
+flowchart LR
+  subgraph actors [Actors]
+    A([Admin])
+    M([Manager])
+    E([Employee])
+    S([Scheduler])
+  end
+  subgraph sys [PRM System]
+    AUTH[["Login / Logout"]]
+    ADM[["Admin: Users, Employees, Projects, Config"]]
+    MGR[["Manager: Dashboard, Allocate, Projects, AI"]]
+    EMP[["Employee: Timesheets, Allocations"]]
+    SCH[["Scheduler: Utilisation, Health, Missed TS"]]
+  end
+  subgraph llm [External LLM]
+    L1[["Skill Match"]]
+    L2[["Risk Summary"]]
+  end
+  A --> AUTH
+  A --> ADM
+  M --> AUTH
+  M --> MGR
+  E --> AUTH
+  E --> EMP
+  S --> SCH
+  MGR -.->|uses| L1
+  MGR -.->|uses| L2
+`;
+
+const d2 = `
+flowchart TB
+  A([Admin])
+  subgraph admin [ADMIN USE CASES]
+    MU[["Manage Users"]]
+    CU[["Create User Account"]]
+    VU[["View All Users"]]
+    RU[["Reactivate User"]]
+    RP[["Reset Password"]]
+    DU[["Deactivate User"]]
+    ME[["Manage Employees"]]
+    AE[["Add Employee"]]
+    VE[["View Employees"]]
+    UE[["Update Employee"]]
+    DE[["Deactivate Employee"]]
+    MS[["Manage Skills"]]
+    MP[["Manage Projects"]]
+    CP[["Create Project"]]
+    VP[["View Projects"]]
+    UP[["Update Project"]]
+    MM[["Manage Milestones"]]
+    VA[["View All Allocations"]]
+    SC[["System Configuration"]]
+  end
+  A --> MU
+  A --> ME
+  A --> MP
+  A --> VA
+  A --> SC
+  MU -.->|include| CU
+  MU -.->|include| VU
+  MU -.->|include| RP
+  MU -.->|include| DU
+  VU -.->|include| RU
+  ME -.->|include| AE
+  ME -.->|include| VE
+  ME -.->|include| UE
+  ME -.->|include| DE
+  ME -.->|extend| MS
+  MP -.->|include| CP
+  MP -.->|include| VP
+  MP -.->|include| UP
+  MP -.->|include| MM
+  style admin fill:#F3E5F5,stroke:#7B1FA2,color:#4A148C
+`;
+
+const d3 = `
+flowchart TB
+  M([Manager])
+  subgraph mgr [MANAGER USE CASES]
+    RD[["Resource Dashboard"]]
+    ED[["Employee Detail"]]
+    AR[["Allocate Resource"]]
+    VAL[["Validate Allocation"]]
+    FAI[["Find Resource AI"]]
+    AD[["Allocate Directly"]]
+    EA[["End Allocation"]]
+    MP[["My Projects"]]
+    PH[["Project Health Detail"]]
+    RS[["AI Risk Summary"]]
+    TT[["Team Timesheets"]]
+    AA[["AI Assistant"]]
+    SM[["AI Skill Match"]]
+  end
+  subgraph llm [EXTERNAL LLM]
+    L1[["LLM Skill Match"]]
+    L2[["LLM Risk Summary"]]
+  end
+  M --> RD
+  M --> AR
+  M --> MP
+  M --> TT
+  M --> AA
+  RD -.->|include| ED
+  AR -.->|include| VAL
+  AR -.->|extend| FAI
+  AR -.->|extend| AD
+  AR -.->|extend| EA
+  MP -.->|include| PH
+  PH -.->|extend| RS
+  AA -.->|include| SM
+  AA -.->|include| RS
+  FAI -.->|include| SM
+  SM -.->|uses| L1
+  RS -.->|uses| L2
+  style mgr fill:#E3F2FD,stroke:#1565C0,color:#0D47A1
+  style llm fill:#FFF3E0,stroke:#EF6C00,color:#E65100
+`;
+
+const d4 = `
+flowchart TB
+  E([Employee])
+  SCH([Scheduler])
+  subgraph auth [AUTHENTICATION]
+    L[["Login"]]
+    V[["Validate Credentials"]]
+    CP[["Change Password"]]
+    LO[["Logout"]]
+  end
+  subgraph emp [EMPLOYEE USE CASES]
+    ST[["Submit Timesheet"]]
+    LH[["Log Hours"]]
+    AT[["Activity Tags"]]
+    VT[["Validate Timesheet"]]
+    VTS[["View My Timesheets"]]
+    VMA[["View My Allocations"]]
+  end
+  subgraph sched [SCHEDULER]
+    RU[["Recompute Utilisation"]]
+    EP[["Evaluate Project Health"]]
+    FM[["Flag Missed Timesheets"]]
+  end
+  E --> L
+  E --> LO
+  E --> ST
+  E --> VTS
+  E --> VMA
+  SCH --> RU
+  SCH --> EP
+  SCH --> FM
+  L -.->|include| V
+  L -.->|extend| CP
+  ST -.->|include| LH
+  ST -.->|include| AT
+  ST -.->|include| VT
+  style auth fill:#FFFDE7,stroke:#F9A825,color:#5D4037
+  style emp fill:#E8F5E9,stroke:#2E7D32,color:#1B5E20
+  style sched fill:#ECEFF1,stroke:#546E7A,color:#37474F
+`;
+
+async function render(id, code) {
+  const el = document.getElementById(id);
+  const { svg } = await mermaid.render(id + '-svg', code.trim());
+  el.innerHTML = svg;
+}
+
+await render('uc1', d1);
+await render('uc2', d2);
+await render('uc3', d3);
+await render('uc4', d4);
+</script>

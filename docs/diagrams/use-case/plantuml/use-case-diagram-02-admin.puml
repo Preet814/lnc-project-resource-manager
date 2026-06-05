@@ -1,0 +1,54 @@
+@startuml PRM_UseCase_Admin
+title PRM — Admin Use Cases (BRD Screen 3)
+left to right direction
+skinparam shadowing false
+skinparam package<<Admin>> { BackgroundColor #F3E5F5 BorderColor #7B1FA2 }
+
+actor Admin
+
+package "ADMIN" <<Admin>> {
+  usecase "Manage Users" as MU
+  usecase "Create User Account" as CU
+  usecase "View All Users" as VU
+  usecase "Reactivate User" as RU
+  usecase "Reset Password" as RP
+  usecase "Deactivate User" as DU
+
+  usecase "Manage Employees" as ME
+  usecase "Add Employee" as AE
+  usecase "View Employees" as VE
+  usecase "Update Employee" as UE
+  usecase "Deactivate Employee" as DE
+  usecase "Manage Skills" as MS
+
+  usecase "Manage Projects" as MP
+  usecase "Create Project" as CP
+  usecase "View Projects" as VP
+  usecase "Update Project" as UP
+  usecase "Manage Milestones" as MM
+
+  usecase "View All Allocations" as VA
+  usecase "System Configuration" as SC
+}
+
+Admin --> MU
+Admin --> ME
+Admin --> MP
+Admin --> VA
+Admin --> SC
+
+MU ..> CU : include
+MU ..> VU : include
+MU ..> RP : include
+MU ..> DU : include
+VU ..> RU : include
+ME ..> AE : include
+ME ..> VE : include
+ME ..> UE : include
+ME ..> DE : include
+ME <.. MS : extend
+MP ..> CP : include
+MP ..> VP : include
+MP ..> UP : include
+MP ..> MM : include
+@enduml

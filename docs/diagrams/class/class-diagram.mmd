@@ -1,0 +1,281 @@
+classDiagram
+  direction TB
+
+  class Role {
+    <<enumeration>>
+    ADMIN
+    MANAGER
+    EMPLOYEE
+  }
+  class UserAccountStatus {
+    <<enumeration>>
+    ACTIVE
+    INACTIVE
+  }
+  class EmployeeWorkStatus {
+    <<enumeration>>
+    BENCH
+    ALLOCATED
+  }
+  class SkillCategory {
+    <<enumeration>>
+    BACKEND
+    FRONTEND
+    DEVOPS
+    QA
+    OTHER
+  }
+  class ProficiencyLevel {
+    <<enumeration>>
+    BEGINNER
+    INTERMEDIATE
+    ADVANCED
+  }
+  class ProjectStatus {
+    <<enumeration>>
+    PLANNED
+    ACTIVE
+    ON_HOLD
+  }
+  class ProjectHealthStatus {
+    <<enumeration>>
+    ON_TRACK
+    ATTENTION
+    AT_RISK
+  }
+  class MilestoneStatus {
+    <<enumeration>>
+    NOT_STARTED
+    IN_PROGRESS
+    DONE
+  }
+  class AllocationStatus {
+    <<enumeration>>
+    ACTIVE
+    ENDED
+  }
+  class TimesheetWeekStatus {
+    <<enumeration>>
+    SUBMITTED
+    MISSED
+  }
+  class LLMProvider {
+    <<enumeration>>
+    GEMINI
+    GROQ
+  }
+  class ActivityTag {
+    <<enumeration>>
+    BACKEND_API
+    MICROSERVICES
+    DATABASE_DESIGN
+    WEBSOCKET
+    FRONTEND
+    CODE_REVIEW
+    BUG_FIXING
+    DEVOPS
+    TESTING_QA
+    DOCUMENTATION
+    OTHER
+  }
+
+  class User {
+    <<entity>>
+    -Long id
+    -String fullName
+    -String username
+    -String email
+    -String passwordHash
+    -Role role
+    -UserAccountStatus accountStatus
+    -boolean forcePasswordChange
+    -LocalDateTime createdAt
+    -LocalDateTime updatedAt
+    +changePassword(oldPwd, newPwd) boolean
+    +requiresPasswordChange() boolean
+    +deactivate() void
+    +reactivate() void
+  }
+
+  class Employee {
+    <<entity>>
+    -Long id
+    -Long userId
+    -String fullName
+    -String email
+    -String department
+    -String designation
+    -EmployeeWorkStatus workStatus
+    -boolean isActive
+    -int currentUtilisationPercent
+    -LocalDateTime createdAt
+    +getAvailabilityPercent(maxWeeklyHours) int
+    +isOnBench() boolean
+    +isOverUtilised() boolean
+    +deactivate(endDate) void
+  }
+
+  class Skill {
+    <<entity>>
+    -Long id
+    -String name
+    -SkillCategory category
+    -boolean isPredefined
+  }
+
+  class EmployeeSkill {
+    <<entity>>
+    -Long id
+    -Long employeeId
+    -Long skillId
+    -ProficiencyLevel proficiency
+    -LocalDateTime assignedAt
+  }
+
+  class Project {
+    <<entity>>
+    -Long id
+    -String name
+    -String description
+    -LocalDate startDate
+    -LocalDate endDate
+    -ProjectStatus status
+    -Long managerUserId
+    -ProjectHealthStatus healthStatus
+    -LocalDateTime healthComputedAt
+    +isOwnedBy(managerUserId) boolean
+    +allowsAllocation() boolean
+  }
+
+  class Milestone {
+    <<entity>>
+    -Long id
+    -Long projectId
+    -String title
+    -LocalDate dueDate
+    -MilestoneStatus status
+    -int sequenceOrder
+    +isOverdue(asOfDate) boolean
+  }
+
+  class Allocation {
+    <<entity>>
+    -Long id
+    -Long employeeId
+    -Long projectId
+    -int utilisationPercent
+    -LocalDate fromDate
+    -LocalDate toDate
+    -AllocationStatus status
+    -Long createdByUserId
+    +isActiveOn(date) boolean
+    +endAsOf(date) void
+    +overlaps(other) boolean
+  }
+
+  class TimesheetWeek {
+    <<entity>>
+    -Long id
+    -Long employeeId
+    -LocalDate weekStartDate
+    -TimesheetWeekStatus status
+    -int totalHours
+    -LocalDateTime submittedAt
+    +canSubmit() boolean
+    +markSubmitted() void
+    +markMissed() void
+  }
+
+  class TimesheetEntry {
+    <<entity>>
+    -Long id
+    -Long timesheetWeekId
+    -Long projectId
+    -int hoursWorked
+    -List~ActivityTag~ activityTags
+    +validateAgainst(allocation, maxWeeklyHours) ValidationResult
+  }
+
+  class SystemConfiguration {
+    <<entity>>
+    -Long id
+    -LLMProvider llmProvider
+    -String llmApiKeyEncrypted
+    -int schedulerIntervalHours
+    -int maxWeeklyHours
+    +getMaxWeeklyHours() int
+    +updateLlmKey(key) void
+  }
+
+  class ProjectHealthSnapshot {
+    <<entity>>
+    -Long id
+    -Long projectId
+    -ProjectHealthStatus status
+    -List~String~ riskFlags
+    -LocalDateTime computedAt
+  }
+
+  class AuthToken {
+    <<DTO>>
+    +String token
+    +Long userId
+    +LocalDateTime expiresAt
+    +isValid() boolean
+  }
+
+  class SkillMatchResult {
+    <<DTO>>
+    +Long employeeId
+    +String employeeName
+    +String reason
+    +int suggestedAllocationPercent
+    +int freeHoursPerWeek
+  }
+
+  class ILLMClient {
+    <<interface>>
+    +rankCandidates(context, candidates) List~SkillMatchResult~
+    +summarizeRisk(context) String
+  }
+
+  class SchedulerJob {
+    <<service>>
+    +run() void
+    +recomputeEmployeeStatus() void
+    +recomputeProjectHealth() void
+    +markMissedTimesheets() void
+  }
+
+  User "1" --> "0..1" Employee : userId
+  User "1" --> "*" Project : managerUserId
+  Employee "1" --> "*" EmployeeSkill
+  Skill "1" --> "*" EmployeeSkill
+  Project "1" *-- "*" Milestone
+  Project "1" --> "*" Allocation
+  Employee "1" --> "*" Allocation
+  Employee "1" *-- "*" TimesheetWeek
+  TimesheetWeek "1" *-- "*" TimesheetEntry
+  TimesheetEntry "*" --> "1" Project
+  Project "1" --> "0..1" ProjectHealthSnapshot
+
+  User --> Role
+  User --> UserAccountStatus
+  Employee --> EmployeeWorkStatus
+  Skill --> SkillCategory
+  EmployeeSkill --> ProficiencyLevel
+  Project --> ProjectStatus
+  Project --> ProjectHealthStatus
+  Milestone --> MilestoneStatus
+  Allocation --> AllocationStatus
+  TimesheetWeek --> TimesheetWeekStatus
+  TimesheetEntry --> ActivityTag
+  SystemConfiguration --> LLMProvider
+
+  SystemConfiguration ..> SchedulerJob : interval hours
+  SchedulerJob ..> Employee : workStatus utilisation
+  SchedulerJob ..> Project : healthStatus
+  SchedulerJob ..> TimesheetWeek : MISSED flag
+  SystemConfiguration ..> ILLMClient : provider and key
+  ILLMClient ..> SkillMatchResult : rankCandidates
+  User ..> AuthToken : login issues token
