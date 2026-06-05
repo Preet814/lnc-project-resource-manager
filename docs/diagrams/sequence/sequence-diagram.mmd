@@ -1,0 +1,56 @@
+%% PRM Sequence Diagrams — one block per section (paste ONE into mermaid.live)
+%% Full browser view: sequence-diagram.html
+
+%% ========== §1 Login (Screen 1) ==========
+sequenceDiagram
+    autonumber
+    actor User as User (any role)
+    participant Console as Console App
+    participant API as REST API
+    participant Auth as Auth Service
+    participant DB as Database
+    User->>Console: enter username and password
+    Console->>API: POST /auth/login
+    API->>Auth: login(username, password)
+    Auth->>DB: validate credentials and load user
+    alt invalid credentials
+        Auth-->>Console: 401 unauthorized
+        Console-->>User: show error return to login
+    else valid
+        Auth->>DB: read forcePasswordChange flag
+        alt forcePasswordChange is true
+            API-->>Console: must change password first
+            Console-->>User: Change Password screen
+            User->>Console: submit new password
+            Console->>API: POST /auth/change-password
+            API->>Auth: changePassword()
+            Auth->>DB: update hash set forcePasswordChange false
+        end
+        Auth->>DB: issue session or token
+        API-->>Console: 200 token and role
+        Console-->>User: display role menu
+    end
+
+%% ========== §2 Admin onboard (3.4.1, 3.1.1) ==========
+%% sequenceDiagram
+%%     autonumber
+%%     actor Admin
+%%     participant Console as Console App
+%%     participant API as REST API
+%%     participant Auth as Auth Service
+%%     participant DB as Database
+%%     Admin->>Console: create user account
+%%     Console->>API: POST /users
+%%     API->>Auth: createUser(role, temp password)
+%%     Auth->>DB: insert User forcePasswordChange true
+%%     Admin->>Console: add employee with userId
+%%     Console->>API: POST /employees
+%%     API->>DB: validate userId link insert Employee BENCH
+%%     Console-->>Admin: success link user and employee
+
+%% ========== §3 Manager allocate (4.2) ==========
+%% (see sequence-diagram.html §3 or md catalogue)
+
+%% ========== §4 Manager risk (4.3, 4.5) ==========
+%% ========== §5 Employee timesheet (5.1) ==========
+%% ========== §6 Scheduler (4.1) ==========

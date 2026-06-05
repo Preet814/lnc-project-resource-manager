@@ -1,0 +1,220 @@
+
+<style>
+.seq-wrap { margin-bottom: 28px; }
+.seq-wrap h3 { font-size: 14px; font-weight: 600; margin: 0 0 8px; color: var(--color-text-primary); }
+.seq-box { padding: 0; overflow-x: auto; }
+.seq-box svg { width: 100% !important; height: auto !important; font-family: var(--font-sans) !important; }
+.seq-note { font-size: 12px; color: var(--color-text-secondary); line-height: 1.5; margin: 0 0 12px; }
+.seq-legend { font-size: 12px; color: var(--color-text-secondary); padding: 8px 0 4px; line-height: 1.5; }
+</style>
+
+<p class="seq-note">
+  PRM sequence flows (BRD). Each section has its own actors and lifelines — no scrolling back to the top.
+  Source: <code>requirements/PRM_BRD.md</code> · <code>sequence-diagram.md</code>
+</p>
+
+<div class="seq-wrap"><h3>§1 — Login &amp; forced password change (Screen 1)</h3><div id="s1" class="seq-box"></div></div>
+<div class="seq-wrap"><h3>§2 — Admin onboard user &amp; employee (Screens 3.4.1, 3.1.1)</h3><div id="s2" class="seq-box"></div></div>
+<div class="seq-wrap"><h3>§3 — Manager: AI find &amp; allocate resource (Screen 4.2)</h3><div id="s3" class="seq-box"></div></div>
+<div class="seq-wrap"><h3>§4 — Manager: AI risk summary (Screens 4.3, 4.5)</h3><div id="s4" class="seq-box"></div></div>
+<div class="seq-wrap"><h3>§5 — Employee: submit timesheet (Screen 5.1)</h3><div id="s5" class="seq-box"></div></div>
+<div class="seq-wrap"><h3>§6 — Background scheduler (§4.1)</h3><div id="s6" class="seq-box"></div></div>
+
+<p class="seq-legend">
+  Order: Login → Admin → Manager (allocate, then risk) → Employee → Scheduler ·
+  Export: <code>sequence-diagram.mmd</code> (one block per section for mermaid.live)
+</p>
+
+<script type="module">
+import mermaid from 'https://esm.sh/mermaid@11/dist/mermaid.esm.min.mjs';
+const dark = matchMedia('(prefers-color-scheme: dark)').matches;
+await document.fonts.ready;
+mermaid.initialize({
+  startOnLoad: false,
+  theme: 'base',
+  fontFamily: '"Anthropic Sans", sans-serif',
+  themeVariables: {
+    darkMode: dark,
+    fontSize: '10px',
+    fontFamily: '"Anthropic Sans", sans-serif',
+    lineColor: dark ? '#9c9a92' : '#73726c',
+    textColor: dark ? '#c2c0b6' : '#3d3d3a',
+    actorBorder: dark ? '#534AB7' : '#7F77DD',
+    actorBkg: dark ? '#2a2862' : '#EEEDFE',
+    signalColor: dark ? '#9c9a92' : '#73726c',
+    labelBoxBkgColor: dark ? '#2c2c2a' : '#F1EFE8',
+    labelTextColor: dark ? '#c2c0b6' : '#3d3d3a',
+    noteBkgColor: dark ? '#2c2c2a' : '#F1EFE8',
+    noteTextColor: dark ? '#c2c0b6' : '#3d3d3a',
+  },
+  sequence: { diagramMarginX: 8, diagramMarginY: 6, actorMargin: 40, width: 130, messageMargin: 22 },
+});
+
+const s1 = `sequenceDiagram
+    autonumber
+    actor User as User (any role)
+    participant Console as Console App
+    participant API as REST API
+    participant Auth as Auth Service
+    participant DB as Database
+    User->>Console: enter username and password
+    Console->>API: POST /auth/login
+    API->>Auth: login(username, password)
+    Auth->>DB: validate credentials and load user
+    alt invalid credentials
+        Auth-->>Console: 401 unauthorized
+        Console-->>User: show error return to login
+    else valid
+        Auth->>DB: read forcePasswordChange flag
+        alt forcePasswordChange is true
+            API-->>Console: must change password first
+            Console-->>User: Change Password screen
+            User->>Console: submit new password
+            Console->>API: POST /auth/change-password
+            API->>Auth: changePassword()
+            Auth->>DB: update hash set forcePasswordChange false
+        end
+        Auth->>DB: issue session or token
+        API-->>Console: 200 token and role
+        Console-->>User: display role menu
+    end`;
+
+const s2 = `sequenceDiagram
+    autonumber
+    actor Admin
+    participant Console as Console App
+    participant API as REST API
+    participant Auth as Auth Service
+    participant DB as Database
+    Admin->>Console: create user account
+    Console->>API: POST /users
+    API->>Auth: createUser(role, temp password)
+    Auth->>DB: insert User forcePasswordChange true
+    API-->>Console: 201 user created
+    Console-->>Admin: must change password on first login
+    Admin->>Console: add employee with userId
+    Console->>API: POST /employees
+    API->>DB: validate userId link insert Employee BENCH
+    API-->>Console: 201 employee created
+    Console-->>Admin: success link user and employee profiles`;
+
+const s3 = `sequenceDiagram
+    autonumber
+    actor Manager
+    participant Console as Console App
+    participant API as REST API
+    participant Authz as Authorization Service
+    participant Skill as Skill Match Service
+    participant Alloc as Allocation Service
+    participant Calc as Utilisation Calculator
+    participant LLM as LLM Provider
+    participant DB as Database
+    Manager->>Console: select project and describe requirement
+    Console->>API: GET candidates for match
+    API->>Skill: loadCandidates(projectId)
+    Skill->>DB: query employees skills allocations activity tags
+    DB-->>Skill: candidate data
+    Note over Skill: filter 100% utilised before AI
+    alt no free capacity
+        Skill-->>Console: no matches skip LLM
+        Console-->>Manager: show message
+    else has candidates
+        API->>Authz: assertProjectOwner(managerUserId, projectId)
+        Skill->>LLM: rankCandidates(context, candidates)
+        LLM-->>Skill: ranked matches and reasons
+        Skill-->>Console: AI results with verify note
+        Console-->>Manager: display ranked list
+    end
+    Manager->>Console: select employee percent dates confirm
+    Console->>API: POST /allocations
+    API->>Authz: assertCanAllocate(managerUserId, projectId)
+    API->>Alloc: allocate(request)
+    Alloc->>DB: project status ACTIVE or PLANNED
+    Alloc->>Calc: validateNewAllocation(employeeId, percent, from, to)
+    Calc->>DB: sum overlapping allocation percent
+    alt total exceeds 100 percent
+        Alloc-->>Console: 409 over-allocation error
+        Console-->>Manager: show conflict warning
+    else valid
+        Alloc->>DB: persist Allocation ACTIVE
+        Alloc->>DB: update Employee workStatus ALLOCATED if needed
+        Alloc-->>Console: 201 allocation confirmed
+        Console-->>Manager: allocation saved
+    end`;
+
+const s4 = `sequenceDiagram
+    autonumber
+    actor Manager
+    participant Console as Console App
+    participant API as REST API
+    participant Authz as Authorization Service
+    participant Risk as Risk Summary Service
+    participant LLM as LLM Provider
+    participant DB as Database
+    Manager->>Console: request risk summary for project
+    Console->>API: GET /projects/{id}/risk-summary
+    API->>Authz: assertProjectOwner(managerUserId, projectId)
+    API->>Risk: buildRiskContext(projectId)
+    Risk->>DB: milestones allocations recent timesheet hours
+    DB-->>Risk: factual project data only
+    Note over Risk, LLM: LLM never queries database
+    Risk->>LLM: summarizeRisk(context)
+    LLM-->>Risk: plain English paragraph
+    Risk-->>Console: 200 summary text
+    Console-->>Manager: display paragraph and AI-generated note`;
+
+const s5 = `sequenceDiagram
+    autonumber
+    actor Employee
+    participant Console as Console App
+    participant API as REST API
+    participant TS as Timesheet Service
+    participant DB as Database
+    Employee->>Console: select week start date
+    Console->>API: GET /employees/me/allocations?week=
+    API->>TS: loadActiveAllocationsForWeek(employeeId, week)
+    TS->>DB: query active allocations
+    DB-->>TS: projects and expected hours
+    TS-->>Console: 200 project list
+    Console-->>Employee: per-project hours and activity tags form
+    Employee->>Console: enter hours and tags per project submit
+    Console->>API: POST /timesheets
+    API->>TS: submitWeek(employeeId, weekStart, entries)
+    loop each entry server validation
+        TS->>DB: check allocated duplicate week future week
+        TS->>TS: hours cap vs allocation percent and max weekly hours
+    end
+    alt validation fails
+        TS-->>Console: 400 validation error
+        Console-->>Employee: show errors
+    else valid
+        TS->>DB: save TimesheetWeek SUBMITTED and entries
+        TS-->>Console: 201 SUBMITTED
+        Console-->>Employee: timesheet submitted
+    end`;
+
+const s6 = `sequenceDiagram
+    autonumber
+    participant Sched as Scheduler Job
+    participant DB as Database
+    loop every schedulerIntervalHours
+        Sched->>DB: load SystemConfiguration interval
+        Sched->>DB: recompute employee utilisation and BENCH or ALLOCATED
+        Sched->>DB: query milestones and recent timesheet hours
+        Sched->>DB: update Project healthStatus and risk flags
+        Sched->>DB: mark TimesheetWeek MISSED if week ended unsubmitted
+    end`;
+
+async function render(id, code) {
+  const el = document.getElementById(id);
+  const { svg } = await mermaid.render(id + '-svg', code.trim());
+  el.innerHTML = svg;
+}
+
+await render('s1', s1);
+await render('s2', s2);
+await render('s3', s3);
+await render('s4', s4);
+await render('s5', s5);
+await render('s6', s6);
+</script>

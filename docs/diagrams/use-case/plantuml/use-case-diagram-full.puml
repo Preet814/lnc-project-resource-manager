@@ -1,0 +1,226 @@
+@startuml PRM_Use_Case_Diagram
+' FULL diagram — for VS Code / local PlantUML only (too large for plantuml.com URL)
+' Browser: ../use-case-diagram.html | Small files: plantuml/01..04.puml
+title Project & Resource Management Tool — Use Case Diagram\n(BRD: Admin-only accounts, no self-registration)
+
+left to right direction
+scale max 3200 width
+skinparam shadowing false
+skinparam handwritten false
+skinparam roundcorner 8
+skinparam nodesep 25
+skinparam ranksep 35
+skinparam packageStyle rectangle
+skinparam usecase {
+  BackgroundColor #FFFFFF
+  BorderColor #424242
+  FontSize 10
+}
+skinparam actor {
+  BorderColor #212121
+  FontSize 11
+}
+skinparam rectangle {
+  BorderColor #1565C0
+  FontStyle bold
+}
+skinparam package<<AdminLane>> {
+  BackgroundColor #F3E5F5
+  BorderColor #7B1FA2
+}
+skinparam package<<ManagerLane>> {
+  BackgroundColor #E3F2FD
+  BorderColor #1565C0
+}
+skinparam package<<EmployeeLane>> {
+  BackgroundColor #E8F5E9
+  BorderColor #2E7D32
+}
+skinparam package<<SchedulerLane>> {
+  BackgroundColor #ECEFF1
+  BorderColor #546E7A
+}
+skinparam package<<AuthLane>> {
+  BackgroundColor #FFFDE7
+  BorderColor #F9A825
+}
+skinparam package<<ExternalLLM>> {
+  BackgroundColor #FFF3E0
+  BorderColor #EF6C00
+}
+
+actor Admin
+actor Manager
+actor Employee
+actor "Background\nScheduler" as Scheduler
+
+rectangle "Project & Resource Management System" #FAFAFA {
+
+  ' --- One auth block (BRD Screen 1 — same flow for all roles) ---
+  package "AUTHENTICATION" <<AuthLane>> {
+    usecase "Login" as UC_Login
+    usecase "Validate Credentials" as UC_Auth
+    usecase "Change Password\n(forced first login)" as UC_ChPwd
+    usecase "Logout" as UC_Logout
+  }
+
+  package "ADMIN USE CASES" <<AdminLane>> {
+
+    usecase "Manage Users" as A_MgrUsers
+    together {
+      usecase "Create User Account" as A_CreateUser
+      usecase "View All Users" as A_ViewUsers
+      usecase "Reactivate User" as A_Reactivate
+      usecase "Reset User Password" as A_ResetPwd
+      usecase "Deactivate User" as A_DeactUser
+    }
+
+    usecase "Manage Employees" as A_MgrEmp
+    together {
+      usecase "Add Employee" as A_AddEmp
+      usecase "View All Employees" as A_ViewEmp
+      usecase "Update Employee" as A_UpdateEmp
+      usecase "Deactivate Employee" as A_DeactEmp
+      usecase "Manage Employee Skills" as A_EmpSkills
+    }
+
+    usecase "Manage Projects" as A_MgrPrj
+    together {
+      usecase "Create Project" as A_CreatePrj
+      usecase "View All Projects" as A_ViewPrj
+      usecase "Update Project" as A_UpdatePrj
+      usecase "Manage Milestones" as A_Milestones
+    }
+
+    usecase "View All Allocations" as A_ViewAlloc
+    usecase "System Configuration" as A_Config
+  }
+
+  package "MANAGER USE CASES" <<ManagerLane>> {
+
+    usecase "Resource Dashboard" as M_Dashboard
+    usecase "Employee Detail" as M_EmpDetail
+
+    usecase "Allocate Resource" as M_Alloc
+    together {
+      usecase "Validate Allocation" as M_ValAlloc
+      usecase "Find Resource (AI)" as M_FindAI
+      usecase "Allocate Directly" as M_AllocDirect
+      usecase "End Allocation" as M_EndAlloc
+    }
+
+    usecase "My Projects" as M_MyProjects
+    together {
+      usecase "Project Health Detail" as M_ProjDetail
+      usecase "AI Risk Summary" as M_AIRisk
+    }
+
+    usecase "Team Timesheets" as M_TeamTS
+    usecase "AI Assistant" as M_AIAsst
+    usecase "AI Skill Match" as M_AISkill
+  }
+
+  package "EMPLOYEE USE CASES" <<EmployeeLane>> {
+
+    usecase "Submit Timesheet" as E_SubmitTS
+    together {
+      usecase "Log Hours" as E_LogHours
+      usecase "Activity Tags" as E_Tags
+      usecase "Validate Timesheet" as E_ValTS
+    }
+
+    usecase "View My Timesheets" as E_MyTS
+    usecase "View My Allocations" as E_MyAlloc
+  }
+
+  package "SCHEDULER" <<SchedulerLane>> {
+    usecase "Recompute Utilisation" as S_Recompute
+    usecase "Evaluate Project Health" as S_Health
+    usecase "Flag Missed Timesheets" as S_Missed
+  }
+
+  package "EXTERNAL LLM" <<ExternalLLM>> {
+    usecase "AI Skill Match" as LLM_Skill
+    usecase "AI Risk Summary" as LLM_Risk
+  }
+}
+
+' ========== Actor links (keep outside crowded include mesh) ==========
+Admin --> UC_Login
+Admin --> UC_Logout
+Admin --> A_MgrUsers
+Admin --> A_MgrEmp
+Admin --> A_MgrPrj
+Admin --> A_ViewAlloc
+Admin --> A_Config
+
+Manager --> UC_Login
+Manager --> UC_Logout
+Manager --> M_Dashboard
+Manager --> M_Alloc
+Manager --> M_MyProjects
+Manager --> M_TeamTS
+Manager --> M_AIAsst
+
+Employee --> UC_Login
+Employee --> UC_Logout
+Employee --> E_SubmitTS
+Employee --> E_MyTS
+Employee --> E_MyAlloc
+
+Scheduler --> S_Recompute
+Scheduler --> S_Health
+Scheduler --> S_Missed
+
+' ========== Includes / extends ==========
+UC_Login ..> UC_Auth : <<include>>
+UC_Login <.. UC_ChPwd : <<extend>>
+
+A_MgrUsers ..> A_CreateUser : <<include>>
+A_MgrUsers ..> A_ViewUsers : <<include>>
+A_MgrUsers ..> A_ResetPwd : <<include>>
+A_MgrUsers ..> A_DeactUser : <<include>>
+A_ViewUsers ..> A_Reactivate : <<include>>
+
+A_MgrEmp ..> A_AddEmp : <<include>>
+A_MgrEmp ..> A_ViewEmp : <<include>>
+A_MgrEmp ..> A_UpdateEmp : <<include>>
+A_MgrEmp ..> A_DeactEmp : <<include>>
+A_MgrEmp <.. A_EmpSkills : <<extend>>
+
+A_MgrPrj ..> A_CreatePrj : <<include>>
+A_MgrPrj ..> A_ViewPrj : <<include>>
+A_MgrPrj ..> A_UpdatePrj : <<include>>
+A_MgrPrj ..> A_Milestones : <<include>>
+
+M_Dashboard ..> M_EmpDetail : <<include>>
+M_Alloc ..> M_ValAlloc : <<include>>
+M_Alloc <.. M_FindAI : <<extend>>
+M_Alloc <.. M_AllocDirect : <<extend>>
+M_Alloc <.. M_EndAlloc : <<extend>>
+M_MyProjects ..> M_ProjDetail : <<include>>
+M_ProjDetail <.. M_AIRisk : <<extend>>
+M_AIAsst ..> M_AISkill : <<include>>
+M_AIAsst ..> M_AIRisk : <<include>>
+M_FindAI ..> M_AISkill : <<include>>
+
+E_SubmitTS ..> E_LogHours : <<include>>
+E_SubmitTS ..> E_Tags : <<include>>
+E_SubmitTS ..> E_ValTS : <<include>>
+
+M_AISkill ..> LLM_Skill : uses
+M_FindAI ..> LLM_Skill : uses
+M_AIRisk ..> LLM_Risk : uses
+
+legend right
+  |= Symbol |= Meaning |
+  | Actor | BRD §3 role |
+  | <<include>> | Mandatory sub-step |
+  | <<extend>> | Optional path |
+  | uses | Calls external LLM |
+  | Yellow | Shared login (Screen 1) |
+  | Purple/Blue/Green/Grey | Admin/Manager/Employee/Scheduler |
+  | If cropped on web | Export PNG or use VS Code PlantUML |
+endlegend
+
+@enduml

@@ -1,0 +1,39 @@
+@startuml PRM_UseCase_Overview
+' Small file — safe for plantuml.com (paste this file only)
+title PRM — Use Case Overview (BRD)
+left to right direction
+skinparam shadowing false
+
+actor Admin
+actor Manager
+actor Employee
+actor Scheduler
+
+rectangle "PRM System" {
+  usecase "Login / Logout" as Auth
+  usecase "Admin:\nUsers, Employees,\nProjects, Config" as AdminUC
+  usecase "Manager:\nDashboard, Allocate,\nProjects, Timesheets, AI" as MgrUC
+  usecase "Employee:\nTimesheets, Allocations" as EmpUC
+  usecase "Scheduler:\nUtilisation, Health,\nMissed TS" as SchedUC
+}
+
+package "External LLM" #FFF3E0 {
+  usecase "Skill Match" as LLM1
+  usecase "Risk Summary" as LLM2
+}
+
+Admin --> Auth
+Admin --> AdminUC
+Manager --> Auth
+Manager --> MgrUC
+Employee --> Auth
+Employee --> EmpUC
+Scheduler --> SchedUC
+MgrUC ..> LLM1 : uses
+MgrUC ..> LLM2 : uses
+
+note bottom
+  Detail: plantuml/02..04.puml
+  Browser: ../use-case-diagram.html (recommended)
+end note
+@enduml
