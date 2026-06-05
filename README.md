@@ -11,54 +11,134 @@ Console client + REST server for resource planning, allocations, timesheets, and
 ```
 .
 ├── README.md
+├── pyproject.toml
+├── docker-compose.yml
+├── Dockerfile
+├── .env.example
+├── alembic/                       # Database migrations
 ├── requirements/
 │   └── PRM_BRD.md                 # Business requirements (source of truth)
 ├── docs/
 │   ├── README.md
 │   ├── diagrams/
-│   │   ├── class/                 # Master class diagram (html + md + mmd)
-│   │   ├── sequence/
-│   │   └── use-case/
 │   └── architecture/
 │       └── DESIGN.md              # SOLID, patterns, Python package layout (BRD §4.3)
-├── src/                           # (planned) Python application code
-├── tests/                         # (planned) pytest
-├── pyproject.toml                 # (planned) dependencies & tooling
-└── .gitignore
+├── src/prm/
+│   ├── domain/                    # Entities, enums, exceptions, constants
+│   ├── application/               # Services
+│   ├── infrastructure/            # DB, LLM clients, hashing
+│   ├── api/                       # FastAPI REST server
+│   ├── console/                   # CLI client (stub)
+│   └── scheduler/                 # Background jobs (later)
+└── tests/
+    ├── unit/
+    └── integration/
 ```
 
-## Quick start
+## Run with Docker (recommended)
+
+Prerequisites: Docker and Docker Compose.
+
+```bash
+cp .env.example .env
+docker compose up --build
+```
+
+Verify the API:
+
+```bash
+curl http://localhost:8000/health
+```
+
+Expected response:
+
+```json
+{"status":"ok","service":"PRM API","version":"0.1.0"}
+```
+
+Stop services:
+
+```bash
+docker compose down
+```
+
+Services:
+
+| Service | Purpose |
+|---------|---------|
+| `postgres` | PostgreSQL 16 database |
+| `api` | FastAPI REST server on port `8000` |
+| `console` | Console stub — waits for API health (menus in Phase 5) |
+
+## Local development (WSL)
+
+```bash
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -e ".[dev]"
+```
+
+Run the API locally:
+
+```bash
+cp .env.example .env
+# edit DATABASE_URL if needed for local postgres
+python -m prm.api
+```
+
+## Tests
+
+Unit tests (no running server required):
+
+```bash
+pytest tests/unit -v
+```
+
+Integration smoke test (API must be running — Docker or `python -m prm.api`):
+
+```bash
+docker compose up --build -d
+pytest tests/integration -v -m integration
+docker compose down
+```
+
+Override API URL if needed:
+
+```bash
+PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
+```
+
+## Documentation
 
 1. Read [requirements/PRM_BRD.md](requirements/PRM_BRD.md).
 2. Open diagram HTML in a browser:
    - [docs/diagrams/class/class-diagram.html](docs/diagrams/class/class-diagram.html)
    - [docs/diagrams/sequence/sequence-diagram.html](docs/diagrams/sequence/sequence-diagram.html)
    - [docs/diagrams/use-case/use-case-diagram.html](docs/diagrams/use-case/use-case-diagram.html)
-3. Class diagram notes (single file): [docs/diagrams/class/class-diagram.md](docs/diagrams/class/class-diagram.md).
+3. Class diagram notes: [docs/diagrams/class/class-diagram.md](docs/diagrams/class/class-diagram.md).
 4. Engineering guide: [docs/architecture/DESIGN.md](docs/architecture/DESIGN.md).
 5. Doc index: [docs/README.md](docs/README.md).
 
-## Planned Python stack (suggested)
+## Stack
 
 | Layer | Technology |
 |-------|------------|
-| REST API | FastAPI (or Flask) |
-| Persistence | SQLAlchemy + SQLite or PostgreSQL |
-| Console client | `requests` calling REST (or `httpx`) |
-| Scheduler | `APScheduler` or background thread in API process |
-| LLM | Google Gemini / Groq SDKs behind a shared interface |
+| REST API | FastAPI + Uvicorn |
+| Persistence | SQLAlchemy + PostgreSQL + Alembic |
+| Console client | httpx calling REST |
+| Scheduler | APScheduler (later) |
+| LLM | Gemini / Groq behind shared interface (later) |
 | Tests | pytest |
-
-Adjust in `DESIGN.md` if your lead prefers different libraries.
 
 ## Status
 
 | Area | Status |
 |------|--------|
 | Requirements | [PRM_BRD.md](requirements/PRM_BRD.md) |
-| Diagrams | `docs/diagrams/` (class, sequence, use case) |
-| Design compliance | [docs/architecture/DESIGN.md](docs/architecture/DESIGN.md) |
-| Python code | Not started |
+| Diagrams | `docs/diagrams/` |
+| Design compliance | [DESIGN.md](docs/architecture/DESIGN.md) |
+| Project scaffold | Done — Docker, health check, DB/Alembic init |
+| Domain features | In progress |
 
 ## Engineering compliance (BRD §4.3)
 
