@@ -47,3 +47,7 @@ secrets/
 # Logs & local tooling
 *.log
 .plantuml/
+
+# Local implementation tracker (not for remote)
+local/
+.local/
