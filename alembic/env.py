@@ -5,6 +5,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import engine_from_config, pool
 
+import prm.infrastructure.db.models  # noqa: F401 — register ORM metadata
 from prm.api.settings import get_settings
 from prm.infrastructure.db.base import Base
 
