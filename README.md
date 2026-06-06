@@ -83,6 +83,43 @@ curl -s -X POST http://localhost:8000/auth/change-password \
 | `POST /auth/login` | None | Username/password → JWT |
 | `POST /auth/change-password` | Bearer JWT | Set new password; clears `force_password_change` |
 
+### Admin user management (BRD §3.4)
+
+All endpoints require a Bearer JWT for an **ADMIN** account.
+
+```bash
+# After login, set TOKEN from access_token in the login response
+export TOKEN="YOUR_ACCESS_TOKEN"
+
+# List all users
+curl -s http://localhost:8000/admin/users \
+  -H "Authorization: Bearer $TOKEN"
+
+# Create user account (temporary password — user must change on first login)
+curl -s -X POST http://localhost:8000/admin/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"full_name":"Ravi Kumar","email":"ravi@example.test","username":"ravi.kumar","temporary_password":"TempPass1","role":"EMPLOYEE"}'
+
+# Deactivate / reactivate by user id
+curl -s -X POST http://localhost:8000/admin/users/2/deactivate -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:8000/admin/users/2/reactivate -H "Authorization: Bearer $TOKEN"
+
+# Reset password by username or numeric id
+curl -s -X POST http://localhost:8000/admin/users/reset-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"identifier":"ravi.kumar","temporary_password":"ResetPass1"}'
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /admin/users` | Admin JWT | List users + active/inactive counts |
+| `POST /admin/users` | Admin JWT | Create user account |
+| `POST /admin/users/{id}/deactivate` | Admin JWT | Deactivate account |
+| `POST /admin/users/{id}/reactivate` | Admin JWT | Reactivate account |
+| `POST /admin/users/reset-password` | Admin JWT | Reset password (username or id) |
+
 Stop services:
 
 ```bash
@@ -139,7 +176,7 @@ pytest tests/integration -v -m integration
 docker compose down
 ```
 
-Auth smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow.
+Integration smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The auth forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow. Admin user smoke tests create uniquely named users each run.
 
 Override API URL if needed:
 
@@ -179,7 +216,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Project scaffold | Done — Docker, health check, DB/Alembic init |
 | ORM models & seed | Done — class diagram tables, migration, bootstrap Admin |
 | Auth API | Done — login, change-password, JWT (`POST /auth/login`, `POST /auth/change-password`) |
-| Domain features | In progress (admin API next) |
+| Admin users API | Done — create, list, deactivate, reactivate, reset password (`/admin/users/*`) |
+| Domain features | In progress (admin employees/skills next) |
 
 ## Engineering compliance (BRD §4.3)
 

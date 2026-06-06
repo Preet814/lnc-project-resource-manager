@@ -4,7 +4,7 @@ import pytest
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
-from prm.domain.enums import Role
+from prm.domain.enums import Role, UserAccountStatus
 from prm.domain.exceptions import NotFoundError
 from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
@@ -93,4 +93,99 @@ def test_update_password_raises_when_user_missing() -> None:
                 999,
                 password_hash="hash",
                 force_password_change=False,
+            )
+
+
+def test_find_by_email_returns_domain_user() -> None:
+    with _session() as session:
+        _seed(session)
+        repo = SqlAlchemyUserRepository(session)
+
+        user = repo.find_by_email(TEST_EMAIL)
+
+        assert user is not None
+        assert user.username == TEST_USERNAME
+
+
+def test_find_by_email_returns_none_when_missing() -> None:
+    with _session() as session:
+        repo = SqlAlchemyUserRepository(session)
+        assert repo.find_by_email("missing@example.test") is None
+
+
+def test_list_all_returns_users_ordered_by_id() -> None:
+    with _session() as session:
+        _seed(session)
+        repo = SqlAlchemyUserRepository(session)
+        hasher = BcryptPasswordHasher()
+        repo.create(
+            full_name="Second User",
+            username="second_user",
+            email="second@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.EMPLOYEE,
+        )
+        session.commit()
+
+        users = repo.list_all()
+
+        assert len(users) == 2
+        assert users[0].username == TEST_USERNAME
+        assert users[1].username == "second_user"
+
+
+def test_list_all_returns_empty_list_when_no_users() -> None:
+    with _session() as session:
+        repo = SqlAlchemyUserRepository(session)
+        assert repo.list_all() == []
+
+
+def test_create_persists_user_with_force_password_change() -> None:
+    with _session() as session:
+        repo = SqlAlchemyUserRepository(session)
+        hasher = BcryptPasswordHasher()
+
+        created = repo.create(
+            full_name="New Manager",
+            username="new_mgr",
+            email="new_mgr@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.MANAGER,
+        )
+        session.commit()
+
+        loaded = repo.find_by_username("new_mgr")
+        assert loaded is not None
+        assert created.id == loaded.id
+        assert loaded.role == Role.MANAGER
+        assert loaded.force_password_change is True
+        assert loaded.account_status == UserAccountStatus.ACTIVE
+
+
+def test_update_account_status_changes_status() -> None:
+    with _session() as session:
+        _seed(session)
+        repo = SqlAlchemyUserRepository(session)
+        admin = repo.find_by_username(TEST_USERNAME)
+        assert admin is not None
+
+        updated = repo.update_account_status(
+            admin.id,
+            account_status=UserAccountStatus.INACTIVE,
+        )
+        session.commit()
+
+        assert updated.account_status == UserAccountStatus.INACTIVE
+        reloaded = repo.find_by_id(admin.id)
+        assert reloaded is not None
+        assert reloaded.account_status == UserAccountStatus.INACTIVE
+
+
+def test_update_account_status_raises_when_user_missing() -> None:
+    with _session() as session:
+        repo = SqlAlchemyUserRepository(session)
+        with pytest.raises(NotFoundError):
+            repo.update_account_status(
+                999,
+                account_status=UserAccountStatus.INACTIVE,
             )

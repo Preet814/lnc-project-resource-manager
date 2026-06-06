@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from prm.domain.enums import Role
+from prm.domain.enums import Role, UserAccountStatus
 
 
 @dataclass(frozen=True, slots=True)
@@ -36,3 +36,27 @@ class LoginResult:
     role: Role
     force_password_change: bool
     expires_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class UserSummary:
+    """Compact user row for admin list screens (BRD §3.4.2)."""
+
+    id: int
+    username: str
+    full_name: str
+    role: Role
+    account_status: UserAccountStatus
+
+    def is_active(self) -> bool:
+        return self.account_status == UserAccountStatus.ACTIVE
+
+
+@dataclass(frozen=True, slots=True)
+class UserListResult:
+    """All users plus aggregate counts for the admin dashboard."""
+
+    users: tuple[UserSummary, ...]
+    total: int
+    active_count: int
+    inactive_count: int
