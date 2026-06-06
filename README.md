@@ -44,7 +44,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin from `.env` (`BOOTSTRAP_ADMIN_*` variables — see `.env.example`; BRD defaults `admin` / `Admin@1234`, `force_password_change=true`).
+On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin from `.env` (`BOOTSTRAP_ADMIN_*`, `JWT_SECRET_KEY` — see `.env.example`; BRD defaults `admin` / `Admin@1234`, `force_password_change=true`).
 
 Verify the API:
 
@@ -57,6 +57,31 @@ Expected response:
 ```json
 {"status":"ok","service":"PRM API","version":"0.1.0"}
 ```
+
+### Auth (login + forced password change)
+
+Set bootstrap credentials and JWT secret in `.env`, then:
+
+```bash
+# Login (bootstrap admin — password from BOOTSTRAP_ADMIN_PASSWORD in .env)
+curl -s -X POST http://localhost:8000/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"username":"admin","password":"YOUR_BOOTSTRAP_PASSWORD"}'
+```
+
+Response includes `access_token`, `force_password_change`, and `role`. When `force_password_change` is `true`, change password before using other features:
+
+```bash
+curl -s -X POST http://localhost:8000/auth/change-password \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer YOUR_ACCESS_TOKEN" \
+  -d '{"new_password":"NewSecure1","confirm_password":"NewSecure1"}'
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /auth/login` | None | Username/password → JWT |
+| `POST /auth/change-password` | Bearer JWT | Set new password; clears `force_password_change` |
 
 Stop services:
 
@@ -105,13 +130,16 @@ Unit tests (no running server required):
 pytest tests/unit -v
 ```
 
-Integration smoke test (API must be running — Docker or `python -m prm.api`):
+Integration smoke tests (API must be running — Docker or `python -m prm.api`):
 
 ```bash
 docker compose up --build -d
+set -a && source .env && set +a   # WSL/bash — bootstrap creds for auth smoke
 pytest tests/integration -v -m integration
 docker compose down
 ```
+
+Auth smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow.
 
 Override API URL if needed:
 
@@ -150,7 +178,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Design compliance | [DESIGN.md](docs/architecture/DESIGN.md) |
 | Project scaffold | Done — Docker, health check, DB/Alembic init |
 | ORM models & seed | Done — class diagram tables, migration, bootstrap Admin |
-| Domain features | In progress (auth API next) |
+| Auth API | Done — login, change-password, JWT (`POST /auth/login`, `POST /auth/change-password`) |
+| Domain features | In progress (admin API next) |
 
 ## Engineering compliance (BRD §4.3)
 
