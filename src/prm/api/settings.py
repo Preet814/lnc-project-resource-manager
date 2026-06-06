@@ -25,6 +25,9 @@ class Settings(BaseSettings):
     bootstrap_admin_full_name: str
     bootstrap_admin_email: str
 
+    jwt_secret_key: str
+    jwt_expire_minutes: int = 480
+
 
 @lru_cache
 def get_settings() -> Settings:

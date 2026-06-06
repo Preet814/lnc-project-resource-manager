@@ -7,11 +7,7 @@ from prm.domain.enums import Role, UserAccountStatus
 from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
-
-TEST_ADMIN_USERNAME = "admin"
-TEST_ADMIN_PASSWORD = "Admin@1234"
-TEST_ADMIN_FULL_NAME = "System Administrator"
-TEST_ADMIN_EMAIL = "admin@test.local"
+from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 
 
 def _session() -> Session:
@@ -23,10 +19,10 @@ def _session() -> Session:
 def _seed(session: Session) -> bool:
     return seed_bootstrap_admin(
         session,
-        username=TEST_ADMIN_USERNAME,
-        password=TEST_ADMIN_PASSWORD,
-        full_name=TEST_ADMIN_FULL_NAME,
-        email=TEST_ADMIN_EMAIL,
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD,
+        full_name=TEST_FULL_NAME,
+        email=TEST_EMAIL,
     )
 
 
@@ -36,7 +32,7 @@ def test_seed_creates_admin_with_force_password_change() -> None:
         assert created is True
 
         admin = session.scalar(
-            select(UserModel).where(UserModel.username == TEST_ADMIN_USERNAME)
+            select(UserModel).where(UserModel.username == TEST_USERNAME)
         )
         assert admin is not None
         assert admin.role == Role.ADMIN
@@ -44,7 +40,7 @@ def test_seed_creates_admin_with_force_password_change() -> None:
         assert admin.force_password_change is True
 
         hasher = BcryptPasswordHasher()
-        assert hasher.verify(TEST_ADMIN_PASSWORD, admin.password_hash)
+        assert hasher.verify(TEST_PASSWORD, admin.password_hash)
 
 
 def test_seed_is_idempotent() -> None:
@@ -53,6 +49,6 @@ def test_seed_is_idempotent() -> None:
         assert _seed(session) is False
 
         admin = session.scalar(
-            select(UserModel).where(UserModel.username == TEST_ADMIN_USERNAME)
+            select(UserModel).where(UserModel.username == TEST_USERNAME)
         )
         assert admin is not None
