@@ -8,6 +8,9 @@ from sqlalchemy.orm import Session
 
 from prm.api.settings import Settings, get_settings
 from prm.application.auth_service import AuthService
+from prm.application.user_management_service import UserManagementService
+from prm.domain.enums import Role
+from prm.domain.exceptions import UnauthorizedError
 from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.jwt import JwtTokenPayload, JwtTokenService
@@ -42,3 +45,22 @@ def get_current_user(
     token_service: Annotated[JwtTokenService, Depends(get_token_service)],
 ) -> JwtTokenPayload:
     return token_service.decode_access_token(credentials.credentials)
+
+
+def get_user_management_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> UserManagementService:
+    return UserManagementService(
+        user_repository=SqlAlchemyUserRepository(db),
+        password_hasher=BcryptPasswordHasher(),
+    )
+
+
+def require_admin(
+    current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+) -> JwtTokenPayload:
+    if current_user.role != Role.ADMIN:
+        raise UnauthorizedError(
+            f"Role {current_user.role.value} is not permitted for this action."
+        )
+    return current_user
