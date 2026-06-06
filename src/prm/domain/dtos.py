@@ -3,6 +3,8 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
+from prm.domain.enums import Role
+
 
 @dataclass(frozen=True, slots=True)
 class AuthToken:
@@ -20,3 +22,17 @@ class AuthToken:
         if reference.tzinfo is None:
             reference = reference.replace(tzinfo=UTC)
         return reference < expires
+
+
+@dataclass(frozen=True, slots=True)
+class LoginResult:
+    """Successful login — token plus flags the console needs for routing."""
+
+    access_token: str
+    token_type: str
+    user_id: int
+    username: str
+    full_name: str
+    role: Role
+    force_password_change: bool
+    expires_at: datetime
