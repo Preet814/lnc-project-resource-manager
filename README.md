@@ -44,6 +44,8 @@ cp .env.example .env
 docker compose up --build
 ```
 
+On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin user (`admin` / `Admin@1234`, `force_password_change=true`).
+
 Verify the API:
 
 ```bash
@@ -76,6 +78,15 @@ Services:
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -e ".[dev]"
+```
+
+Apply migrations and seed the bootstrap Admin (requires PostgreSQL):
+
+```bash
+cp .env.example .env
+docker compose up -d postgres
+DATABASE_URL=postgresql://prm:prm@localhost:5432/prm alembic upgrade head
+DATABASE_URL=postgresql://prm:prm@localhost:5432/prm python -m prm.infrastructure.db.seed
 ```
 
 Run the API locally:
@@ -138,7 +149,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Diagrams | `docs/diagrams/` |
 | Design compliance | [DESIGN.md](docs/architecture/DESIGN.md) |
 | Project scaffold | Done — Docker, health check, DB/Alembic init |
-| Domain features | In progress |
+| ORM models & seed | Done — class diagram tables, migration, bootstrap Admin |
+| Domain features | In progress (auth API next) |
 
 ## Engineering compliance (BRD §4.3)
 

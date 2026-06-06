@@ -17,7 +17,10 @@ services:
 
   api:
     build: .
-    command: python -m prm.api
+    command: >
+      sh -c "alembic upgrade head &&
+             python -m prm.infrastructure.db.seed &&
+             python -m prm.api"
     env_file: .env
     ports:
       - "8000:8000"
