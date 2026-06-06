@@ -5,15 +5,16 @@ from datetime import UTC, datetime, timedelta
 from prm.domain.dtos import AuthToken
 from prm.domain.entities.user import User
 from prm.domain.enums import Role, UserAccountStatus
+from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_USERNAME
 
 
 def _sample_user(*, force_password_change: bool = True) -> User:
     now = datetime.now(UTC)
     return User(
         id=1,
-        full_name="System Administrator",
-        username="admin",
-        email="admin@local",
+        full_name=TEST_FULL_NAME,
+        username=TEST_USERNAME,
+        email=TEST_EMAIL,
         password_hash="hashed",
         role=Role.ADMIN,
         account_status=UserAccountStatus.ACTIVE,

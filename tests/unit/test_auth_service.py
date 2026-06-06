@@ -12,11 +12,8 @@ from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.jwt import JwtTokenService
 from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 
-TEST_ADMIN_USERNAME = "admin"
-TEST_ADMIN_PASSWORD = "Admin@1234"
-TEST_ADMIN_FULL_NAME = "System Administrator"
-TEST_ADMIN_EMAIL = "admin@test.local"
 JWT_SECRET = "auth-service-test-secret"
 
 
@@ -37,22 +34,22 @@ def _auth_service(session: Session) -> AuthService:
 def _seed_admin(session: Session) -> None:
     seed_bootstrap_admin(
         session,
-        username=TEST_ADMIN_USERNAME,
-        password=TEST_ADMIN_PASSWORD,
-        full_name=TEST_ADMIN_FULL_NAME,
-        email=TEST_ADMIN_EMAIL,
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD,
+        full_name=TEST_FULL_NAME,
+        email=TEST_EMAIL,
     )
 
 
 def test_login_success_returns_token_and_force_password_change_flag() -> None:
     with _session() as session:
         _seed_admin(session)
-        result = _auth_service(session).login(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)
+        result = _auth_service(session).login(TEST_USERNAME, TEST_PASSWORD)
 
         assert result.access_token
         assert result.token_type == "bearer"
         assert result.user_id == 1
-        assert result.username == TEST_ADMIN_USERNAME
+        assert result.username == TEST_USERNAME
         assert result.role == Role.ADMIN
         assert result.force_password_change is True
 
@@ -61,7 +58,7 @@ def test_login_fails_with_wrong_password() -> None:
     with _session() as session:
         _seed_admin(session)
         with pytest.raises(AuthenticationError, match="Invalid username or password"):
-            _auth_service(session).login(TEST_ADMIN_USERNAME, "WrongPass1")
+            _auth_service(session).login(TEST_USERNAME, "WrongPass1")
 
 
 def test_login_fails_with_unknown_username() -> None:
@@ -79,14 +76,14 @@ def test_login_fails_for_inactive_account() -> None:
         session.commit()
 
         with pytest.raises(UnauthorizedError, match="inactive"):
-            _auth_service(session).login(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)
+            _auth_service(session).login(TEST_USERNAME, TEST_PASSWORD)
 
 
 def test_change_password_clears_force_flag_and_returns_new_token() -> None:
     with _session() as session:
         _seed_admin(session)
         service = _auth_service(session)
-        login = service.login(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)
+        login = service.login(TEST_USERNAME, TEST_PASSWORD)
         assert login.force_password_change is True
 
         updated, result = service.change_password(
@@ -107,7 +104,7 @@ def test_change_password_clears_force_flag_and_returns_new_token() -> None:
 def test_change_password_fails_when_confirmation_mismatches() -> None:
     with _session() as session:
         _seed_admin(session)
-        login = _auth_service(session).login(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)
+        login = _auth_service(session).login(TEST_USERNAME, TEST_PASSWORD)
 
         with pytest.raises(ValidationError, match="do not match"):
             _auth_service(session).change_password(
@@ -120,7 +117,7 @@ def test_change_password_fails_when_confirmation_mismatches() -> None:
 def test_change_password_fails_when_password_too_weak() -> None:
     with _session() as session:
         _seed_admin(session)
-        login = _auth_service(session).login(TEST_ADMIN_USERNAME, TEST_ADMIN_PASSWORD)
+        login = _auth_service(session).login(TEST_USERNAME, TEST_PASSWORD)
 
         with pytest.raises(ValidationError):
             _auth_service(session).change_password(

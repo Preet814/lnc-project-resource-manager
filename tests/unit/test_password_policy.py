@@ -4,10 +4,11 @@ import pytest
 
 from prm.domain.exceptions import ValidationError
 from prm.domain.password_policy import validate_password_strength
+from tests.unit.credentials import TEST_PASSWORD
 
 
 def test_valid_password_passes() -> None:
-    validate_password_strength("Admin@1234")
+    validate_password_strength(TEST_PASSWORD)
 
 
 @pytest.mark.parametrize(

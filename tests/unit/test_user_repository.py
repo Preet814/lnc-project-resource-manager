@@ -10,11 +10,7 @@ from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
-
-TEST_ADMIN_USERNAME = "admin"
-TEST_ADMIN_PASSWORD = "Admin@1234"
-TEST_ADMIN_FULL_NAME = "System Administrator"
-TEST_ADMIN_EMAIL = "admin@test.local"
+from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 
 
 def _session() -> Session:
@@ -26,10 +22,10 @@ def _session() -> Session:
 def _seed(session: Session) -> None:
     seed_bootstrap_admin(
         session,
-        username=TEST_ADMIN_USERNAME,
-        password=TEST_ADMIN_PASSWORD,
-        full_name=TEST_ADMIN_FULL_NAME,
-        email=TEST_ADMIN_EMAIL,
+        username=TEST_USERNAME,
+        password=TEST_PASSWORD,
+        full_name=TEST_FULL_NAME,
+        email=TEST_EMAIL,
     )
 
 
@@ -38,10 +34,10 @@ def test_find_by_username_returns_domain_user() -> None:
         _seed(session)
         repo = SqlAlchemyUserRepository(session)
 
-        user = repo.find_by_username(TEST_ADMIN_USERNAME)
+        user = repo.find_by_username(TEST_USERNAME)
 
         assert user is not None
-        assert user.username == TEST_ADMIN_USERNAME
+        assert user.username == TEST_USERNAME
         assert user.role == Role.ADMIN
         assert user.force_password_change is True
 
@@ -51,7 +47,7 @@ def test_find_by_id_returns_domain_user() -> None:
         _seed(session)
         repo = SqlAlchemyUserRepository(session)
         model = session.scalar(
-            select(UserModel).where(UserModel.username == TEST_ADMIN_USERNAME)
+            select(UserModel).where(UserModel.username == TEST_USERNAME)
         )
         assert model is not None
 
@@ -59,7 +55,7 @@ def test_find_by_id_returns_domain_user() -> None:
 
         assert user is not None
         assert user.id == model.id
-        assert user.email == TEST_ADMIN_EMAIL
+        assert user.email == TEST_EMAIL
 
 
 def test_find_by_username_returns_none_when_missing() -> None:
@@ -72,7 +68,7 @@ def test_update_password_changes_hash_and_flag() -> None:
     with _session() as session:
         _seed(session)
         repo = SqlAlchemyUserRepository(session)
-        admin = repo.find_by_username(TEST_ADMIN_USERNAME)
+        admin = repo.find_by_username(TEST_USERNAME)
         assert admin is not None
 
         hasher = BcryptPasswordHasher()
@@ -86,7 +82,7 @@ def test_update_password_changes_hash_and_flag() -> None:
 
         assert updated.force_password_change is False
         assert hasher.verify("NewPass1", updated.password_hash)
-        assert not hasher.verify(TEST_ADMIN_PASSWORD, updated.password_hash)
+        assert not hasher.verify(TEST_PASSWORD, updated.password_hash)
 
 
 def test_update_password_raises_when_user_missing() -> None:
