@@ -44,7 +44,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin user (`admin` / `Admin@1234`, `force_password_change=true`).
+On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin from `.env` (`BOOTSTRAP_ADMIN_*` variables — see `.env.example`; BRD defaults `admin` / `Admin@1234`, `force_password_change=true`).
 
 Verify the API:
 
@@ -80,13 +80,13 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Apply migrations and seed the bootstrap Admin (requires PostgreSQL):
+Apply migrations and seed the bootstrap Admin (requires PostgreSQL and `BOOTSTRAP_ADMIN_*` in `.env`):
 
 ```bash
 cp .env.example .env
 docker compose up -d postgres
 DATABASE_URL=postgresql://prm:prm@localhost:5432/prm alembic upgrade head
-DATABASE_URL=postgresql://prm:prm@localhost:5432/prm python -m prm.infrastructure.db.seed
+python -m prm.infrastructure.db.seed
 ```
 
 Run the API locally:

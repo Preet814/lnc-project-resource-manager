@@ -20,6 +20,11 @@ class Settings(BaseSettings):
     api_port: int = 8000
     database_url: str = "postgresql://prm:prm@localhost:5432/prm"
 
+    bootstrap_admin_username: str
+    bootstrap_admin_password: str
+    bootstrap_admin_full_name: str
+    bootstrap_admin_email: str
+
 
 @lru_cache
 def get_settings() -> Settings:
