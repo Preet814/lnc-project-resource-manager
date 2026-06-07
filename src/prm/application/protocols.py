@@ -167,6 +167,13 @@ class EmployeeSkillRepository(Protocol):
 class AllocationRepository(Protocol):
     def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
 
+    def list_active(
+        self,
+        *,
+        employee_id: int | None = None,
+        project_id: int | None = None,
+    ) -> list[Allocation]: ...
+
     def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]: ...
 
 
