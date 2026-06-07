@@ -7,6 +7,7 @@ from prm.domain.exceptions import (
     AuthenticationError,
     ConflictError,
     DomainError,
+    LlmUnavailableError,
     NotFoundError,
     UnauthorizedError,
     ValidationError,
@@ -39,6 +40,12 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(ConflictError)
     async def conflict_error_handler(_request: Request, exc: ConflictError) -> JSONResponse:
         return JSONResponse(status_code=409, content={"detail": str(exc)})
+
+    @app.exception_handler(LlmUnavailableError)
+    async def llm_unavailable_error_handler(
+        _request: Request, exc: LlmUnavailableError
+    ) -> JSONResponse:
+        return JSONResponse(status_code=503, content={"detail": str(exc)})
 
     @app.exception_handler(DomainError)
     async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:

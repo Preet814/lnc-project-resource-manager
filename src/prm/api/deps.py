@@ -16,13 +16,17 @@ from prm.application.employee_skill_service import EmployeeSkillService
 from prm.application.manager_project_service import ManagerProjectService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
+from prm.application.protocols import LLMClient
 from prm.application.resource_dashboard_service import ResourceDashboardService
+from prm.application.risk_summary_service import RiskSummaryService
+from prm.application.skill_match_service import SkillMatchService
 from prm.application.system_config_service import SystemConfigService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.application.user_management_service import UserManagementService
 from prm.application.utilisation_calculator import UtilisationCalculator
+from prm.domain.entities.system_configuration import SystemConfiguration
 from prm.domain.enums import Role
-from prm.domain.exceptions import UnauthorizedError
+from prm.domain.exceptions import UnauthorizedError, ValidationError
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyEmployeeRepository,
@@ -36,6 +40,7 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyUserRepository,
 )
 from prm.infrastructure.db.session import get_db_session
+from prm.infrastructure.llm.factory import create_llm_client_from_settings
 from prm.infrastructure.security.jwt import JwtTokenPayload, JwtTokenService
 from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
@@ -207,4 +212,63 @@ def get_team_timesheet_service(
         employee_repository=SqlAlchemyEmployeeRepository(db),
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
+    )
+
+
+def _require_system_configuration(session: Session) -> SystemConfiguration:
+    repository = SqlAlchemySystemConfigurationRepository(session)
+    config = repository.find_singleton()
+    if config is None:
+        return repository.create_with_defaults()
+    return config
+
+
+def get_llm_client(
+    db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> LLMClient:
+    config = _require_system_configuration(db)
+    if not config.has_llm_api_key():
+        raise ValidationError("LLM API key is not configured.")
+
+    assert config.llm_api_key_encrypted is not None
+    api_key = FernetLlmApiKeyProtector(settings.jwt_secret_key).decrypt(
+        config.llm_api_key_encrypted
+    )
+    return create_llm_client_from_settings(config.llm_provider, api_key, settings)
+
+
+def get_skill_match_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+) -> SkillMatchService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    config = _require_system_configuration(db)
+    return SkillMatchService(
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        employee_skill_repository=SqlAlchemyEmployeeSkillRepository(db),
+        skill_repository=SqlAlchemySkillRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        authorization=AuthorizationService(project_repository),
+        llm_client=llm_client,
+        max_weekly_hours=config.max_weekly_hours,
+    )
+
+
+def get_risk_summary_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+) -> RiskSummaryService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    config = _require_system_configuration(db)
+    return RiskSummaryService(
+        project_repository=project_repository,
+        milestone_repository=SqlAlchemyMilestoneRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        health_snapshot_repository=SqlAlchemyProjectHealthSnapshotRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        authorization=AuthorizationService(project_repository),
+        llm_client=llm_client,
+        max_weekly_hours=config.max_weekly_hours,
     )

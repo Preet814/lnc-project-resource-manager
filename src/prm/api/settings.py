@@ -2,10 +2,20 @@
 
 from functools import lru_cache
 
+from pydantic import field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from prm import __version__
-from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, DEFAULT_SCHEDULER_INTERVAL_HOURS
+from prm.domain.constants import (
+    DEFAULT_GEMINI_BASE_URL,
+    DEFAULT_GEMINI_MODEL,
+    DEFAULT_GROQ_BASE_URL,
+    DEFAULT_GROQ_MODEL,
+    DEFAULT_MAX_WEEKLY_HOURS,
+    DEFAULT_SCHEDULER_INTERVAL_HOURS,
+)
+from prm.domain.enums import LLMProvider
+from prm.infrastructure.llm.validation import validate_llm_base_url, validate_llm_model
 
 
 class Settings(BaseSettings):
@@ -34,6 +44,31 @@ class Settings(BaseSettings):
     bootstrap_llm_api_key: str = ""
     bootstrap_scheduler_interval_hours: int = DEFAULT_SCHEDULER_INTERVAL_HOURS
     bootstrap_max_weekly_hours: int = DEFAULT_MAX_WEEKLY_HOURS
+
+    gemini_base_url: str = DEFAULT_GEMINI_BASE_URL
+    gemini_model: str = DEFAULT_GEMINI_MODEL
+    groq_base_url: str = DEFAULT_GROQ_BASE_URL
+    groq_model: str = DEFAULT_GROQ_MODEL
+
+    @field_validator("gemini_base_url")
+    @classmethod
+    def validate_gemini_base_url(cls, value: str) -> str:
+        return validate_llm_base_url(LLMProvider.GEMINI, value)
+
+    @field_validator("gemini_model")
+    @classmethod
+    def validate_gemini_model(cls, value: str) -> str:
+        return validate_llm_model(value)
+
+    @field_validator("groq_base_url")
+    @classmethod
+    def validate_groq_base_url(cls, value: str) -> str:
+        return validate_llm_base_url(LLMProvider.GROQ, value)
+
+    @field_validator("groq_model")
+    @classmethod
+    def validate_groq_model(cls, value: str) -> str:
+        return validate_llm_model(value)
 
 
 @lru_cache
