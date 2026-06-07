@@ -10,8 +10,15 @@ from prm.domain.enums import ActivityTag
 from prm.infrastructure.db.models import TimesheetEntryModel, TimesheetWeekModel
 
 
-def _format_activity_tag(tag: ActivityTag) -> str:
-    return tag.value.replace("_", " ").title()
+def _format_activity_tag(tag: ActivityTag | str) -> str:
+    raw = tag.value if isinstance(tag, ActivityTag) else tag
+    return raw.replace("_", " ").title()
+
+
+def _coerce_activity_tag(tag: ActivityTag | str) -> ActivityTag:
+    if isinstance(tag, ActivityTag):
+        return tag
+    return ActivityTag(tag)
 
 
 def _week_to_domain(model: TimesheetWeekModel) -> TimesheetWeek:
@@ -31,7 +38,7 @@ def _entry_to_domain(model: TimesheetEntryModel) -> TimesheetEntry:
         timesheet_week_id=model.timesheet_week_id,
         project_id=model.project_id,
         hours_worked=model.hours_worked,
-        activity_tags=tuple(model.activity_tags),
+        activity_tags=tuple(_coerce_activity_tag(tag) for tag in model.activity_tags),
     )
 
 
