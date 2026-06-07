@@ -9,9 +9,11 @@ from prm.domain.entities.employee import Employee
 from prm.domain.entities.milestone import Milestone
 from prm.domain.entities.project import Project
 from prm.domain.entities.skill import EmployeeSkill, Skill
+from prm.domain.entities.system_configuration import SystemConfiguration
 from prm.domain.entities.user import User
 from prm.domain.enums import (
     EmployeeWorkStatus,
+    LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectStatus,
@@ -238,3 +240,19 @@ class MilestoneRepository(Protocol):
         status: MilestoneStatus | None = None,
         sequence_order: int | None = None,
     ) -> Milestone: ...
+
+
+class SystemConfigurationRepository(Protocol):
+    def find_singleton(self) -> SystemConfiguration | None: ...
+
+    def create_with_defaults(self) -> SystemConfiguration: ...
+
+    def update(
+        self,
+        config_id: int,
+        *,
+        llm_provider: LLMProvider | None = None,
+        llm_api_key_encrypted: str | None = None,
+        scheduler_interval_hours: int | None = None,
+        max_weekly_hours: int | None = None,
+    ) -> SystemConfiguration: ...

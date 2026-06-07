@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 
 from prm.domain.enums import (
     EmployeeWorkStatus,
+    LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectStatus,
@@ -162,3 +163,13 @@ class AllocationListResult:
 
     allocations: tuple[AllocationSummary, ...]
     total: int
+
+
+@dataclass(frozen=True, slots=True)
+class SystemConfigurationSummary:
+    """Current system settings for admin configuration screen (BRD §3.5)."""
+
+    llm_provider: LLMProvider
+    llm_api_key_masked: str | None
+    scheduler_interval_hours: int
+    max_weekly_hours: int
