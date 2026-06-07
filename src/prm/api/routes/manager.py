@@ -1,14 +1,17 @@
-"""Manager resource dashboard and allocation endpoints (BRD §4.1, §4.2)."""
+"""Manager resource dashboard, allocation, projects, and timesheet endpoints."""
 
+from datetime import date, timedelta
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy.orm import Session
 
 from prm.api.deps import (
     get_allocation_service,
     get_db_session,
+    get_manager_project_service,
     get_resource_dashboard_service,
+    get_team_timesheet_service,
     require_manager,
 )
 from prm.api.schemas.admin_allocations import AllocationSummaryResponse
@@ -18,17 +21,32 @@ from prm.api.schemas.manager import (
     CreateAllocationRequest,
     EmployeeAllocationDetailResponse,
     EmployeeResourceDetailResponse,
+    EmployeeTimesheetEntryResponse,
+    EmployeeTimesheetWeekDetailResponse,
     EndAllocationRequest,
     ManagerAllocationResponse,
+    ManagerProjectDetailResponse,
+    ManagerProjectListResponse,
+    ManagerProjectMilestoneResponse,
+    ManagerProjectResourceResponse,
+    ManagerProjectSummaryResponse,
     ProjectAllocationListResponse,
     ResourceDashboardResponse,
+    TeamTimesheetListResponse,
+    TeamTimesheetRowResponse,
 )
 from prm.application.allocation_service import AllocationService
+from prm.application.manager_project_service import ManagerProjectService
 from prm.application.resource_dashboard_service import ResourceDashboardService
+from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.domain.dtos import (
     AllocationSummary,
     EmployeeResourceDetail,
+    EmployeeTimesheetWeekDetail,
+    ManagerProjectDetail,
+    ManagerProjectListResult,
     ResourceDashboardResult,
+    TeamTimesheetListResult,
 )
 from prm.domain.entities.allocation import Allocation
 from prm.infrastructure.security.jwt import JwtTokenPayload
@@ -114,6 +132,146 @@ def _to_project_allocation_list_response(
         ],
         total=len(allocations),
     )
+
+
+def _default_week_start() -> date:
+    today = date.today()
+    return today - timedelta(days=today.weekday())
+
+
+def _to_manager_project_list_response(
+    result: ManagerProjectListResult,
+) -> ManagerProjectListResponse:
+    return ManagerProjectListResponse(
+        projects=[
+            ManagerProjectSummaryResponse(
+                project_id=project.project_id,
+                name=project.name,
+                end_date=project.end_date,
+                health_status=project.health_status,
+            )
+            for project in result.projects
+        ],
+        total=result.total,
+    )
+
+
+def _to_manager_project_detail_response(
+    detail: ManagerProjectDetail,
+) -> ManagerProjectDetailResponse:
+    return ManagerProjectDetailResponse(
+        project_id=detail.project_id,
+        name=detail.name,
+        health_status=detail.health_status,
+        health_computed_at=detail.health_computed_at,
+        risk_flags=list(detail.risk_flags),
+        milestones=[
+            ManagerProjectMilestoneResponse(
+                milestone_id=milestone.milestone_id,
+                title=milestone.title,
+                due_date=milestone.due_date,
+                status=milestone.status,
+                sequence_order=milestone.sequence_order,
+                is_overdue=milestone.is_overdue,
+            )
+            for milestone in detail.milestones
+        ],
+        allocated_resources=[
+            ManagerProjectResourceResponse(
+                employee_id=resource.employee_id,
+                employee_full_name=resource.employee_full_name,
+                utilisation_percent=resource.utilisation_percent,
+                from_date=resource.from_date,
+                to_date=resource.to_date,
+            )
+            for resource in detail.allocated_resources
+        ],
+    )
+
+
+def _to_team_timesheet_list_response(
+    result: TeamTimesheetListResult,
+) -> TeamTimesheetListResponse:
+    return TeamTimesheetListResponse(
+        week_start_date=result.week_start_date,
+        rows=[
+            TeamTimesheetRowResponse(
+                employee_id=row.employee_id,
+                employee_full_name=row.employee_full_name,
+                project_id=row.project_id,
+                project_name=row.project_name,
+                hours=row.hours,
+                status=row.status,
+            )
+            for row in result.rows
+        ],
+        total=result.total,
+    )
+
+
+def _to_employee_timesheet_week_detail_response(
+    detail: EmployeeTimesheetWeekDetail,
+) -> EmployeeTimesheetWeekDetailResponse:
+    return EmployeeTimesheetWeekDetailResponse(
+        employee_id=detail.employee_id,
+        employee_full_name=detail.employee_full_name,
+        week_start_date=detail.week_start_date,
+        status=detail.status,
+        total_hours=detail.total_hours,
+        entries=[
+            EmployeeTimesheetEntryResponse(
+                project_id=entry.project_id,
+                project_name=entry.project_name,
+                hours_worked=entry.hours_worked,
+                activity_tags=list(entry.activity_tags),
+            )
+            for entry in detail.entries
+        ],
+    )
+
+
+@router.get("/projects", response_model=ManagerProjectListResponse)
+def list_my_projects(
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[ManagerProjectService, Depends(get_manager_project_service)],
+) -> ManagerProjectListResponse:
+    return _to_manager_project_list_response(service.list_my_projects(manager.user_id))
+
+
+@router.get("/projects/{project_id}", response_model=ManagerProjectDetailResponse)
+def get_project_detail(
+    project_id: int,
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[ManagerProjectService, Depends(get_manager_project_service)],
+) -> ManagerProjectDetailResponse:
+    detail = service.get_project_detail(manager.user_id, project_id)
+    return _to_manager_project_detail_response(detail)
+
+
+@router.get("/timesheets", response_model=TeamTimesheetListResponse)
+def list_team_timesheets(
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[TeamTimesheetService, Depends(get_team_timesheet_service)],
+    week_start_date: Annotated[date | None, Query()] = None,
+) -> TeamTimesheetListResponse:
+    week = week_start_date or _default_week_start()
+    result = service.list_team_timesheets(manager.user_id, week)
+    return _to_team_timesheet_list_response(result)
+
+
+@router.get(
+    "/timesheets/{employee_id}",
+    response_model=EmployeeTimesheetWeekDetailResponse,
+)
+def get_employee_timesheet_detail(
+    employee_id: int,
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[TeamTimesheetService, Depends(get_team_timesheet_service)],
+    week_start_date: Annotated[date | None, Query()] = None,
+) -> EmployeeTimesheetWeekDetailResponse:
+    week = week_start_date or _default_week_start()
+    detail = service.get_employee_timesheet_detail(manager.user_id, employee_id, week)
+    return _to_employee_timesheet_week_detail_response(detail)
 
 
 @router.get("/resources", response_model=ResourceDashboardResponse)
