@@ -3,7 +3,13 @@
 from datetime import date, datetime
 from typing import Protocol
 
-from prm.domain.dtos import AuthToken
+from prm.domain.dtos import (
+    AuthToken,
+    RiskSummaryContext,
+    SkillMatchCandidate,
+    SkillMatchContext,
+    SkillMatchResult,
+)
 from prm.domain.entities.allocation import Allocation
 from prm.domain.entities.employee import Employee
 from prm.domain.entities.milestone import Milestone
@@ -322,3 +328,15 @@ class SystemConfigurationRepository(Protocol):
         scheduler_interval_hours: int | None = None,
         max_weekly_hours: int | None = None,
     ) -> SystemConfiguration: ...
+
+
+class LLMClient(Protocol):
+    """Strategy interface for LLM providers (DESIGN.md — Gemini / Groq adapters)."""
+
+    def rank_candidates(
+        self,
+        context: SkillMatchContext,
+        candidates: tuple[SkillMatchCandidate, ...],
+    ) -> tuple[SkillMatchResult, ...]: ...
+
+    def summarize_risk(self, context: RiskSummaryContext) -> str: ...
