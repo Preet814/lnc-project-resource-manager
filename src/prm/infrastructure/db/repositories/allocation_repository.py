@@ -38,6 +38,24 @@ class SqlAlchemyAllocationRepository:
         ).all()
         return [_to_domain(model) for model in models]
 
+    def list_active(
+        self,
+        *,
+        employee_id: int | None = None,
+        project_id: int | None = None,
+    ) -> list[Allocation]:
+        stmt = (
+            select(AllocationModel)
+            .where(AllocationModel.status == AllocationStatus.ACTIVE)
+            .order_by(AllocationModel.id)
+        )
+        if employee_id is not None:
+            stmt = stmt.where(AllocationModel.employee_id == employee_id)
+        if project_id is not None:
+            stmt = stmt.where(AllocationModel.project_id == project_id)
+        models = self._session.scalars(stmt).all()
+        return [_to_domain(model) for model in models]
+
     def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]:
         models = list(
             self._session.scalars(

@@ -9,9 +9,11 @@ from prm.domain.entities.employee import Employee
 from prm.domain.entities.milestone import Milestone
 from prm.domain.entities.project import Project
 from prm.domain.entities.skill import EmployeeSkill, Skill
+from prm.domain.entities.system_configuration import SystemConfiguration
 from prm.domain.entities.user import User
 from prm.domain.enums import (
     EmployeeWorkStatus,
+    LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectStatus,
@@ -25,6 +27,12 @@ class PasswordHasher(Protocol):
     def hash(self, password: str) -> str: ...
 
     def verify(self, password: str, password_hash: str) -> bool: ...
+
+
+class LlmApiKeyProtector(Protocol):
+    def encrypt(self, api_key: str) -> str: ...
+
+    def decrypt(self, encrypted: str) -> str: ...
 
 
 class TokenPayload(Protocol):
@@ -167,6 +175,13 @@ class EmployeeSkillRepository(Protocol):
 class AllocationRepository(Protocol):
     def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
 
+    def list_active(
+        self,
+        *,
+        employee_id: int | None = None,
+        project_id: int | None = None,
+    ) -> list[Allocation]: ...
+
     def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]: ...
 
 
@@ -231,3 +246,19 @@ class MilestoneRepository(Protocol):
         status: MilestoneStatus | None = None,
         sequence_order: int | None = None,
     ) -> Milestone: ...
+
+
+class SystemConfigurationRepository(Protocol):
+    def find_singleton(self) -> SystemConfiguration | None: ...
+
+    def create_with_defaults(self) -> SystemConfiguration: ...
+
+    def update(
+        self,
+        config_id: int,
+        *,
+        llm_provider: LLMProvider | None = None,
+        llm_api_key_encrypted: str | None = None,
+        scheduler_interval_hours: int | None = None,
+        max_weekly_hours: int | None = None,
+    ) -> SystemConfiguration: ...

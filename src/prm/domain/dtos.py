@@ -5,6 +5,7 @@ from datetime import UTC, date, datetime
 
 from prm.domain.enums import (
     EmployeeWorkStatus,
+    LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectStatus,
@@ -140,3 +141,35 @@ class MilestoneDetail:
     due_date: date
     status: MilestoneStatus
     sequence_order: int
+
+
+@dataclass(frozen=True, slots=True)
+class AllocationSummary:
+    """Active allocation row for admin view-all screen (BRD §3.3)."""
+
+    allocation_id: int
+    employee_id: int
+    employee_full_name: str
+    project_id: int
+    project_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class AllocationListResult:
+    """All active allocations plus total count for the admin dashboard."""
+
+    allocations: tuple[AllocationSummary, ...]
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
+class SystemConfigurationSummary:
+    """Current system settings for admin configuration screen (BRD §3.5)."""
+
+    llm_provider: LLMProvider
+    llm_api_key_masked: str | None
+    scheduler_interval_hours: int
+    max_weekly_hours: int

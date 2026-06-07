@@ -44,7 +44,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin from `.env` (`BOOTSTRAP_ADMIN_*`, `JWT_SECRET_KEY` — see `.env.example`; BRD defaults `admin` / `Admin@1234`, `force_password_change=true`).
+On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin plus initial system configuration from `.env` (`BOOTSTRAP_ADMIN_*`, `BOOTSTRAP_LLM_*`, `JWT_SECRET_KEY` — see `.env.example`). Env values apply **only on first run** when no config row exists; later changes use the admin API (console in Phase 5).
 
 Verify the API:
 
@@ -226,6 +226,51 @@ curl -s -X PATCH http://localhost:8000/admin/projects/1/milestones/1 \
 | `POST /admin/projects/{id}/milestones` | Admin JWT | Add milestone |
 | `PATCH /admin/projects/{id}/milestones/{milestone_id}` | Admin JWT | Update milestone |
 
+### Admin allocations and system config (BRD §3.3, §3.5)
+
+Allocations are **read-only** for Admin (create/end allocation is Manager API — PR #8). Initial system config is seeded once from `.env` (`BOOTSTRAP_LLM_PROVIDER`, optional `BOOTSTRAP_LLM_API_KEY`, `BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, `BOOTSTRAP_MAX_WEEKLY_HOURS`); ongoing updates use the endpoints below.
+
+```bash
+export TOKEN="YOUR_ACCESS_TOKEN"
+
+# View all active allocations (optional filters: employee_id, project_id)
+curl -s http://localhost:8000/admin/allocations \
+  -H "Authorization: Bearer $TOKEN"
+curl -s "http://localhost:8000/admin/allocations?employee_id=1" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Get current system configuration (API key masked)
+curl -s http://localhost:8000/admin/config \
+  -H "Authorization: Bearer $TOKEN"
+
+# Update settings (BRD Screen 3.5 options)
+curl -s -X PATCH http://localhost:8000/admin/config/llm-api-key \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"api_key":"your-provider-api-key"}'
+curl -s -X PATCH http://localhost:8000/admin/config/llm-provider \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"provider":"GROQ"}'
+curl -s -X PATCH http://localhost:8000/admin/config/scheduler-interval \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"scheduler_interval_hours":6}'
+curl -s -X PATCH http://localhost:8000/admin/config/max-weekly-hours \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"max_weekly_hours":35}'
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /admin/allocations` | Admin JWT | List active allocations + total count |
+| `GET /admin/config` | Admin JWT | Current system settings (masked API key) |
+| `PATCH /admin/config/llm-api-key` | Admin JWT | Set LLM API key (stored encrypted) |
+| `PATCH /admin/config/llm-provider` | Admin JWT | Switch Gemini / Groq |
+| `PATCH /admin/config/scheduler-interval` | Admin JWT | Update scheduler interval (hours) |
+| `PATCH /admin/config/max-weekly-hours` | Admin JWT | Update max weekly hours cap |
+
 Stop services:
 
 ```bash
@@ -248,7 +293,7 @@ source .venv/bin/activate
 pip install -e ".[dev]"
 ```
 
-Apply migrations and seed the bootstrap Admin (requires PostgreSQL and `BOOTSTRAP_ADMIN_*` in `.env`):
+Apply migrations and seed bootstrap Admin + default system config (requires PostgreSQL and `BOOTSTRAP_ADMIN_*` in `.env`):
 
 ```bash
 cp .env.example .env
@@ -325,7 +370,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Admin users API | Done — create, list, deactivate, reactivate, reset password (`/admin/users/*`) |
 | Admin employees API | Done — create, list, update, deactivate, skills CRUD (`/admin/employees/*`) |
 | Admin projects API | Done — create, list, update, milestones CRUD (`/admin/projects/*`) |
-| Domain features | In progress (admin allocations/config next — PR #7) |
+| Admin allocations & config API | Done — view allocations, system settings (`/admin/allocations`, `/admin/config/*`) |
+| Domain features | In progress (manager allocation API next — PR #8) |
 
 ## Engineering compliance (BRD §4.3)
 

@@ -7,11 +7,13 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from prm.api.settings import Settings, get_settings
+from prm.application.allocation_view_service import AllocationViewService
 from prm.application.auth_service import AuthService
 from prm.application.employee_management_service import EmployeeManagementService
 from prm.application.employee_skill_service import EmployeeSkillService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
+from prm.application.system_config_service import SystemConfigService
 from prm.application.user_management_service import UserManagementService
 from prm.domain.enums import Role
 from prm.domain.exceptions import UnauthorizedError
@@ -22,10 +24,12 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyMilestoneRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySkillRepository,
+    SqlAlchemySystemConfigurationRepository,
     SqlAlchemyUserRepository,
 )
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.jwt import JwtTokenPayload, JwtTokenService
+from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
 
 _bearer_scheme = HTTPBearer(auto_error=True)
@@ -103,6 +107,26 @@ def get_project_milestone_service(
     return ProjectMilestoneService(
         project_repository=SqlAlchemyProjectRepository(db),
         milestone_repository=SqlAlchemyMilestoneRepository(db),
+    )
+
+
+def get_allocation_view_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> AllocationViewService:
+    return AllocationViewService(
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        project_repository=SqlAlchemyProjectRepository(db),
+    )
+
+
+def get_system_config_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> SystemConfigService:
+    return SystemConfigService(
+        config_repository=SqlAlchemySystemConfigurationRepository(db),
+        api_key_protector=FernetLlmApiKeyProtector(settings.jwt_secret_key),
     )
 
 
