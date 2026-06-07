@@ -311,6 +311,37 @@ curl -s -X POST http://localhost:8000/manager/allocations/1/end \
 | `POST /manager/allocations` | Manager JWT | Direct allocate |
 | `POST /manager/allocations/{allocation_id}/end` | Manager JWT | End allocation |
 
+### Manager My Projects and team timesheets (BRD §4.3, §4.4)
+
+Requires a **MANAGER** user who owns the project (`manager_user_id` on create). Team timesheet rows come from active allocations on owned projects; weeks with no submission show **MISSED** (employee submit API is PR #11).
+
+```bash
+export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
+
+# My Projects list (name, end date, health)
+curl -s http://localhost:8000/manager/projects \
+  -H "Authorization: Bearer $TOKEN"
+
+# Project health detail (milestones, risk flags, allocated resources)
+curl -s http://localhost:8000/manager/projects/1 \
+  -H "Authorization: Bearer $TOKEN"
+
+# Team timesheets for a week (optional week_start_date; defaults to current ISO week Monday)
+curl -s "http://localhost:8000/manager/timesheets?week_start_date=2026-05-12" \
+  -H "Authorization: Bearer $TOKEN"
+
+# Employee timesheet drill-down for that week
+curl -s "http://localhost:8000/manager/timesheets/2?week_start_date=2026-05-12" \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /manager/projects` | Manager JWT | List owned projects with health |
+| `GET /manager/projects/{project_id}` | Manager JWT | Project health detail |
+| `GET /manager/timesheets` | Manager JWT | Team timesheets for week (incl. MISSED) |
+| `GET /manager/timesheets/{employee_id}` | Manager JWT | Employee timesheet detail for week |
+
 Stop services:
 
 ```bash
@@ -412,7 +443,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Admin projects API | Done — create, list, update, milestones CRUD (`/admin/projects/*`) |
 | Admin allocations & config API | Done — view allocations, system settings (`/admin/allocations`, `/admin/config/*`) |
 | Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |
-| Domain features | In progress (manager projects & timesheets next — PR #9) |
+| Manager projects & timesheets API | Done — My Projects, health detail, team timesheets read-only (`/manager/projects`, `/manager/timesheets/*`) |
+| Domain features | In progress (LLM skill match & risk summary next — PR #10) |
 
 ## Engineering compliance (BRD §4.3)
 

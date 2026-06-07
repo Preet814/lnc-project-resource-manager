@@ -8,9 +8,11 @@ from prm.domain.enums import (
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
+    ProjectHealthStatus,
     ProjectStatus,
     Role,
     SkillCategory,
+    TimesheetWeekStatus,
     UserAccountStatus,
 )
 
@@ -237,3 +239,100 @@ class EmployeeResourceDetail:
     profile_skills: tuple[str, ...]
     active_allocations: tuple[EmployeeAllocationDetail, ...]
     recent_activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ManagerProjectSummary:
+    """Compact project row for manager My Projects screen (BRD §4.3)."""
+
+    project_id: int
+    name: str
+    end_date: date | None
+    health_status: ProjectHealthStatus
+
+
+@dataclass(frozen=True, slots=True)
+class ManagerProjectListResult:
+    """Projects owned by the logged-in manager."""
+
+    projects: tuple[ManagerProjectSummary, ...]
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
+class ManagerProjectMilestoneRow:
+    """Milestone row in manager project detail (BRD §4.3)."""
+
+    milestone_id: int
+    title: str
+    due_date: date
+    status: MilestoneStatus
+    sequence_order: int
+    is_overdue: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ManagerProjectResourceRow:
+    """Allocated resource row in manager project detail (BRD §4.3)."""
+
+    employee_id: int
+    employee_full_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class ManagerProjectDetail:
+    """Project health detail for manager (BRD §4.3)."""
+
+    project_id: int
+    name: str
+    health_status: ProjectHealthStatus
+    health_computed_at: datetime | None
+    risk_flags: tuple[str, ...]
+    milestones: tuple[ManagerProjectMilestoneRow, ...]
+    allocated_resources: tuple[ManagerProjectResourceRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamTimesheetRow:
+    """One employee/project line on manager team timesheets (BRD §4.4)."""
+
+    employee_id: int
+    employee_full_name: str
+    project_id: int
+    project_name: str
+    hours: int
+    status: TimesheetWeekStatus
+
+
+@dataclass(frozen=True, slots=True)
+class TeamTimesheetListResult:
+    """Team timesheet rows for a selected week (BRD §4.4)."""
+
+    week_start_date: date
+    rows: tuple[TeamTimesheetRow, ...]
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeTimesheetEntryDetail:
+    """Project line within an employee's weekly timesheet detail."""
+
+    project_id: int
+    project_name: str
+    hours_worked: int
+    activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeTimesheetWeekDetail:
+    """Employee timesheet drill-down for manager (BRD §4.4)."""
+
+    employee_id: int
+    employee_full_name: str
+    week_start_date: date
+    status: TimesheetWeekStatus
+    total_hours: int
+    entries: tuple[EmployeeTimesheetEntryDetail, ...]

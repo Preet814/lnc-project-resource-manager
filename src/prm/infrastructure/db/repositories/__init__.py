@@ -8,6 +8,9 @@ from prm.infrastructure.db.repositories.employee_skill_repository import (
     SqlAlchemyEmployeeSkillRepository,
 )
 from prm.infrastructure.db.repositories.milestone_repository import SqlAlchemyMilestoneRepository
+from prm.infrastructure.db.repositories.project_health_snapshot_repository import (
+    SqlAlchemyProjectHealthSnapshotRepository,
+)
 from prm.infrastructure.db.repositories.project_repository import SqlAlchemyProjectRepository
 from prm.infrastructure.db.repositories.skill_repository import SqlAlchemySkillRepository
 from prm.infrastructure.db.repositories.system_configuration_repository import (
@@ -21,6 +24,7 @@ __all__ = [
     "SqlAlchemyEmployeeRepository",
     "SqlAlchemyEmployeeSkillRepository",
     "SqlAlchemyMilestoneRepository",
+    "SqlAlchemyProjectHealthSnapshotRepository",
     "SqlAlchemyProjectRepository",
     "SqlAlchemySkillRepository",
     "SqlAlchemySystemConfigurationRepository",

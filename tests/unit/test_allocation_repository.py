@@ -511,3 +511,46 @@ def test_end_by_id_raises_when_already_ended() -> None:
         repo = SqlAlchemyAllocationRepository(session)
         with pytest.raises(NotFoundError, match="not active"):
             repo.end_by_id(allocation_id, as_of=date(2026, 6, 14))
+
+
+def test_list_active_for_manager_returns_only_owned_project_allocations() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        other_manager = SqlAlchemyUserRepository(session)
+        hasher = BcryptPasswordHasher()
+        other = other_manager.create(
+            full_name="Other Manager",
+            username="other",
+            email="other@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.MANAGER,
+        )
+        owned_project_id = _create_project(session, manager_user_id=manager_id)
+        other_project = ProjectModel(
+            name="Other Project",
+            description="Other",
+            start_date=date(2026, 1, 1),
+            manager_user_id=other.id,
+        )
+        session.add(other_project)
+        session.flush()
+        owned_allocation_id = _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=owned_project_id,
+            created_by_user_id=manager_id,
+        )
+        _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=other_project.id,
+            created_by_user_id=other.id,
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+
+        allocations = repo.list_active_for_manager(manager_id)
+
+        assert len(allocations) == 1
+        assert allocations[0].id == owned_allocation_id
+        assert allocations[0].project_id == owned_project_id

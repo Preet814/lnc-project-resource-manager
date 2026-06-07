@@ -176,3 +176,42 @@ def test_update_raises_when_project_missing() -> None:
         repo = SqlAlchemyProjectRepository(session)
         with pytest.raises(NotFoundError):
             repo.update(999, name="Missing Project")
+
+
+def test_list_by_manager_user_id_returns_only_owned_projects() -> None:
+    with _session() as session:
+        manager_a = _create_manager(session, username="ankit", email="ankit@example.test")
+        manager_b = _create_manager(session, username="rohan", email="rohan@example.test")
+        repo = SqlAlchemyProjectRepository(session)
+        owned_id = repo.create(
+            name="Alpha Portal",
+            description=None,
+            start_date=datetime(2026, 3, 1).date(),
+            end_date=datetime(2026, 6, 30).date(),
+            status=ProjectStatus.ACTIVE,
+            manager_user_id=manager_a,
+        ).id
+        repo.create(
+            name="Beta CRM",
+            description=None,
+            start_date=datetime(2026, 4, 1).date(),
+            end_date=datetime(2026, 8, 15).date(),
+            status=ProjectStatus.ACTIVE,
+            manager_user_id=manager_b,
+        )
+        session.commit()
+
+        projects = repo.list_by_manager_user_id(manager_a)
+
+        assert len(projects) == 1
+        assert projects[0].id == owned_id
+        assert projects[0].name == "Alpha Portal"
+
+
+def test_list_by_manager_user_id_returns_empty_when_none() -> None:
+    with _session() as session:
+        manager_id = _create_manager(session, username="ankit", email="ankit@example.test")
+        session.commit()
+        repo = SqlAlchemyProjectRepository(session)
+
+        assert repo.list_by_manager_user_id(manager_id) == []

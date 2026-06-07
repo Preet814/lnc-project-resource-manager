@@ -8,8 +8,10 @@ from prm.domain.entities.allocation import Allocation
 from prm.domain.entities.employee import Employee
 from prm.domain.entities.milestone import Milestone
 from prm.domain.entities.project import Project
+from prm.domain.entities.project_health_snapshot import ProjectHealthSnapshot
 from prm.domain.entities.skill import EmployeeSkill, Skill
 from prm.domain.entities.system_configuration import SystemConfiguration
+from prm.domain.entities.timesheet import TimesheetEntry, TimesheetWeek
 from prm.domain.entities.user import User
 from prm.domain.enums import (
     EmployeeWorkStatus,
@@ -201,6 +203,8 @@ class AllocationRepository(Protocol):
         project_id: int | None = None,
     ) -> list[Allocation]: ...
 
+    def list_active_for_manager(self, manager_user_id: int) -> list[Allocation]: ...
+
     def create(
         self,
         *,
@@ -249,6 +253,12 @@ class ProjectRepository(Protocol):
         manager_user_id: int | None = None,
     ) -> Project: ...
 
+    def list_by_manager_user_id(self, manager_user_id: int) -> list[Project]: ...
+
+
+class ProjectHealthSnapshotRepository(Protocol):
+    def find_latest_for_project(self, project_id: int) -> ProjectHealthSnapshot | None: ...
+
 
 class MilestoneRepository(Protocol):
     def list_for_project(self, project_id: int) -> list[Milestone]: ...
@@ -288,6 +298,14 @@ class TimesheetRepository(Protocol):
         weeks: int = 4,
         as_of: date | None = None,
     ) -> list[str]: ...
+
+    def find_week_by_employee(
+        self,
+        employee_id: int,
+        week_start_date: date,
+    ) -> TimesheetWeek | None: ...
+
+    def list_entries_for_week(self, timesheet_week_id: int) -> list[TimesheetEntry]: ...
 
 
 class SystemConfigurationRepository(Protocol):

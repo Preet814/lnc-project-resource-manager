@@ -46,6 +46,14 @@ class SqlAlchemyProjectRepository:
         models = self._session.scalars(stmt.order_by(ProjectModel.id)).all()
         return [_to_domain(model) for model in models]
 
+    def list_by_manager_user_id(self, manager_user_id: int) -> list[Project]:
+        models = self._session.scalars(
+            select(ProjectModel)
+            .where(ProjectModel.manager_user_id == manager_user_id)
+            .order_by(ProjectModel.id)
+        ).all()
+        return [_to_domain(model) for model in models]
+
     def create(
         self,
         *,

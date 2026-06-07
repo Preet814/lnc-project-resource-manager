@@ -13,10 +13,12 @@ from prm.application.auth_service import AuthService
 from prm.application.authorization_service import AuthorizationService
 from prm.application.employee_management_service import EmployeeManagementService
 from prm.application.employee_skill_service import EmployeeSkillService
+from prm.application.manager_project_service import ManagerProjectService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
 from prm.application.resource_dashboard_service import ResourceDashboardService
 from prm.application.system_config_service import SystemConfigService
+from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.application.user_management_service import UserManagementService
 from prm.application.utilisation_calculator import UtilisationCalculator
 from prm.domain.enums import Role
@@ -26,6 +28,7 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyEmployeeRepository,
     SqlAlchemyEmployeeSkillRepository,
     SqlAlchemyMilestoneRepository,
+    SqlAlchemyProjectHealthSnapshotRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySkillRepository,
     SqlAlchemySystemConfigurationRepository,
@@ -177,6 +180,31 @@ def get_resource_dashboard_service(
         employee_skill_repository=SqlAlchemyEmployeeSkillRepository(db),
         skill_repository=SqlAlchemySkillRepository(db),
         allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=SqlAlchemyProjectRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+    )
+
+
+def get_manager_project_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> ManagerProjectService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    return ManagerProjectService(
+        project_repository=project_repository,
+        milestone_repository=SqlAlchemyMilestoneRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        health_snapshot_repository=SqlAlchemyProjectHealthSnapshotRepository(db),
+        authorization=AuthorizationService(project_repository),
+    )
+
+
+def get_team_timesheet_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> TeamTimesheetService:
+    return TeamTimesheetService(
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        employee_repository=SqlAlchemyEmployeeRepository(db),
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
     )

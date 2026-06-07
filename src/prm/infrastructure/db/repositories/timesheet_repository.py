@@ -1,20 +1,49 @@
-"""Timesheet read access for manager dashboard drill-down."""
+"""Timesheet read access for manager dashboard and team timesheet views."""
 
 from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from prm.domain.entities.timesheet import TimesheetEntry, TimesheetWeek
 from prm.domain.enums import ActivityTag
-from prm.infrastructure.db.models import TimesheetWeekModel
+from prm.infrastructure.db.models import TimesheetEntryModel, TimesheetWeekModel
 
 
-def _format_activity_tag(tag: ActivityTag) -> str:
-    return tag.value.replace("_", " ").title()
+def _format_activity_tag(tag: ActivityTag | str) -> str:
+    raw = tag.value if isinstance(tag, ActivityTag) else tag
+    return raw.replace("_", " ").title()
+
+
+def _coerce_activity_tag(tag: ActivityTag | str) -> ActivityTag:
+    if isinstance(tag, ActivityTag):
+        return tag
+    return ActivityTag(tag)
+
+
+def _week_to_domain(model: TimesheetWeekModel) -> TimesheetWeek:
+    return TimesheetWeek(
+        id=model.id,
+        employee_id=model.employee_id,
+        week_start_date=model.week_start_date,
+        status=model.status,
+        total_hours=model.total_hours,
+        submitted_at=model.submitted_at,
+    )
+
+
+def _entry_to_domain(model: TimesheetEntryModel) -> TimesheetEntry:
+    return TimesheetEntry(
+        id=model.id,
+        timesheet_week_id=model.timesheet_week_id,
+        project_id=model.project_id,
+        hours_worked=model.hours_worked,
+        activity_tags=tuple(_coerce_activity_tag(tag) for tag in model.activity_tags),
+    )
 
 
 class SqlAlchemyTimesheetRepository:
-    """Read recent activity tags submitted by an employee."""
+    """Read timesheet weeks and entries for manager workflows."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -45,3 +74,23 @@ class SqlAlchemyTimesheetRepository:
                         seen.add(label)
                         tags.append(label)
         return tags
+
+    def find_week_by_employee(
+        self,
+        employee_id: int,
+        week_start_date: date,
+    ) -> TimesheetWeek | None:
+        model = self._session.scalar(
+            select(TimesheetWeekModel)
+            .where(TimesheetWeekModel.employee_id == employee_id)
+            .where(TimesheetWeekModel.week_start_date == week_start_date)
+        )
+        return _week_to_domain(model) if model is not None else None
+
+    def list_entries_for_week(self, timesheet_week_id: int) -> list[TimesheetEntry]:
+        models = self._session.scalars(
+            select(TimesheetEntryModel)
+            .where(TimesheetEntryModel.timesheet_week_id == timesheet_week_id)
+            .order_by(TimesheetEntryModel.id)
+        ).all()
+        return [_entry_to_domain(model) for model in models]
