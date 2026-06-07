@@ -10,6 +10,8 @@ from prm.api.settings import Settings, get_settings
 from prm.application.auth_service import AuthService
 from prm.application.employee_management_service import EmployeeManagementService
 from prm.application.employee_skill_service import EmployeeSkillService
+from prm.application.project_management_service import ProjectManagementService
+from prm.application.project_milestone_service import ProjectMilestoneService
 from prm.application.user_management_service import UserManagementService
 from prm.domain.enums import Role
 from prm.domain.exceptions import UnauthorizedError
@@ -17,6 +19,8 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyEmployeeRepository,
     SqlAlchemyEmployeeSkillRepository,
+    SqlAlchemyMilestoneRepository,
+    SqlAlchemyProjectRepository,
     SqlAlchemySkillRepository,
     SqlAlchemyUserRepository,
 )
@@ -81,6 +85,24 @@ def get_employee_skill_service(
         employee_repository=SqlAlchemyEmployeeRepository(db),
         skill_repository=SqlAlchemySkillRepository(db),
         employee_skill_repository=SqlAlchemyEmployeeSkillRepository(db),
+    )
+
+
+def get_project_management_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> ProjectManagementService:
+    return ProjectManagementService(
+        project_repository=SqlAlchemyProjectRepository(db),
+        user_repository=SqlAlchemyUserRepository(db),
+    )
+
+
+def get_project_milestone_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> ProjectMilestoneService:
+    return ProjectMilestoneService(
+        project_repository=SqlAlchemyProjectRepository(db),
+        milestone_repository=SqlAlchemyMilestoneRepository(db),
     )
 
 
