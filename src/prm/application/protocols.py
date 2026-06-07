@@ -29,6 +29,12 @@ class PasswordHasher(Protocol):
     def verify(self, password: str, password_hash: str) -> bool: ...
 
 
+class LlmApiKeyProtector(Protocol):
+    def encrypt(self, api_key: str) -> str: ...
+
+    def decrypt(self, encrypted: str) -> str: ...
+
+
 class TokenPayload(Protocol):
     user_id: int
     username: str
