@@ -23,3 +23,7 @@ class AuthenticationError(DomainError):
 
 class ConflictError(DomainError):
     """Request conflicts with current state (e.g. over-allocation)."""
+
+
+class LlmUnavailableError(DomainError):
+    """LLM provider is not configured or the external call failed."""

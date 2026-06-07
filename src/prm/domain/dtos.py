@@ -336,3 +336,89 @@ class EmployeeTimesheetWeekDetail:
     status: TimesheetWeekStatus
     total_hours: int
     entries: tuple[EmployeeTimesheetEntryDetail, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SkillMatchCandidate:
+    """Pre-filtered employee facts sent to the LLM for ranking (BRD §4.2 AI, §4.5)."""
+
+    employee_id: int
+    full_name: str
+    skill_names: tuple[str, ...]
+    utilisation_percent: int
+    free_hours_per_week: int
+    recent_activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SkillMatchContext:
+    """Project and requirement context for LLM skill matching (class diagram «DTO»)."""
+
+    project_id: int
+    project_name: str
+    requirement: str
+    requested_hours_per_week: int | None
+
+
+@dataclass(frozen=True, slots=True)
+class SkillMatchResult:
+    """Ranked AI suggestion for one employee (class diagram «DTO»)."""
+
+    employee_id: int
+    employee_name: str
+    reason: str
+    suggested_allocation_percent: int
+    free_hours_per_week: int
+
+
+@dataclass(frozen=True, slots=True)
+class SkillMatchListResult:
+    """Skill match outcome for a project requirement (BRD §4.2 AI, §4.5)."""
+
+    project_id: int
+    requirement: str
+    matches: tuple[SkillMatchResult, ...]
+    total: int
+    message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class RiskSummaryMilestoneFact:
+    """Milestone fact included in risk summary LLM context."""
+
+    title: str
+    due_date: date
+    status: MilestoneStatus
+    is_overdue: bool
+
+
+@dataclass(frozen=True, slots=True)
+class RiskSummaryResourceFact:
+    """Allocation fact included in risk summary LLM context."""
+
+    employee_full_name: str
+    utilisation_percent: int
+
+
+@dataclass(frozen=True, slots=True)
+class RiskSummaryTimesheetFact:
+    """Recent hours fact included in risk summary LLM context."""
+
+    employee_full_name: str
+    week_start_date: date
+    hours_logged: int
+    expected_hours: int
+
+
+@dataclass(frozen=True, slots=True)
+class RiskSummaryContext:
+    """Factual project data passed to the LLM for risk narrative (BRD §4.3 [A], §4.5)."""
+
+    project_id: int
+    project_name: str
+    health_status: ProjectHealthStatus
+    end_date: date | None
+    risk_flags: tuple[str, ...]
+    milestones: tuple[RiskSummaryMilestoneFact, ...]
+    allocated_resources: tuple[RiskSummaryResourceFact, ...]
+    recent_timesheets: tuple[RiskSummaryTimesheetFact, ...]
