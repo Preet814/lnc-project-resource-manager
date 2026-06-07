@@ -121,3 +121,20 @@ class SqlAlchemyEmployeeRepository:
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)
+
+    def update_utilisation_and_status(
+        self,
+        employee_id: int,
+        *,
+        current_utilisation_percent: int,
+        work_status: EmployeeWorkStatus,
+    ) -> Employee:
+        model = self._session.get(EmployeeModel, employee_id)
+        if model is None:
+            raise NotFoundError(f"Employee {employee_id} not found.")
+
+        model.current_utilisation_percent = current_utilisation_percent
+        model.work_status = work_status
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)

@@ -130,6 +130,14 @@ class EmployeeRepository(Protocol):
 
     def set_active(self, employee_id: int, *, is_active: bool) -> Employee: ...
 
+    def update_utilisation_and_status(
+        self,
+        employee_id: int,
+        *,
+        current_utilisation_percent: int,
+        work_status: EmployeeWorkStatus,
+    ) -> Employee: ...
+
 
 class SkillRepository(Protocol):
     def find_by_id(self, skill_id: int) -> Skill | None: ...
@@ -173,7 +181,18 @@ class EmployeeSkillRepository(Protocol):
 
 
 class AllocationRepository(Protocol):
+    def find_by_id(self, allocation_id: int) -> Allocation | None: ...
+
     def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
+
+    def find_overlapping(
+        self,
+        employee_id: int,
+        date_from: date,
+        date_to: date | None,
+        *,
+        exclude_allocation_id: int | None = None,
+    ) -> list[Allocation]: ...
 
     def list_active(
         self,
@@ -181,6 +200,19 @@ class AllocationRepository(Protocol):
         employee_id: int | None = None,
         project_id: int | None = None,
     ) -> list[Allocation]: ...
+
+    def create(
+        self,
+        *,
+        employee_id: int,
+        project_id: int,
+        utilisation_percent: int,
+        from_date: date,
+        to_date: date | None,
+        created_by_user_id: int,
+    ) -> Allocation: ...
+
+    def end_by_id(self, allocation_id: int, *, as_of: date) -> Allocation: ...
 
     def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]: ...
 
