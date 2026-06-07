@@ -6,11 +6,15 @@ from typing import Protocol
 from prm.domain.dtos import AuthToken
 from prm.domain.entities.allocation import Allocation
 from prm.domain.entities.employee import Employee
+from prm.domain.entities.milestone import Milestone
+from prm.domain.entities.project import Project
 from prm.domain.entities.skill import EmployeeSkill, Skill
 from prm.domain.entities.user import User
 from prm.domain.enums import (
     EmployeeWorkStatus,
+    MilestoneStatus,
     ProficiencyLevel,
+    ProjectStatus,
     Role,
     SkillCategory,
     UserAccountStatus,
@@ -164,3 +168,66 @@ class AllocationRepository(Protocol):
     def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
 
     def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]: ...
+
+
+class ProjectRepository(Protocol):
+    def find_by_id(self, project_id: int) -> Project | None: ...
+
+    def list_all(
+        self,
+        *,
+        status: ProjectStatus | None = None,
+    ) -> list[Project]: ...
+
+    def create(
+        self,
+        *,
+        name: str,
+        description: str | None,
+        start_date: date,
+        end_date: date | None,
+        status: ProjectStatus,
+        manager_user_id: int,
+    ) -> Project: ...
+
+    def update(
+        self,
+        project_id: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        status: ProjectStatus | None = None,
+        manager_user_id: int | None = None,
+    ) -> Project: ...
+
+
+class MilestoneRepository(Protocol):
+    def list_for_project(self, project_id: int) -> list[Milestone]: ...
+
+    def find_by_id(self, milestone_id: int) -> Milestone | None: ...
+
+    def find_by_project_and_id(
+        self, project_id: int, milestone_id: int
+    ) -> Milestone | None: ...
+
+    def create(
+        self,
+        *,
+        project_id: int,
+        title: str,
+        due_date: date,
+        status: MilestoneStatus = MilestoneStatus.NOT_STARTED,
+        sequence_order: int | None = None,
+    ) -> Milestone: ...
+
+    def update(
+        self,
+        milestone_id: int,
+        *,
+        title: str | None = None,
+        due_date: date | None = None,
+        status: MilestoneStatus | None = None,
+        sequence_order: int | None = None,
+    ) -> Milestone: ...

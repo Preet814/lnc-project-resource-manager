@@ -172,6 +172,60 @@ curl -s -X DELETE http://localhost:8000/admin/employees/1/skills/1 \
 | `PATCH /admin/employees/{id}/skills/{skill_id}` | Admin JWT | Update proficiency |
 | `DELETE /admin/employees/{id}/skills/{skill_id}` | Admin JWT | Remove skill assignment |
 
+### Admin projects and milestones (BRD §3.2)
+
+Requires a **MANAGER** user account first (`POST /admin/users` with `"role":"MANAGER"`), then assign `manager_user_id` when creating the project.
+
+Interactive API docs (Swagger UI): [http://localhost:8000/docs](http://localhost:8000/docs) — use **Authorize** with `Bearer YOUR_ACCESS_TOKEN` after login.
+
+```bash
+export TOKEN="YOUR_ACCESS_TOKEN"
+
+# Create manager account (if not already present)
+curl -s -X POST http://localhost:8000/admin/users \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"full_name":"Ankit Shah","email":"ankit@example.test","username":"ankit.shah","temporary_password":"TempPass1","role":"MANAGER"}'
+
+# List projects (optional filter: ?status=ACTIVE)
+curl -s http://localhost:8000/admin/projects \
+  -H "Authorization: Bearer $TOKEN"
+
+# Create project (manager_user_id from POST /admin/users)
+curl -s -X POST http://localhost:8000/admin/projects \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Alpha Portal","description":"Customer portal rewrite","start_date":"2026-03-01","end_date":"2026-06-30","status":"ACTIVE","manager_user_id":2}'
+
+# Get / update by project id
+curl -s http://localhost:8000/admin/projects/1 -H "Authorization: Bearer $TOKEN"
+curl -s -X PATCH http://localhost:8000/admin/projects/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"name":"Alpha Portal v2","status":"ON_HOLD"}'
+
+# Manage milestones on project id
+curl -s http://localhost:8000/admin/projects/1/milestones -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:8000/admin/projects/1/milestones \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"title":"Backend API","due_date":"2026-04-15"}'
+curl -s -X PATCH http://localhost:8000/admin/projects/1/milestones/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"status":"IN_PROGRESS"}'
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /admin/projects` | Admin JWT | List projects + status counts |
+| `POST /admin/projects` | Admin JWT | Create project |
+| `GET /admin/projects/{id}` | Admin JWT | Get project detail |
+| `PATCH /admin/projects/{id}` | Admin JWT | Update project details |
+| `GET /admin/projects/{id}/milestones` | Admin JWT | List milestones |
+| `POST /admin/projects/{id}/milestones` | Admin JWT | Add milestone |
+| `PATCH /admin/projects/{id}/milestones/{milestone_id}` | Admin JWT | Update milestone |
+
 Stop services:
 
 ```bash
@@ -270,7 +324,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Auth API | Done — login, change-password, JWT (`POST /auth/login`, `POST /auth/change-password`) |
 | Admin users API | Done — create, list, deactivate, reactivate, reset password (`/admin/users/*`) |
 | Admin employees API | Done — create, list, update, deactivate, skills CRUD (`/admin/employees/*`) |
-| Domain features | In progress (admin projects next — PR #6) |
+| Admin projects API | Done — create, list, update, milestones CRUD (`/admin/projects/*`) |
+| Domain features | In progress (admin allocations/config next — PR #7) |
 
 ## Engineering compliance (BRD §4.3)
 

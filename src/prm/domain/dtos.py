@@ -1,11 +1,13 @@
 """Data transfer objects returned across application boundaries."""
 
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, date, datetime
 
 from prm.domain.enums import (
     EmployeeWorkStatus,
+    MilestoneStatus,
     ProficiencyLevel,
+    ProjectStatus,
     Role,
     SkillCategory,
     UserAccountStatus,
@@ -105,3 +107,36 @@ class EmployeeSkillDetail:
     category: SkillCategory
     proficiency: ProficiencyLevel
     assigned_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectSummary:
+    """Compact project row for admin list screen (BRD §3.2.2)."""
+
+    id: int
+    name: str
+    manager_full_name: str
+    end_date: date | None
+    status: ProjectStatus
+
+
+@dataclass(frozen=True, slots=True)
+class ProjectListResult:
+    """All projects plus status counts for the admin dashboard."""
+
+    projects: tuple[ProjectSummary, ...]
+    total: int
+    active_count: int
+    planned_count: int
+    on_hold_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class MilestoneDetail:
+    """Milestone row for admin manage-milestones screen (BRD §3.2.3)."""
+
+    milestone_id: int
+    title: str
+    due_date: date
+    status: MilestoneStatus
+    sequence_order: int
