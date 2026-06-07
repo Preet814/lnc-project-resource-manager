@@ -11,6 +11,8 @@ from prm.api.deps import (
     get_db_session,
     get_manager_project_service,
     get_resource_dashboard_service,
+    get_risk_summary_service,
+    get_skill_match_service,
     get_team_timesheet_service,
     require_manager,
 )
@@ -32,12 +34,18 @@ from prm.api.schemas.manager import (
     ManagerProjectSummaryResponse,
     ProjectAllocationListResponse,
     ResourceDashboardResponse,
+    RiskSummaryResponse,
+    SkillMatchRequest,
+    SkillMatchResponse,
+    SkillMatchResultResponse,
     TeamTimesheetListResponse,
     TeamTimesheetRowResponse,
 )
 from prm.application.allocation_service import AllocationService
 from prm.application.manager_project_service import ManagerProjectService
 from prm.application.resource_dashboard_service import ResourceDashboardService
+from prm.application.risk_summary_service import RiskSummaryService
+from prm.application.skill_match_service import SkillMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.domain.dtos import (
     AllocationSummary,
@@ -46,6 +54,8 @@ from prm.domain.dtos import (
     ManagerProjectDetail,
     ManagerProjectListResult,
     ResourceDashboardResult,
+    RiskSummaryResult,
+    SkillMatchListResult,
     TeamTimesheetListResult,
 )
 from prm.domain.entities.allocation import Allocation
@@ -230,6 +240,33 @@ def _to_employee_timesheet_week_detail_response(
     )
 
 
+def _to_skill_match_response(result: SkillMatchListResult) -> SkillMatchResponse:
+    return SkillMatchResponse(
+        project_id=result.project_id,
+        requirement=result.requirement,
+        matches=[
+            SkillMatchResultResponse(
+                employee_id=match.employee_id,
+                employee_name=match.employee_name,
+                reason=match.reason,
+                suggested_allocation_percent=match.suggested_allocation_percent,
+                free_hours_per_week=match.free_hours_per_week,
+            )
+            for match in result.matches
+        ],
+        total=result.total,
+        message=result.message,
+    )
+
+
+def _to_risk_summary_response(result: RiskSummaryResult) -> RiskSummaryResponse:
+    return RiskSummaryResponse(
+        project_id=result.project_id,
+        summary=result.summary,
+        disclaimer=result.disclaimer,
+    )
+
+
 @router.get("/projects", response_model=ManagerProjectListResponse)
 def list_my_projects(
     manager: Annotated[JwtTokenPayload, Depends(require_manager)],
@@ -345,3 +382,24 @@ def end_allocation(
     )
     db.commit()
     return _to_allocation_response(allocation)
+
+
+@router.post("/projects/{project_id}/skill-match", response_model=SkillMatchResponse)
+def skill_match(
+    project_id: int,
+    body: SkillMatchRequest,
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[SkillMatchService, Depends(get_skill_match_service)],
+) -> SkillMatchResponse:
+    result = service.find_matches(manager.user_id, project_id, body.requirement)
+    return _to_skill_match_response(result)
+
+
+@router.get("/projects/{project_id}/risk-summary", response_model=RiskSummaryResponse)
+def get_risk_summary(
+    project_id: int,
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[RiskSummaryService, Depends(get_risk_summary_service)],
+) -> RiskSummaryResponse:
+    result = service.summarize_risk(manager.user_id, project_id)
+    return _to_risk_summary_response(result)

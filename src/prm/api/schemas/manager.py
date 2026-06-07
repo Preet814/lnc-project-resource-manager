@@ -149,3 +149,29 @@ class EmployeeTimesheetWeekDetailResponse(BaseModel):
     status: TimesheetWeekStatus
     total_hours: int
     entries: list[EmployeeTimesheetEntryResponse]
+
+
+class SkillMatchRequest(BaseModel):
+    requirement: str = Field(min_length=1)
+
+
+class SkillMatchResultResponse(BaseModel):
+    employee_id: int
+    employee_name: str
+    reason: str
+    suggested_allocation_percent: int
+    free_hours_per_week: int
+
+
+class SkillMatchResponse(BaseModel):
+    project_id: int
+    requirement: str
+    matches: list[SkillMatchResultResponse]
+    total: int
+    message: str | None = None
+
+
+class RiskSummaryResponse(BaseModel):
+    project_id: int
+    summary: str
+    disclaimer: str
