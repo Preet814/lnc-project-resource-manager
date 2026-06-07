@@ -120,6 +120,58 @@ curl -s -X POST http://localhost:8000/admin/users/reset-password \
 | `POST /admin/users/{id}/reactivate` | Admin JWT | Reactivate account |
 | `POST /admin/users/reset-password` | Admin JWT | Reset password (username or id) |
 
+### Admin employee and skills (BRD §3.1)
+
+Requires an **EMPLOYEE** or **MANAGER** user account first (`POST /admin/users`), then link the work profile with `user_id`. Admin accounts cannot have employee profiles.
+
+```bash
+export TOKEN="YOUR_ACCESS_TOKEN"
+
+# List employees (optional filters: work_status, department, active_only)
+curl -s http://localhost:8000/admin/employees \
+  -H "Authorization: Bearer $TOKEN"
+
+# Create employee profile (user_id from POST /admin/users)
+curl -s -X POST http://localhost:8000/admin/employees \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"user_id":2,"full_name":"Ravi Kumar","email":"ravi@example.test","department":"Backend","designation":"Senior Developer"}'
+
+# Get / update / deactivate by employee id (not user id)
+curl -s http://localhost:8000/admin/employees/1 -H "Authorization: Bearer $TOKEN"
+curl -s -X PATCH http://localhost:8000/admin/employees/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"department":"DevOps","designation":"Lead Developer"}'
+curl -s -X POST http://localhost:8000/admin/employees/1/deactivate \
+  -H "Authorization: Bearer $TOKEN"
+
+# Manage skills on employee id
+curl -s http://localhost:8000/admin/employees/1/skills -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:8000/admin/employees/1/skills \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"skill_name":"Docker","category":"DEVOPS","proficiency":"BEGINNER"}'
+curl -s -X PATCH http://localhost:8000/admin/employees/1/skills/1 \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"proficiency":"ADVANCED"}'
+curl -s -X DELETE http://localhost:8000/admin/employees/1/skills/1 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /admin/employees` | Admin JWT | List employees + bench/allocated counts |
+| `POST /admin/employees` | Admin JWT | Create employee profile (link `user_id`) |
+| `GET /admin/employees/{id}` | Admin JWT | Get employee profile |
+| `PATCH /admin/employees/{id}` | Admin JWT | Update department, designation, etc. |
+| `POST /admin/employees/{id}/deactivate` | Admin JWT | Deactivate profile; end allocations; block login |
+| `GET /admin/employees/{id}/skills` | Admin JWT | List employee skills |
+| `POST /admin/employees/{id}/skills` | Admin JWT | Add skill with category + proficiency |
+| `PATCH /admin/employees/{id}/skills/{skill_id}` | Admin JWT | Update proficiency |
+| `DELETE /admin/employees/{id}/skills/{skill_id}` | Admin JWT | Remove skill assignment |
+
 Stop services:
 
 ```bash
@@ -176,7 +228,7 @@ pytest tests/integration -v -m integration
 docker compose down
 ```
 
-Integration smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The auth forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow. Admin user smoke tests create uniquely named users each run.
+Integration smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The auth forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow. Admin user and employee smoke tests create uniquely named users each run.
 
 Override API URL if needed:
 
@@ -217,7 +269,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | ORM models & seed | Done — class diagram tables, migration, bootstrap Admin |
 | Auth API | Done — login, change-password, JWT (`POST /auth/login`, `POST /auth/change-password`) |
 | Admin users API | Done — create, list, deactivate, reactivate, reset password (`/admin/users/*`) |
-| Domain features | In progress (admin employees/skills next) |
+| Admin employees API | Done — create, list, update, deactivate, skills CRUD (`/admin/employees/*`) |
+| Domain features | In progress (admin projects next — PR #6) |
 
 ## Engineering compliance (BRD §4.3)
 
