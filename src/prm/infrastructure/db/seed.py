@@ -8,6 +8,7 @@ from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, DEFAULT_SCHEDULER_INT
 from prm.domain.enums import LLMProvider, Role, UserAccountStatus
 from prm.infrastructure.db.models import SystemConfigurationModel, UserModel
 from prm.infrastructure.db.session import get_session_factory
+from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
 
 
@@ -43,7 +44,14 @@ def seed_bootstrap_admin(
     return True
 
 
-def seed_default_system_configuration(session: Session) -> bool:
+def seed_default_system_configuration(
+    session: Session,
+    *,
+    llm_provider: LLMProvider = LLMProvider.GEMINI,
+    llm_api_key_encrypted: str | None = None,
+    scheduler_interval_hours: int = DEFAULT_SCHEDULER_INTERVAL_HOURS,
+    max_weekly_hours: int = DEFAULT_MAX_WEEKLY_HOURS,
+) -> bool:
     """Insert the default system configuration row if none exists.
 
     Returns True when a new row is created, False when configuration already exists.
@@ -55,14 +63,43 @@ def seed_default_system_configuration(session: Session) -> bool:
         return False
 
     config = SystemConfigurationModel(
-        llm_provider=LLMProvider.GEMINI,
-        llm_api_key_encrypted=None,
-        scheduler_interval_hours=DEFAULT_SCHEDULER_INTERVAL_HOURS,
-        max_weekly_hours=DEFAULT_MAX_WEEKLY_HOURS,
+        llm_provider=llm_provider,
+        llm_api_key_encrypted=llm_api_key_encrypted,
+        scheduler_interval_hours=scheduler_interval_hours,
+        max_weekly_hours=max_weekly_hours,
     )
     session.add(config)
     session.commit()
     return True
+
+
+def seed_default_system_configuration_from_settings(
+    session: Session,
+    settings: Settings | None = None,
+) -> bool:
+    """Seed system configuration using values from environment / .env (first run only)."""
+    config = settings or get_settings()
+
+    try:
+        llm_provider = LLMProvider(config.bootstrap_llm_provider.upper())
+    except ValueError as exc:
+        raise ValueError(
+            f"Invalid BOOTSTRAP_LLM_PROVIDER '{config.bootstrap_llm_provider}'. "
+            "Expected GEMINI or GROQ."
+        ) from exc
+
+    encrypted_key = None
+    api_key = config.bootstrap_llm_api_key.strip()
+    if api_key:
+        encrypted_key = FernetLlmApiKeyProtector(config.jwt_secret_key).encrypt(api_key)
+
+    return seed_default_system_configuration(
+        session,
+        llm_provider=llm_provider,
+        llm_api_key_encrypted=encrypted_key,
+        scheduler_interval_hours=config.bootstrap_scheduler_interval_hours,
+        max_weekly_hours=config.bootstrap_max_weekly_hours,
+    )
 
 
 def seed_bootstrap_admin_from_settings(
@@ -95,9 +132,9 @@ def main() -> None:
                 f"Bootstrap admin '{settings.bootstrap_admin_username}' already exists; skipped."
             )
 
-        config_created = seed_default_system_configuration(session)
+        config_created = seed_default_system_configuration_from_settings(session, settings)
         if config_created:
-            print("Created default system configuration.")
+            print("Created default system configuration from environment.")
         else:
             print("Default system configuration already exists; skipped.")
 

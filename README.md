@@ -44,7 +44,7 @@ cp .env.example .env
 docker compose up --build
 ```
 
-On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin plus default system configuration from `.env` (`BOOTSTRAP_ADMIN_*`, `JWT_SECRET_KEY` — see `.env.example`; BRD defaults `admin` / `Admin@1234`, `force_password_change=true`, Gemini / 4h / 40h).
+On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin plus initial system configuration from `.env` (`BOOTSTRAP_ADMIN_*`, `BOOTSTRAP_LLM_*`, `JWT_SECRET_KEY` — see `.env.example`). Env values apply **only on first run** when no config row exists; later changes use the admin API (console in Phase 5).
 
 Verify the API:
 
@@ -228,7 +228,7 @@ curl -s -X PATCH http://localhost:8000/admin/projects/1/milestones/1 \
 
 ### Admin allocations and system config (BRD §3.3, §3.5)
 
-Allocations are **read-only** for Admin (create/end allocation is Manager API — PR #8). System config is seeded on startup with BRD defaults (Gemini, 4h scheduler, 40h/week, no API key).
+Allocations are **read-only** for Admin (create/end allocation is Manager API — PR #8). Initial system config is seeded once from `.env` (`BOOTSTRAP_LLM_PROVIDER`, optional `BOOTSTRAP_LLM_API_KEY`, `BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, `BOOTSTRAP_MAX_WEEKLY_HOURS`); ongoing updates use the endpoints below.
 
 ```bash
 export TOKEN="YOUR_ACCESS_TOKEN"
