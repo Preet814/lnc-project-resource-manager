@@ -123,3 +123,17 @@ def test_risk_summary_context_fields() -> None:
     assert context.milestones[0].is_overdue is True
     assert context.recent_timesheets[0].hours_logged == 4
     assert context.recent_timesheets[0].expected_hours == 20
+
+
+def test_risk_summary_result_fields() -> None:
+    from prm.domain.constants import AI_RISK_SUMMARY_DISCLAIMER
+    from prm.domain.dtos import RiskSummaryResult
+
+    result = RiskSummaryResult(
+        project_id=1,
+        summary="The backend milestone is overdue.",
+        disclaimer=AI_RISK_SUMMARY_DISCLAIMER,
+    )
+
+    assert result.project_id == 1
+    assert "overdue" in result.summary.lower()

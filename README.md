@@ -342,6 +342,29 @@ curl -s "http://localhost:8000/manager/timesheets/2?week_start_date=2026-05-12" 
 | `GET /manager/timesheets` | Manager JWT | Team timesheets for week (incl. MISSED) |
 | `GET /manager/timesheets/{employee_id}` | Manager JWT | Employee timesheet detail for week |
 
+### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
+
+Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
+
+```bash
+export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
+
+# Skill match for an owned project
+curl -s -X POST http://localhost:8000/manager/projects/1/skill-match \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"requirement":"Java developer with microservices experience"}'
+
+# AI risk summary for an owned project
+curl -s http://localhost:8000/manager/projects/1/risk-summary \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `POST /manager/projects/{project_id}/skill-match` | Manager JWT | AI-ranked employee suggestions |
+| `GET /manager/projects/{project_id}/risk-summary` | Manager JWT | Plain-English project risk paragraph |
+
 Stop services:
 
 ```bash
@@ -425,7 +448,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Persistence | SQLAlchemy + PostgreSQL + Alembic |
 | Console client | httpx calling REST |
 | Scheduler | APScheduler (later) |
-| LLM | Gemini / Groq behind shared interface (later) |
+| LLM | Gemini / Groq behind `LLMClient` protocol + factory; Admin configures provider/key |
 | Tests | pytest |
 
 ## Status
@@ -444,7 +467,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Admin allocations & config API | Done — view allocations, system settings (`/admin/allocations`, `/admin/config/*`) |
 | Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |
 | Manager projects & timesheets API | Done — My Projects, health detail, team timesheets read-only (`/manager/projects`, `/manager/timesheets/*`) |
-| Domain features | In progress (LLM skill match & risk summary next — PR #10) |
+| Manager LLM API | Done — skill match + risk summary (`/manager/projects/{id}/skill-match`, `/manager/projects/{id}/risk-summary`) |
+| Domain features | Phase 3 complete — employee timesheets next (PR #11) |
 
 ## Engineering compliance (BRD §4.3)
 
