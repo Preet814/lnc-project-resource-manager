@@ -422,3 +422,12 @@ class RiskSummaryContext:
     milestones: tuple[RiskSummaryMilestoneFact, ...]
     allocated_resources: tuple[RiskSummaryResourceFact, ...]
     recent_timesheets: tuple[RiskSummaryTimesheetFact, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class RiskSummaryResult:
+    """AI risk narrative for a manager-owned project."""
+
+    project_id: int
+    summary: str
+    disclaimer: str

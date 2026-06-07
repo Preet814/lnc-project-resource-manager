@@ -14,3 +14,8 @@ DEFAULT_GEMINI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta"
 DEFAULT_GEMINI_MODEL = "gemini-1.5-flash"
 DEFAULT_GROQ_BASE_URL = "https://api.groq.com/openai/v1"
 DEFAULT_GROQ_MODEL = "llama-3.3-70b-versatile"
+
+RECENT_RISK_TIMESHEET_WEEKS = 4
+AI_RISK_SUMMARY_DISCLAIMER = (
+    "This summary is AI-generated from milestone and timesheet data."
+)
