@@ -271,6 +271,46 @@ curl -s -X PATCH http://localhost:8000/admin/config/max-weekly-hours \
 | `PATCH /admin/config/scheduler-interval` | Admin JWT | Update scheduler interval (hours) |
 | `PATCH /admin/config/max-weekly-hours` | Admin JWT | Update max weekly hours cap |
 
+### Manager resource dashboard and allocation (BRD §4.1, §4.2)
+
+Requires a **MANAGER** user and an employee profile (create via Admin API). Assign `manager_user_id` when creating the project so the manager owns it.
+
+```bash
+export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
+
+# Resource dashboard (bench + active employees)
+curl -s http://localhost:8000/manager/resources \
+  -H "Authorization: Bearer $TOKEN"
+
+# Employee drill-down
+curl -s http://localhost:8000/manager/resources/1 \
+  -H "Authorization: Bearer $TOKEN"
+
+# Active allocations on a project (for end-allocation flow)
+curl -s http://localhost:8000/manager/projects/1/allocations \
+  -H "Authorization: Bearer $TOKEN"
+
+# Direct allocate (returns 409 if total utilisation would exceed 100%)
+curl -s -X POST http://localhost:8000/manager/allocations \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"project_id":1,"employee_id":2,"utilisation_percent":50,"from_date":"2026-06-01","to_date":"2026-09-30"}'
+
+# End an allocation (optional as_of date; defaults to today)
+curl -s -X POST http://localhost:8000/manager/allocations/1/end \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"as_of":"2026-06-14"}'
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /manager/resources` | Manager JWT | Resource dashboard + counts |
+| `GET /manager/resources/{employee_id}` | Manager JWT | Employee drill-down |
+| `GET /manager/projects/{project_id}/allocations` | Manager JWT | Active allocations on owned project |
+| `POST /manager/allocations` | Manager JWT | Direct allocate |
+| `POST /manager/allocations/{allocation_id}/end` | Manager JWT | End allocation |
+
 Stop services:
 
 ```bash
@@ -371,7 +411,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Admin employees API | Done — create, list, update, deactivate, skills CRUD (`/admin/employees/*`) |
 | Admin projects API | Done — create, list, update, milestones CRUD (`/admin/projects/*`) |
 | Admin allocations & config API | Done — view allocations, system settings (`/admin/allocations`, `/admin/config/*`) |
-| Domain features | In progress (manager allocation API next — PR #8) |
+| Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |
+| Domain features | In progress (manager projects & timesheets next — PR #9) |
 
 ## Engineering compliance (BRD §4.3)
 

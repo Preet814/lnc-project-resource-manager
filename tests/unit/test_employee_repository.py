@@ -258,3 +258,35 @@ def test_set_active_raises_when_employee_missing() -> None:
         repo = SqlAlchemyEmployeeRepository(session)
         with pytest.raises(NotFoundError):
             repo.set_active(999, is_active=False)
+
+
+def test_update_utilisation_and_status_persists_both_fields() -> None:
+    with _session() as session:
+        user_id = _create_user(session, username="ravi", email="ravi@example.test")
+        employee_id = _create_employee(session, user_id=user_id, email="ravi@example.test")
+        repo = SqlAlchemyEmployeeRepository(session)
+
+        updated = repo.update_utilisation_and_status(
+            employee_id,
+            current_utilisation_percent=75,
+            work_status=EmployeeWorkStatus.ALLOCATED,
+        )
+        session.commit()
+
+        assert updated.current_utilisation_percent == 75
+        assert updated.work_status == EmployeeWorkStatus.ALLOCATED
+        reloaded = repo.find_by_id(employee_id)
+        assert reloaded is not None
+        assert reloaded.current_utilisation_percent == 75
+        assert reloaded.work_status == EmployeeWorkStatus.ALLOCATED
+
+
+def test_update_utilisation_and_status_raises_when_missing() -> None:
+    with _session() as session:
+        repo = SqlAlchemyEmployeeRepository(session)
+        with pytest.raises(NotFoundError):
+            repo.update_utilisation_and_status(
+                999,
+                current_utilisation_percent=50,
+                work_status=EmployeeWorkStatus.ALLOCATED,
+            )

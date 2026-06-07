@@ -3,10 +3,10 @@
 from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 
+from prm.api.settings import Settings
 from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, DEFAULT_SCHEDULER_INTERVAL_HOURS
 from prm.domain.enums import LLMProvider, Role, UserAccountStatus
 from prm.infrastructure.db.models import SystemConfigurationModel, UserModel
-from prm.api.settings import Settings
 from prm.infrastructure.db.seed import (
     seed_bootstrap_admin,
     seed_default_system_configuration,

@@ -173,3 +173,67 @@ class SystemConfigurationSummary:
     llm_api_key_masked: str | None
     scheduler_interval_hours: int
     max_weekly_hours: int
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationResult:
+    """Outcome of a business-rule check (utilisation cap, date range, etc.)."""
+
+    is_valid: bool
+    message: str
+    total_percent: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class BenchEmployeeSummary:
+    """Bench row for manager resource dashboard (BRD §4.1)."""
+
+    employee_id: int
+    full_name: str
+    department: str
+    skill_names: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class ActiveEmployeeSummary:
+    """Allocated employee row for manager resource dashboard (BRD §4.1)."""
+
+    employee_id: int
+    full_name: str
+    utilisation_percent: int
+    availability_percent: int
+
+
+@dataclass(frozen=True, slots=True)
+class ResourceDashboardResult:
+    """Manager resource dashboard aggregates (BRD §4.1)."""
+
+    on_bench: tuple[BenchEmployeeSummary, ...]
+    active: tuple[ActiveEmployeeSummary, ...]
+    bench_count: int
+    over_utilised_count: int
+    partial_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeAllocationDetail:
+    """Active allocation row in employee drill-down (BRD §4.1)."""
+
+    project_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeResourceDetail:
+    """Employee drill-down for manager resource dashboard (BRD §4.1)."""
+
+    employee_id: int
+    full_name: str
+    department: str
+    work_status: EmployeeWorkStatus
+    current_utilisation_percent: int
+    profile_skills: tuple[str, ...]
+    active_allocations: tuple[EmployeeAllocationDetail, ...]
+    recent_activity_tags: tuple[str, ...]

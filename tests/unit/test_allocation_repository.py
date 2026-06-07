@@ -2,10 +2,12 @@
 
 from datetime import date
 
+import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.domain.enums import AllocationStatus, Role
+from prm.domain.exceptions import NotFoundError
 from prm.infrastructure.db.models import AllocationModel, EmployeeModel, ProjectModel, UserModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
@@ -94,13 +96,15 @@ def _create_allocation(
     project_id: int,
     created_by_user_id: int,
     status: AllocationStatus = AllocationStatus.ACTIVE,
+    from_date: date | None = None,
     to_date: date | None = None,
+    utilisation_percent: int = 50,
 ) -> int:
     allocation = AllocationModel(
         employee_id=employee_id,
         project_id=project_id,
-        utilisation_percent=50,
-        from_date=date(2026, 6, 1),
+        utilisation_percent=utilisation_percent,
+        from_date=from_date or date(2026, 6, 1),
         to_date=to_date,
         status=status,
         created_by_user_id=created_by_user_id,
@@ -331,3 +335,179 @@ def test_list_active_returns_empty_when_none() -> None:
         repo = SqlAlchemyAllocationRepository(session)
 
         assert repo.list_active() == []
+
+
+def test_find_by_id_returns_allocation() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        allocation_id = _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+
+        allocation = repo.find_by_id(allocation_id)
+
+        assert allocation is not None
+        assert allocation.id == allocation_id
+        assert allocation.employee_id == employee_id
+
+
+def test_find_by_id_returns_none_when_missing() -> None:
+    with _session() as session:
+        repo = SqlAlchemyAllocationRepository(session)
+        assert repo.find_by_id(999) is None
+
+
+def test_find_overlapping_returns_active_allocations_in_range() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        overlapping_id = _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+            from_date=date(2026, 3, 1),
+            to_date=date(2026, 6, 30),
+        )
+        _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+            from_date=date(2026, 8, 1),
+            to_date=date(2026, 9, 30),
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+
+        overlapping = repo.find_overlapping(
+            employee_id,
+            date(2026, 5, 1),
+            date(2026, 7, 31),
+        )
+
+        assert len(overlapping) == 1
+        assert overlapping[0].id == overlapping_id
+
+
+def test_find_overlapping_excludes_ended_allocations() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+            from_date=date(2026, 3, 1),
+            to_date=date(2026, 5, 31),
+            status=AllocationStatus.ENDED,
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+
+        assert repo.find_overlapping(employee_id, date(2026, 4, 1), date(2026, 4, 30)) == []
+
+
+def test_find_overlapping_respects_exclude_allocation_id() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        first_id = _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+            from_date=date(2026, 3, 1),
+            to_date=date(2026, 6, 30),
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+
+        overlapping = repo.find_overlapping(
+            employee_id,
+            date(2026, 4, 1),
+            date(2026, 5, 1),
+            exclude_allocation_id=first_id,
+        )
+
+        assert overlapping == []
+
+
+def test_create_persists_active_allocation() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+
+        created = repo.create(
+            employee_id=employee_id,
+            project_id=project_id,
+            utilisation_percent=50,
+            from_date=date(2026, 6, 1),
+            to_date=date(2026, 9, 30),
+            created_by_user_id=manager_id,
+        )
+        session.commit()
+
+        assert created.id is not None
+        assert created.status == AllocationStatus.ACTIVE
+        assert created.utilisation_percent == 50
+        reloaded = repo.find_by_id(created.id)
+        assert reloaded is not None
+        assert reloaded.project_id == project_id
+
+
+def test_end_by_id_sets_to_date_and_status() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        allocation_id = _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+        end_date = date(2026, 6, 14)
+
+        ended = repo.end_by_id(allocation_id, as_of=end_date)
+        session.commit()
+
+        assert ended.id == allocation_id
+        assert ended.status == AllocationStatus.ENDED
+        assert ended.to_date == end_date
+        assert repo.find_active_by_employee(employee_id) == []
+
+
+def test_end_by_id_raises_when_missing() -> None:
+    with _session() as session:
+        repo = SqlAlchemyAllocationRepository(session)
+        with pytest.raises(NotFoundError, match="Allocation 999 not found"):
+            repo.end_by_id(999, as_of=date(2026, 6, 14))
+
+
+def test_end_by_id_raises_when_already_ended() -> None:
+    with _session() as session:
+        manager_id, employee_id = _seed_manager_and_employee(session)
+        project_id = _create_project(session, manager_user_id=manager_id)
+        allocation_id = _create_allocation(
+            session,
+            employee_id=employee_id,
+            project_id=project_id,
+            created_by_user_id=manager_id,
+            status=AllocationStatus.ENDED,
+            to_date=date(2026, 5, 31),
+        )
+        session.commit()
+        repo = SqlAlchemyAllocationRepository(session)
+        with pytest.raises(NotFoundError, match="not active"):
+            repo.end_by_id(allocation_id, as_of=date(2026, 6, 14))
