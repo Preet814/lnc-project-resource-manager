@@ -13,6 +13,7 @@ from prm.infrastructure.db.repositories.skill_repository import SqlAlchemySkillR
 from prm.infrastructure.db.repositories.system_configuration_repository import (
     SqlAlchemySystemConfigurationRepository,
 )
+from prm.infrastructure.db.repositories.timesheet_repository import SqlAlchemyTimesheetRepository
 from prm.infrastructure.db.repositories.user_repository import SqlAlchemyUserRepository
 
 __all__ = [
@@ -23,5 +24,6 @@ __all__ = [
     "SqlAlchemyProjectRepository",
     "SqlAlchemySkillRepository",
     "SqlAlchemySystemConfigurationRepository",
+    "SqlAlchemyTimesheetRepository",
     "SqlAlchemyUserRepository",
 ]

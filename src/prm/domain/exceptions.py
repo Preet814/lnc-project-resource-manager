@@ -19,3 +19,7 @@ class NotFoundError(DomainError):
 
 class AuthenticationError(DomainError):
     """Invalid credentials or expired session."""
+
+
+class ConflictError(DomainError):
+    """Request conflicts with current state (e.g. over-allocation)."""

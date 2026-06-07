@@ -280,6 +280,16 @@ class MilestoneRepository(Protocol):
     ) -> Milestone: ...
 
 
+class TimesheetRepository(Protocol):
+    def list_recent_activity_tags(
+        self,
+        employee_id: int,
+        *,
+        weeks: int = 4,
+        as_of: date | None = None,
+    ) -> list[str]: ...
+
+
 class SystemConfigurationRepository(Protocol):
     def find_singleton(self) -> SystemConfiguration | None: ...
 
