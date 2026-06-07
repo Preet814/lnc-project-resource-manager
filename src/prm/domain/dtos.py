@@ -3,7 +3,13 @@
 from dataclasses import dataclass
 from datetime import UTC, datetime
 
-from prm.domain.enums import Role, UserAccountStatus
+from prm.domain.enums import (
+    EmployeeWorkStatus,
+    ProficiencyLevel,
+    Role,
+    SkillCategory,
+    UserAccountStatus,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,3 +66,42 @@ class UserListResult:
     total: int
     active_count: int
     inactive_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeSummary:
+    """Compact employee row for admin list screens (BRD §3.1.2)."""
+
+    id: int
+    full_name: str
+    department: str
+    work_status: EmployeeWorkStatus
+    is_active: bool
+
+    def is_on_bench(self) -> bool:
+        return self.work_status == EmployeeWorkStatus.BENCH
+
+    def is_allocated(self) -> bool:
+        return self.work_status == EmployeeWorkStatus.ALLOCATED
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeListResult:
+    """All employees plus bench/allocated counts for the admin dashboard."""
+
+    employees: tuple[EmployeeSummary, ...]
+    total: int
+    allocated_count: int
+    bench_count: int
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeeSkillDetail:
+    """Skill row for admin manage-skills screen (BRD §3.1.4)."""
+
+    employee_skill_id: int
+    skill_id: int
+    skill_name: str
+    category: SkillCategory
+    proficiency: ProficiencyLevel
+    assigned_at: datetime

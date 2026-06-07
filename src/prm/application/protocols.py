@@ -1,11 +1,20 @@
 """Application-layer protocols (dependency inversion)."""
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Protocol
 
 from prm.domain.dtos import AuthToken
+from prm.domain.entities.allocation import Allocation
+from prm.domain.entities.employee import Employee
+from prm.domain.entities.skill import EmployeeSkill, Skill
 from prm.domain.entities.user import User
-from prm.domain.enums import Role, UserAccountStatus
+from prm.domain.enums import (
+    EmployeeWorkStatus,
+    ProficiencyLevel,
+    Role,
+    SkillCategory,
+    UserAccountStatus,
+)
 
 
 class PasswordHasher(Protocol):
@@ -70,3 +79,88 @@ class UserRepository(Protocol):
         *,
         account_status: UserAccountStatus,
     ) -> User: ...
+
+
+class EmployeeRepository(Protocol):
+    def find_by_id(self, employee_id: int) -> Employee | None: ...
+
+    def find_by_user_id(self, user_id: int) -> Employee | None: ...
+
+    def find_by_email(self, email: str) -> Employee | None: ...
+
+    def list_all(
+        self,
+        *,
+        work_status: EmployeeWorkStatus | None = None,
+        department: str | None = None,
+        active_only: bool = True,
+    ) -> list[Employee]: ...
+
+    def create(
+        self,
+        *,
+        user_id: int,
+        full_name: str,
+        email: str,
+        department: str,
+        designation: str,
+    ) -> Employee: ...
+
+    def update(
+        self,
+        employee_id: int,
+        *,
+        full_name: str | None = None,
+        email: str | None = None,
+        department: str | None = None,
+        designation: str | None = None,
+    ) -> Employee: ...
+
+    def set_active(self, employee_id: int, *, is_active: bool) -> Employee: ...
+
+
+class SkillRepository(Protocol):
+    def find_by_id(self, skill_id: int) -> Skill | None: ...
+
+    def find_by_name(self, name: str) -> Skill | None: ...
+
+    def create(
+        self,
+        *,
+        name: str,
+        category: SkillCategory,
+        is_predefined: bool = False,
+    ) -> Skill: ...
+
+    def get_or_create(self, *, name: str, category: SkillCategory) -> Skill: ...
+
+
+class EmployeeSkillRepository(Protocol):
+    def list_for_employee(self, employee_id: int) -> list[EmployeeSkill]: ...
+
+    def find_by_employee_and_skill(
+        self, employee_id: int, skill_id: int
+    ) -> EmployeeSkill | None: ...
+
+    def assign(
+        self,
+        *,
+        employee_id: int,
+        skill_id: int,
+        proficiency: ProficiencyLevel,
+    ) -> EmployeeSkill: ...
+
+    def update_proficiency(
+        self,
+        employee_skill_id: int,
+        *,
+        proficiency: ProficiencyLevel,
+    ) -> EmployeeSkill: ...
+
+    def remove(self, employee_skill_id: int) -> None: ...
+
+
+class AllocationRepository(Protocol):
+    def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
+
+    def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]: ...
