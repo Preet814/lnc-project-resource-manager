@@ -7,14 +7,18 @@ from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from prm.api.settings import Settings, get_settings
+from prm.application.allocation_service import AllocationService
 from prm.application.allocation_view_service import AllocationViewService
 from prm.application.auth_service import AuthService
+from prm.application.authorization_service import AuthorizationService
 from prm.application.employee_management_service import EmployeeManagementService
 from prm.application.employee_skill_service import EmployeeSkillService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
+from prm.application.resource_dashboard_service import ResourceDashboardService
 from prm.application.system_config_service import SystemConfigService
 from prm.application.user_management_service import UserManagementService
+from prm.application.utilisation_calculator import UtilisationCalculator
 from prm.domain.enums import Role
 from prm.domain.exceptions import UnauthorizedError
 from prm.infrastructure.db.repositories import (
@@ -25,6 +29,7 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyProjectRepository,
     SqlAlchemySkillRepository,
     SqlAlchemySystemConfigurationRepository,
+    SqlAlchemyTimesheetRepository,
     SqlAlchemyUserRepository,
 )
 from prm.infrastructure.db.session import get_db_session
@@ -138,3 +143,40 @@ def require_admin(
             f"Role {current_user.role.value} is not permitted for this action."
         )
     return current_user
+
+
+def require_manager(
+    current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+) -> JwtTokenPayload:
+    if current_user.role != Role.MANAGER:
+        raise UnauthorizedError(
+            f"Role {current_user.role.value} is not permitted for this action."
+        )
+    return current_user
+
+
+def get_allocation_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> AllocationService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    allocation_repository = SqlAlchemyAllocationRepository(db)
+    return AllocationService(
+        allocation_repository=allocation_repository,
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        project_repository=project_repository,
+        authorization=AuthorizationService(project_repository),
+        utilisation=UtilisationCalculator(allocation_repository),
+    )
+
+
+def get_resource_dashboard_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> ResourceDashboardService:
+    return ResourceDashboardService(
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        employee_skill_repository=SqlAlchemyEmployeeSkillRepository(db),
+        skill_repository=SqlAlchemySkillRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=SqlAlchemyProjectRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+    )

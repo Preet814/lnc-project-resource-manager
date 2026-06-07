@@ -5,6 +5,7 @@ from fastapi.responses import JSONResponse
 
 from prm.domain.exceptions import (
     AuthenticationError,
+    ConflictError,
     DomainError,
     NotFoundError,
     UnauthorizedError,
@@ -34,6 +35,10 @@ def register_exception_handlers(app: FastAPI) -> None:
     @app.exception_handler(NotFoundError)
     async def not_found_error_handler(_request: Request, exc: NotFoundError) -> JSONResponse:
         return JSONResponse(status_code=404, content={"detail": str(exc)})
+
+    @app.exception_handler(ConflictError)
+    async def conflict_error_handler(_request: Request, exc: ConflictError) -> JSONResponse:
+        return JSONResponse(status_code=409, content={"detail": str(exc)})
 
     @app.exception_handler(DomainError)
     async def domain_error_handler(_request: Request, exc: DomainError) -> JSONResponse:

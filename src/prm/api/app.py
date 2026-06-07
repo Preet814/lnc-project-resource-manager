@@ -11,6 +11,7 @@ from prm.api.routes import (
     admin_users,
     auth,
     health,
+    manager,
 )
 from prm.api.settings import get_settings
 
@@ -26,4 +27,5 @@ def create_app() -> FastAPI:
     app.include_router(admin_projects.router)
     app.include_router(admin_allocations.router)
     app.include_router(admin_config.router)
+    app.include_router(manager.router)
     return app
