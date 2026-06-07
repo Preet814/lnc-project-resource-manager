@@ -173,3 +173,12 @@ class SystemConfigurationSummary:
     llm_api_key_masked: str | None
     scheduler_interval_hours: int
     max_weekly_hours: int
+
+
+@dataclass(frozen=True, slots=True)
+class ValidationResult:
+    """Outcome of a business-rule check (utilisation cap, date range, etc.)."""
+
+    is_valid: bool
+    message: str
+    total_percent: int | None = None
