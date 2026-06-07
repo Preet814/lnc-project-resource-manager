@@ -1,12 +1,16 @@
 """Construct LLMClient implementations from system configuration."""
 
-from prm.api.settings import Settings
+from typing import TYPE_CHECKING
+
 from prm.application.protocols import LLMClient
 from prm.domain.enums import LLMProvider
 from prm.domain.exceptions import ValidationError
 from prm.infrastructure.llm.gemini_client import GeminiClient
 from prm.infrastructure.llm.groq_client import GroqClient
 from prm.infrastructure.llm.validation import validate_llm_base_url, validate_llm_model
+
+if TYPE_CHECKING:
+    from prm.api.settings import Settings
 
 
 def create_llm_client(
@@ -42,7 +46,7 @@ def create_llm_client(
 def create_llm_client_from_settings(
     provider: LLMProvider,
     api_key: str,
-    settings: Settings,
+    settings: "Settings",
 ) -> LLMClient:
     """Build an LLM client using provider-specific URL and model from Settings."""
     if provider is LLMProvider.GEMINI:
