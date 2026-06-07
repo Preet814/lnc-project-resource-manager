@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from prm.domain.entities.allocation import Allocation
 from prm.domain.enums import AllocationStatus
 from prm.domain.exceptions import NotFoundError
-from prm.infrastructure.db.models import AllocationModel
+from prm.infrastructure.db.models import AllocationModel, ProjectModel
 
 
 def _to_domain(model: AllocationModel) -> Allocation:
@@ -75,6 +75,16 @@ class SqlAlchemyAllocationRepository:
         if project_id is not None:
             stmt = stmt.where(AllocationModel.project_id == project_id)
         models = self._session.scalars(stmt).all()
+        return [_to_domain(model) for model in models]
+
+    def list_active_for_manager(self, manager_user_id: int) -> list[Allocation]:
+        models = self._session.scalars(
+            select(AllocationModel)
+            .join(ProjectModel, AllocationModel.project_id == ProjectModel.id)
+            .where(ProjectModel.manager_user_id == manager_user_id)
+            .where(AllocationModel.status == AllocationStatus.ACTIVE)
+            .order_by(AllocationModel.id)
+        ).all()
         return [_to_domain(model) for model in models]
 
     def create(
