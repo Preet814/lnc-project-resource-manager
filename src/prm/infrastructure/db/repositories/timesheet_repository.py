@@ -1,12 +1,12 @@
-"""Timesheet read access for manager dashboard and team timesheet views."""
+"""Timesheet persistence for manager views and employee submission."""
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from prm.domain.entities.timesheet import TimesheetEntry, TimesheetWeek
-from prm.domain.enums import ActivityTag
+from prm.domain.entities.timesheet import NewTimesheetEntry, TimesheetEntry, TimesheetWeek
+from prm.domain.enums import ActivityTag, TimesheetWeekStatus
 from prm.infrastructure.db.models import TimesheetEntryModel, TimesheetWeekModel
 
 
@@ -43,7 +43,7 @@ def _entry_to_domain(model: TimesheetEntryModel) -> TimesheetEntry:
 
 
 class SqlAlchemyTimesheetRepository:
-    """Read timesheet weeks and entries for manager workflows."""
+    """Read and write timesheet weeks and entries."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -94,3 +94,52 @@ class SqlAlchemyTimesheetRepository:
             .order_by(TimesheetEntryModel.id)
         ).all()
         return [_entry_to_domain(model) for model in models]
+
+    def list_weeks_for_employee(
+        self,
+        employee_id: int,
+        *,
+        limit: int | None = None,
+    ) -> list[TimesheetWeek]:
+        stmt = (
+            select(TimesheetWeekModel)
+            .where(TimesheetWeekModel.employee_id == employee_id)
+            .order_by(TimesheetWeekModel.week_start_date.desc())
+        )
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        models = self._session.scalars(stmt).all()
+        return [_week_to_domain(model) for model in models]
+
+    def create_week_with_entries(
+        self,
+        *,
+        employee_id: int,
+        week_start_date: date,
+        total_hours: int,
+        submitted_at: datetime,
+        entries: tuple[NewTimesheetEntry, ...],
+    ) -> TimesheetWeek:
+        week_model = TimesheetWeekModel(
+            employee_id=employee_id,
+            week_start_date=week_start_date,
+            status=TimesheetWeekStatus.SUBMITTED,
+            total_hours=total_hours,
+            submitted_at=submitted_at,
+        )
+        self._session.add(week_model)
+        self._session.flush()
+
+        for entry in entries:
+            self._session.add(
+                TimesheetEntryModel(
+                    timesheet_week_id=week_model.id,
+                    project_id=entry.project_id,
+                    hours_worked=entry.hours_worked,
+                    activity_tags=list(entry.activity_tags),
+                )
+            )
+
+        self._session.flush()
+        self._session.refresh(week_model)
+        return _week_to_domain(week_model)

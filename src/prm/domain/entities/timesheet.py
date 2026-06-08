@@ -27,3 +27,12 @@ class TimesheetEntry:
     project_id: int
     hours_worked: int
     activity_tags: tuple[ActivityTag, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class NewTimesheetEntry:
+    """Unpersisted timesheet line passed to the repository on create."""
+
+    project_id: int
+    hours_worked: int
+    activity_tags: tuple[ActivityTag, ...]
