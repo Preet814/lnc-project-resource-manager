@@ -313,7 +313,7 @@ curl -s -X POST http://localhost:8000/manager/allocations/1/end \
 
 ### Manager My Projects and team timesheets (BRD §4.3, §4.4)
 
-Requires a **MANAGER** user who owns the project (`manager_user_id` on create). Team timesheet rows come from active allocations on owned projects; weeks with no submission show **MISSED** (employee submit API is PR #11).
+Requires a **MANAGER** user who owns the project (`manager_user_id` on create). Team timesheet rows come from active allocations on owned projects; weeks with no submission show **MISSED** until the employee submits (or the scheduler flags them in PR #12).
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
@@ -341,6 +341,42 @@ curl -s "http://localhost:8000/manager/timesheets/2?week_start_date=2026-05-12" 
 | `GET /manager/projects/{project_id}` | Manager JWT | Project health detail |
 | `GET /manager/timesheets` | Manager JWT | Team timesheets for week (incl. MISSED) |
 | `GET /manager/timesheets/{employee_id}` | Manager JWT | Employee timesheet detail for week |
+
+### Employee timesheets and allocations (BRD Screen 5)
+
+Requires an **EMPLOYEE** user with a linked employee profile and at least one **ACTIVE** allocation for the selected week. `week_start_date` must be a **Monday**; the for-week endpoint defaults to the current ISO week Monday when omitted.
+
+```bash
+export TOKEN="YOUR_EMPLOYEE_ACCESS_TOKEN"
+
+# Allocations for a week (expected max hours per project)
+curl -s "http://localhost:8000/employee/allocations/for-week?week_start_date=2026-06-01" \
+  -H "Authorization: Bearer $TOKEN"
+
+# My active allocations + total utilisation
+curl -s http://localhost:8000/employee/allocations \
+  -H "Authorization: Bearer $TOKEN"
+
+# Submit weekly timesheet
+curl -s -X POST http://localhost:8000/employee/timesheets \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"week_start_date":"2026-06-01","entries":[{"project_id":1,"hours_worked":18,"activity_tags":["MICROSERVICES","WEBSOCKET"]}]}'
+
+# Timesheet history and week detail
+curl -s http://localhost:8000/employee/timesheets \
+  -H "Authorization: Bearer $TOKEN"
+curl -s http://localhost:8000/employee/timesheets/2026-06-01 \
+  -H "Authorization: Bearer $TOKEN"
+```
+
+| Endpoint | Auth | Purpose |
+|----------|------|---------|
+| `GET /employee/allocations/for-week` | Employee JWT | Week allocations + expected max hrs |
+| `GET /employee/allocations` | Employee JWT | My active allocations |
+| `POST /employee/timesheets` | Employee JWT | Submit a week |
+| `GET /employee/timesheets` | Employee JWT | My timesheet history |
+| `GET /employee/timesheets/{week_start_date}` | Employee JWT | Week detail |
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
@@ -468,7 +504,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |
 | Manager projects & timesheets API | Done — My Projects, health detail, team timesheets read-only (`/manager/projects`, `/manager/timesheets/*`) |
 | Manager LLM API | Done — skill match + risk summary (`/manager/projects/{id}/skill-match`, `/manager/projects/{id}/risk-summary`) |
-| Domain features | Phase 3 complete — employee timesheets next (PR #11) |
+| Employee timesheets API | Done — submit week, view history, my allocations (`/employee/timesheets/*`, `/employee/allocations/*`) |
+| Domain features | Phase 4 in progress — background scheduler next (PR #12) |
 
 ## Engineering compliance (BRD §4.3)
 

@@ -4,8 +4,10 @@ from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, status
+from sqlalchemy.orm import Session
 
 from prm.api.deps import (
+    get_db_session,
     get_employee_allocation_service,
     get_employee_timesheet_service,
     require_employee,
@@ -17,8 +19,8 @@ from prm.api.schemas.employee import (
     MyTimesheetListResponse,
     MyTimesheetWeekDetailResponse,
     MyTimesheetWeekSummaryResponse,
-    SubmitTimesheetRequest,
     SubmittedTimesheetResponse,
+    SubmitTimesheetRequest,
     WeekAllocationRowResponse,
     WeekAllocationsResponse,
 )
@@ -28,9 +30,9 @@ from prm.domain.dtos import (
     MyAllocationsResult,
     MyTimesheetListResult,
     MyTimesheetWeekDetail,
+    SubmittedTimesheetResult,
     SubmitTimesheetCommand,
     SubmitTimesheetEntry,
-    SubmittedTimesheetResult,
     WeekAllocationsResult,
 )
 from prm.domain.week_calendar import week_start_on_or_before
@@ -147,6 +149,7 @@ def submit_timesheet(
     body: SubmitTimesheetRequest,
     employee: Annotated[JwtTokenPayload, Depends(require_employee)],
     service: Annotated[EmployeeTimesheetService, Depends(get_employee_timesheet_service)],
+    db: Annotated[Session, Depends(get_db_session)],
 ) -> SubmittedTimesheetResponse:
     command = SubmitTimesheetCommand(
         week_start_date=body.week_start_date,
@@ -160,6 +163,7 @@ def submit_timesheet(
         ),
     )
     result = service.submit_week(employee.user_id, command)
+    db.commit()
     return _to_submitted_response(result)
 
 
