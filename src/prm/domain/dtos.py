@@ -4,6 +4,8 @@ from dataclasses import dataclass
 from datetime import UTC, date, datetime
 
 from prm.domain.enums import (
+    ActivityTag,
+    AllocationStatus,
     EmployeeWorkStatus,
     LLMProvider,
     MilestoneStatus,
@@ -336,6 +338,109 @@ class EmployeeTimesheetWeekDetail:
     status: TimesheetWeekStatus
     total_hours: int
     entries: tuple[EmployeeTimesheetEntryDetail, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SubmitTimesheetEntry:
+    """One project line in an employee timesheet submission (BRD Screen 5.1)."""
+
+    project_id: int
+    hours_worked: int
+    activity_tags: tuple[ActivityTag, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SubmitTimesheetCommand:
+    """Employee weekly timesheet submission payload."""
+
+    week_start_date: date
+    entries: tuple[SubmitTimesheetEntry, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SubmittedTimesheetResult:
+    """Outcome after a successful timesheet submission."""
+
+    week_start_date: date
+    status: TimesheetWeekStatus
+    total_hours: int
+    submitted_at: datetime
+
+
+@dataclass(frozen=True, slots=True)
+class WeekAllocationRow:
+    """Active allocation row for timesheet submit context (BRD Screen 5.1)."""
+
+    project_id: int
+    project_name: str
+    utilisation_percent: int
+    expected_max_hours: int
+
+
+@dataclass(frozen=True, slots=True)
+class WeekAllocationsResult:
+    """Allocations available for logging hours in a selected week."""
+
+    week_start_date: date
+    max_weekly_hours: int
+    allocations: tuple[WeekAllocationRow, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MyAllocationRow:
+    """Employee's allocation row for My Allocations screen (BRD Screen 5.3)."""
+
+    project_id: int
+    project_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+    status: AllocationStatus
+
+
+@dataclass(frozen=True, slots=True)
+class MyAllocationsResult:
+    """Employee allocation history for My Allocations screen."""
+
+    allocations: tuple[MyAllocationRow, ...]
+    total_utilisation_percent: int
+
+
+@dataclass(frozen=True, slots=True)
+class MyTimesheetWeekSummary:
+    """Compact row for employee timesheet history (BRD Screen 5.2)."""
+
+    week_start_date: date
+    total_hours: int
+    status: TimesheetWeekStatus
+
+
+@dataclass(frozen=True, slots=True)
+class MyTimesheetListResult:
+    """Submitted timesheet weeks for the logged-in employee."""
+
+    weeks: tuple[MyTimesheetWeekSummary, ...]
+    total: int
+
+
+@dataclass(frozen=True, slots=True)
+class MyTimesheetEntryDetail:
+    """Project line in employee's own timesheet week detail."""
+
+    project_id: int
+    project_name: str
+    hours_worked: int
+    activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class MyTimesheetWeekDetail:
+    """Employee timesheet drill-down for own history (BRD Screen 5.2)."""
+
+    week_start_date: date
+    status: TimesheetWeekStatus
+    total_hours: int
+    entries: tuple[MyTimesheetEntryDetail, ...]
 
 
 @dataclass(frozen=True, slots=True)
