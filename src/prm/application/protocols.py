@@ -17,7 +17,7 @@ from prm.domain.entities.project import Project
 from prm.domain.entities.project_health_snapshot import ProjectHealthSnapshot
 from prm.domain.entities.skill import EmployeeSkill, Skill
 from prm.domain.entities.system_configuration import SystemConfiguration
-from prm.domain.entities.timesheet import TimesheetEntry, TimesheetWeek
+from prm.domain.entities.timesheet import NewTimesheetEntry, TimesheetEntry, TimesheetWeek
 from prm.domain.entities.user import User
 from prm.domain.enums import (
     EmployeeWorkStatus,
@@ -312,6 +312,23 @@ class TimesheetRepository(Protocol):
     ) -> TimesheetWeek | None: ...
 
     def list_entries_for_week(self, timesheet_week_id: int) -> list[TimesheetEntry]: ...
+
+    def list_weeks_for_employee(
+        self,
+        employee_id: int,
+        *,
+        limit: int | None = None,
+    ) -> list[TimesheetWeek]: ...
+
+    def create_week_with_entries(
+        self,
+        *,
+        employee_id: int,
+        week_start_date: date,
+        total_hours: int,
+        submitted_at: datetime,
+        entries: tuple[NewTimesheetEntry, ...],
+    ) -> TimesheetWeek: ...
 
 
 class SystemConfigurationRepository(Protocol):

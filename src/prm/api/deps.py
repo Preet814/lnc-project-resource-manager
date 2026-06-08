@@ -11,8 +11,10 @@ from prm.application.allocation_service import AllocationService
 from prm.application.allocation_view_service import AllocationViewService
 from prm.application.auth_service import AuthService
 from prm.application.authorization_service import AuthorizationService
+from prm.application.employee_allocation_service import EmployeeAllocationService
 from prm.application.employee_management_service import EmployeeManagementService
 from prm.application.employee_skill_service import EmployeeSkillService
+from prm.application.employee_timesheet_service import EmployeeTimesheetService
 from prm.application.manager_project_service import ManagerProjectService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
@@ -161,6 +163,39 @@ def require_manager(
             f"Role {current_user.role.value} is not permitted for this action."
         )
     return current_user
+
+
+def require_employee(
+    current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+) -> JwtTokenPayload:
+    if current_user.role != Role.EMPLOYEE:
+        raise UnauthorizedError(
+            f"Role {current_user.role.value} is not permitted for this action."
+        )
+    return current_user
+
+
+def get_employee_timesheet_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> EmployeeTimesheetService:
+    return EmployeeTimesheetService(
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=SqlAlchemyProjectRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        config_repository=SqlAlchemySystemConfigurationRepository(db),
+    )
+
+
+def get_employee_allocation_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> EmployeeAllocationService:
+    return EmployeeAllocationService(
+        employee_repository=SqlAlchemyEmployeeRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=SqlAlchemyProjectRepository(db),
+        config_repository=SqlAlchemySystemConfigurationRepository(db),
+    )
 
 
 def get_allocation_service(
