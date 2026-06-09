@@ -240,3 +240,30 @@ def test_create_week_with_entries_persists_week_and_lines() -> None:
         assert len(entries) == 2
         assert entries[0].hours_worked == 18
         assert entries[1].activity_tags == (ActivityTag.BACKEND_API,)
+
+
+def test_create_missed_week_persists_missed_status_without_entries() -> None:
+    with _session() as session:
+        employee_id = _seed_employee(session)
+        session.commit()
+        repo = SqlAlchemyTimesheetRepository(session)
+        week_start = date(2026, 4, 21)
+
+        week = repo.create_missed_week(
+            employee_id=employee_id,
+            week_start_date=week_start,
+        )
+        session.commit()
+
+        assert week.id > 0
+        assert week.status == TimesheetWeekStatus.MISSED
+        assert week.total_hours == 0
+        assert week.submitted_at is None
+
+        found = repo.find_week_by_employee(employee_id, week_start)
+        assert found is not None
+        assert found.id == week.id
+        assert found.status == TimesheetWeekStatus.MISSED
+
+        entries = repo.list_entries_for_week(week.id)
+        assert entries == []

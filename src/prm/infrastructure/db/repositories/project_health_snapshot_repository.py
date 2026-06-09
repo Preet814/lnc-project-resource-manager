@@ -1,9 +1,12 @@
 """Project health snapshot persistence via SQLAlchemy."""
 
+from datetime import datetime
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from prm.domain.entities.project_health_snapshot import ProjectHealthSnapshot
+from prm.domain.enums import ProjectHealthStatus
 from prm.infrastructure.db.models import ProjectHealthSnapshotModel
 
 
@@ -31,3 +34,22 @@ class SqlAlchemyProjectHealthSnapshotRepository:
             .limit(1)
         )
         return _to_domain(model) if model is not None else None
+
+    def save(
+        self,
+        *,
+        project_id: int,
+        status: ProjectHealthStatus,
+        risk_flags: tuple[str, ...],
+        computed_at: datetime,
+    ) -> ProjectHealthSnapshot:
+        model = ProjectHealthSnapshotModel(
+            project_id=project_id,
+            status=status,
+            risk_flags=list(risk_flags),
+            computed_at=computed_at,
+        )
+        self._session.add(model)
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)

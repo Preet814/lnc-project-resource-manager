@@ -24,6 +24,7 @@ from prm.domain.enums import (
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
+    ProjectHealthStatus,
     ProjectStatus,
     Role,
     SkillCategory,
@@ -261,9 +262,26 @@ class ProjectRepository(Protocol):
 
     def list_by_manager_user_id(self, manager_user_id: int) -> list[Project]: ...
 
+    def update_health(
+        self,
+        project_id: int,
+        *,
+        health_status: ProjectHealthStatus,
+        health_computed_at: datetime,
+    ) -> Project: ...
+
 
 class ProjectHealthSnapshotRepository(Protocol):
     def find_latest_for_project(self, project_id: int) -> ProjectHealthSnapshot | None: ...
+
+    def save(
+        self,
+        *,
+        project_id: int,
+        status: ProjectHealthStatus,
+        risk_flags: tuple[str, ...],
+        computed_at: datetime,
+    ) -> ProjectHealthSnapshot: ...
 
 
 class MilestoneRepository(Protocol):
@@ -328,6 +346,13 @@ class TimesheetRepository(Protocol):
         total_hours: int,
         submitted_at: datetime,
         entries: tuple[NewTimesheetEntry, ...],
+    ) -> TimesheetWeek: ...
+
+    def create_missed_week(
+        self,
+        *,
+        employee_id: int,
+        week_start_date: date,
     ) -> TimesheetWeek: ...
 
 

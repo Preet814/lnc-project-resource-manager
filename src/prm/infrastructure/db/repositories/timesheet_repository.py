@@ -143,3 +143,21 @@ class SqlAlchemyTimesheetRepository:
         self._session.flush()
         self._session.refresh(week_model)
         return _week_to_domain(week_model)
+
+    def create_missed_week(
+        self,
+        *,
+        employee_id: int,
+        week_start_date: date,
+    ) -> TimesheetWeek:
+        week_model = TimesheetWeekModel(
+            employee_id=employee_id,
+            week_start_date=week_start_date,
+            status=TimesheetWeekStatus.MISSED,
+            total_hours=0,
+            submitted_at=None,
+        )
+        self._session.add(week_model)
+        self._session.flush()
+        self._session.refresh(week_model)
+        return _week_to_domain(week_model)

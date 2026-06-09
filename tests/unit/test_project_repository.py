@@ -1,6 +1,6 @@
 """Unit tests for SQLAlchemy project repository."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 
 import pytest
 from sqlalchemy import create_engine
@@ -215,3 +215,39 @@ def test_list_by_manager_user_id_returns_empty_when_none() -> None:
         repo = SqlAlchemyProjectRepository(session)
 
         assert repo.list_by_manager_user_id(manager_id) == []
+
+
+def test_update_health_persists_status_and_computed_at() -> None:
+    with _session() as session:
+        manager_id = _create_manager(session, username="ankit", email="ankit@example.test")
+        project_id = _create_project(session, manager_user_id=manager_id)
+        repo = SqlAlchemyProjectRepository(session)
+        computed_at = datetime(2026, 5, 12, 10, 0, tzinfo=UTC)
+
+        updated = repo.update_health(
+            project_id,
+            health_status=ProjectHealthStatus.AT_RISK,
+            health_computed_at=computed_at,
+        )
+        session.commit()
+
+        assert updated.health_status == ProjectHealthStatus.AT_RISK
+        # SQLite in-memory tests store datetimes without tzinfo
+        assert updated.health_computed_at == computed_at.replace(tzinfo=None)
+
+        found = repo.find_by_id(project_id)
+        assert found is not None
+        assert found.health_status == ProjectHealthStatus.AT_RISK
+        assert found.health_computed_at == computed_at.replace(tzinfo=None)
+
+
+def test_update_health_raises_when_project_missing() -> None:
+    with _session() as session:
+        repo = SqlAlchemyProjectRepository(session)
+
+        with pytest.raises(NotFoundError, match="Project 999 not found"):
+            repo.update_health(
+                999,
+                health_status=ProjectHealthStatus.ON_TRACK,
+                health_computed_at=datetime(2026, 5, 12, 10, 0, tzinfo=UTC),
+            )
