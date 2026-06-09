@@ -572,3 +572,12 @@ class HealthEvaluationResult:
 
     status: ProjectHealthStatus
     risk_flags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class SchedulerRunResult:
+    """Outcome counters for one scheduler tick."""
+
+    employees_synced: int
+    projects_evaluated: int
+    missed_weeks_created: int

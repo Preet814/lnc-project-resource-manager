@@ -194,6 +194,8 @@ class AllocationRepository(Protocol):
 
     def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
 
+    def list_by_employee(self, employee_id: int) -> list[Allocation]: ...
+
     def find_overlapping(
         self,
         employee_id: int,

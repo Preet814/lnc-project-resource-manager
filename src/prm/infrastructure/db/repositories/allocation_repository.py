@@ -43,6 +43,14 @@ class SqlAlchemyAllocationRepository:
         ).all()
         return [_to_domain(model) for model in models]
 
+    def list_by_employee(self, employee_id: int) -> list[Allocation]:
+        models = self._session.scalars(
+            select(AllocationModel)
+            .where(AllocationModel.employee_id == employee_id)
+            .order_by(AllocationModel.id)
+        ).all()
+        return [_to_domain(model) for model in models]
+
     def find_overlapping(
         self,
         employee_id: int,
