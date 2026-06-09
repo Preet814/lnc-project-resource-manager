@@ -30,6 +30,8 @@ class Settings(BaseSettings):
     api_host: str = "0.0.0.0"
     api_port: int = 8000
     database_url: str = "postgresql://prm:prm@localhost:5432/prm"
+    scheduler_enabled: bool = True
+    scheduler_run_on_startup: bool = True
 
     bootstrap_admin_username: str
     bootstrap_admin_password: str

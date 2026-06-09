@@ -19,3 +19,11 @@ RECENT_RISK_TIMESHEET_WEEKS = 4
 AI_RISK_SUMMARY_DISCLAIMER = (
     "This summary is AI-generated from milestone and timesheet data."
 )
+
+# Project health rule thresholds (scheduler / HealthRuleEngine).
+HEALTH_LOW_HOURS_AT_RISK_RATIO = 0.5
+HEALTH_LOW_HOURS_ATTENTION_RATIO = 0.8
+HEALTH_RESOURCES_ALLOCATED_FLAG = "Resources are correctly allocated"
+
+# How many past weeks the scheduler scans when flagging MISSED timesheets.
+SCHEDULER_MISSED_LOOKBACK_WEEKS = 52

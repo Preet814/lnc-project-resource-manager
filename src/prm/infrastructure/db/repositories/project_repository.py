@@ -1,6 +1,6 @@
 """Project persistence via SQLAlchemy."""
 
-from datetime import date
+from datetime import date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -106,6 +106,23 @@ class SqlAlchemyProjectRepository:
         if manager_user_id is not None:
             model.manager_user_id = manager_user_id
 
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)
+
+    def update_health(
+        self,
+        project_id: int,
+        *,
+        health_status: ProjectHealthStatus,
+        health_computed_at: datetime,
+    ) -> Project:
+        model = self._session.get(ProjectModel, project_id)
+        if model is None:
+            raise NotFoundError(f"Project {project_id} not found.")
+
+        model.health_status = health_status
+        model.health_computed_at = health_computed_at
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)

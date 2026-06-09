@@ -83,3 +83,34 @@ def test_find_latest_for_project_returns_none_when_missing() -> None:
         repo = SqlAlchemyProjectHealthSnapshotRepository(session)
 
         assert repo.find_latest_for_project(project_id) is None
+
+
+def test_save_persists_snapshot_and_becomes_latest() -> None:
+    with _session() as session:
+        project_id = _seed_project(session)
+        repo = SqlAlchemyProjectHealthSnapshotRepository(session)
+        computed_at = datetime(2026, 5, 12, 10, 0, tzinfo=UTC)
+
+        saved = repo.save(
+            project_id=project_id,
+            status=ProjectHealthStatus.AT_RISK,
+            risk_flags=(
+                "Backend API milestone is 5 days overdue",
+                "Resources are correctly allocated",
+            ),
+            computed_at=computed_at,
+        )
+        session.commit()
+
+        assert saved.id > 0
+        assert saved.project_id == project_id
+        assert saved.status == ProjectHealthStatus.AT_RISK
+        assert saved.risk_flags == (
+            "Backend API milestone is 5 days overdue",
+            "Resources are correctly allocated",
+        )
+        assert saved.computed_at == computed_at.replace(tzinfo=None)
+
+        latest = repo.find_latest_for_project(project_id)
+        assert latest is not None
+        assert latest.id == saved.id

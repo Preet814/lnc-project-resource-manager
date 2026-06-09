@@ -29,7 +29,7 @@ Console client + REST server for resource planning, allocations, timesheets, and
 │   ├── infrastructure/            # DB, LLM clients, hashing
 │   ├── api/                       # FastAPI REST server
 │   ├── console/                   # CLI client (stub)
-│   └── scheduler/                 # Background jobs (later)
+│   └── scheduler/                 # APScheduler wiring (lifespan + runner)
 └── tests/
     ├── unit/
     └── integration/
@@ -313,7 +313,7 @@ curl -s -X POST http://localhost:8000/manager/allocations/1/end \
 
 ### Manager My Projects and team timesheets (BRD §4.3, §4.4)
 
-Requires a **MANAGER** user who owns the project (`manager_user_id` on create). Team timesheet rows come from active allocations on owned projects; weeks with no submission show **MISSED** until the employee submits (or the scheduler flags them in PR #12).
+Requires a **MANAGER** user who owns the project (`manager_user_id` on create). Team timesheet rows come from active allocations on owned projects; weeks with no submission show **MISSED** (persisted by the background scheduler or inferred at read time before the first scheduler tick).
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
@@ -377,6 +377,44 @@ curl -s http://localhost:8000/employee/timesheets/2026-06-01 \
 | `POST /employee/timesheets` | Employee JWT | Submit a week |
 | `GET /employee/timesheets` | Employee JWT | My timesheet history |
 | `GET /employee/timesheets/{week_start_date}` | Employee JWT | Week detail |
+
+### Background scheduler (BRD §4.1)
+
+The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`). Each tick runs three jobs in order:
+
+1. Recompute employee utilisation and `BENCH` / `ALLOCATED` status
+2. Evaluate **ACTIVE** project health (`ON_TRACK` / `ATTENTION` / `AT_RISK`) and store risk flags
+3. Flag **MISSED** timesheet weeks for closed weeks with allocations (lookback: 52 weeks)
+
+**Interval:** read from `system_configuration.scheduler_interval_hours` when the API **starts** (bootstrap default 4 hours from `.env`). Admin updates the value via `PATCH /admin/config/scheduler-interval`; **restart the api service** for a new interval to take effect.
+
+```bash
+# Optional .env flags (see .env.example)
+# SCHEDULER_ENABLED=true
+# SCHEDULER_RUN_ON_STARTUP=true
+
+# After Admin changes scheduler interval:
+docker compose restart api
+
+# Watch scheduler logs
+docker compose logs -f api
+```
+
+Look for log lines such as `Background scheduler started` and `Scheduler tick complete`.
+
+| Setting | Where | Notes |
+|---------|--------|--------|
+| `scheduler_interval_hours` | DB via Admin API | Restart API after change |
+| `max_weekly_hours` | DB via Admin API | Applies on next request / scheduler tick |
+| `SCHEDULER_ENABLED` | `.env` | Disable background jobs without code changes |
+| `SCHEDULER_RUN_ON_STARTUP` | `.env` | Run one tick immediately when API starts |
+
+Integration smoke (API + DB):
+
+```bash
+set -a && source .env && set +a
+pytest tests/integration/test_scheduler_smoke.py -v -m integration
+```
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
@@ -483,7 +521,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | REST API | FastAPI + Uvicorn |
 | Persistence | SQLAlchemy + PostgreSQL + Alembic |
 | Console client | httpx calling REST |
-| Scheduler | APScheduler (later) |
+| Scheduler | APScheduler (in api container; interval from Admin config) |
 | LLM | Gemini / Groq behind `LLMClient` protocol + factory; Admin configures provider/key |
 | Tests | pytest |
 
@@ -505,7 +543,8 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Manager projects & timesheets API | Done — My Projects, health detail, team timesheets read-only (`/manager/projects`, `/manager/timesheets/*`) |
 | Manager LLM API | Done — skill match + risk summary (`/manager/projects/{id}/skill-match`, `/manager/projects/{id}/risk-summary`) |
 | Employee timesheets API | Done — submit week, view history, my allocations (`/employee/timesheets/*`, `/employee/allocations/*`) |
-| Domain features | Phase 4 in progress — background scheduler next (PR #12) |
+| Background scheduler | Done — utilisation, project health, MISSED timesheets (`src/prm/scheduler/`, `SchedulerService`) |
+| Domain features | Phase 4 complete — console client next (PR #13+) |
 
 ## Engineering compliance (BRD §4.3)
 
