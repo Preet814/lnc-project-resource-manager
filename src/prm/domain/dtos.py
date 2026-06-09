@@ -536,3 +536,39 @@ class RiskSummaryResult:
     project_id: int
     summary: str
     disclaimer: str
+
+
+@dataclass(frozen=True, slots=True)
+class HealthMilestoneFact:
+    """Milestone input for scheduler health evaluation."""
+
+    title: str
+    due_date: date
+    status: MilestoneStatus
+
+
+@dataclass(frozen=True, slots=True)
+class HealthTimesheetFact:
+    """Last-week hours input for scheduler health evaluation."""
+
+    employee_full_name: str
+    hours_logged: int
+    expected_hours: int
+
+
+@dataclass(frozen=True, slots=True)
+class HealthEvaluationInput:
+    """Facts gathered for a single project health evaluation."""
+
+    as_of: date
+    milestones: tuple[HealthMilestoneFact, ...]
+    last_week_timesheets: tuple[HealthTimesheetFact, ...]
+    has_active_allocations: bool
+
+
+@dataclass(frozen=True, slots=True)
+class HealthEvaluationResult:
+    """Computed project health status and risk flags."""
+
+    status: ProjectHealthStatus
+    risk_flags: tuple[str, ...]
