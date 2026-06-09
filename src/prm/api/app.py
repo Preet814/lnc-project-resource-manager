@@ -15,11 +15,16 @@ from prm.api.routes import (
     manager,
 )
 from prm.api.settings import get_settings
+from prm.scheduler.lifespan import scheduler_lifespan
 
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title=settings.app_name, version=settings.app_version)
+    app = FastAPI(
+        title=settings.app_name,
+        version=settings.app_version,
+        lifespan=scheduler_lifespan,
+    )
     register_exception_handlers(app)
     app.include_router(health.router)
     app.include_router(auth.router)

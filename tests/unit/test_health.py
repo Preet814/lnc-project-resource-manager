@@ -1,11 +1,16 @@
 """Unit tests for the health endpoint."""
 
+import os
+
 from fastapi.testclient import TestClient
 
 from prm.api.app import create_app
+from prm.api.settings import get_settings
 
 
 def test_health_returns_ok() -> None:
+    os.environ["SCHEDULER_ENABLED"] = "false"
+    get_settings.cache_clear()
     client = TestClient(create_app())
     response = client.get("/health")
 
