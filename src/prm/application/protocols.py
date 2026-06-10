@@ -258,6 +258,7 @@ class ProjectRepository(Protocol):
         end_date: date | None,
         status: ProjectStatus,
         manager_user_id: int,
+        total_story_points: int = 0,
     ) -> Project: ...
 
     def update(
@@ -270,6 +271,7 @@ class ProjectRepository(Protocol):
         end_date: date | None = None,
         status: ProjectStatus | None = None,
         manager_user_id: int | None = None,
+        total_story_points: int | None = None,
     ) -> Project: ...
 
     def list_by_manager_user_id(self, manager_user_id: int) -> list[Project]: ...
@@ -313,6 +315,7 @@ class MilestoneRepository(Protocol):
         due_date: date,
         status: MilestoneStatus = MilestoneStatus.NOT_STARTED,
         sequence_order: int | None = None,
+        story_points: int = 0,
     ) -> Milestone: ...
 
     def update(
@@ -323,7 +326,10 @@ class MilestoneRepository(Protocol):
         due_date: date | None = None,
         status: MilestoneStatus | None = None,
         sequence_order: int | None = None,
+        story_points: int | None = None,
     ) -> Milestone: ...
+
+    def sum_completed_story_points(self, project_id: int) -> int: ...
 
 
 class TimesheetRepository(Protocol):

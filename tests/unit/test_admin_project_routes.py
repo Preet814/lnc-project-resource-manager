@@ -333,3 +333,96 @@ def test_add_project_milestone_returns_404_for_missing_project(client: TestClien
     )
 
     assert response.status_code == 404
+
+
+def test_create_project_with_story_points_returns_total(client: TestClient) -> None:
+    manager_id = _manager_user_id(client)
+
+    response = client.post(
+        "/admin/projects",
+        headers=_admin_headers(client),
+        json={
+            "name": "Alpha Portal",
+            "description": "Customer portal rewrite",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+            "status": "ACTIVE",
+            "manager_user_id": manager_id,
+            "total_story_points": 120,
+        },
+    )
+
+    assert response.status_code == 201
+    assert response.json()["total_story_points"] == 120
+
+
+def test_list_projects_returns_story_point_columns(client: TestClient) -> None:
+    manager_id = _manager_user_id(client)
+    project = client.post(
+        "/admin/projects",
+        headers=_admin_headers(client),
+        json={
+            "name": "Alpha Portal",
+            "description": "Customer portal rewrite",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+            "status": "ACTIVE",
+            "manager_user_id": manager_id,
+            "total_story_points": 120,
+        },
+    ).json()
+    client.post(
+        f"/admin/projects/{project['id']}/milestones",
+        headers=_admin_headers(client),
+        json={
+            "title": "Design Complete",
+            "due_date": "2026-04-01",
+            "status": "DONE",
+            "story_points": 20,
+        },
+    )
+
+    response = client.get("/admin/projects", headers=_admin_headers(client))
+
+    assert response.status_code == 200
+    summary = response.json()["projects"][0]
+    assert summary["story_points_done"] == 20
+    assert summary["story_points_total"] == 120
+
+
+def test_list_project_milestones_returns_story_point_totals(client: TestClient) -> None:
+    project = client.post(
+        "/admin/projects",
+        headers=_admin_headers(client),
+        json={
+            "name": "Alpha Portal",
+            "description": "Customer portal rewrite",
+            "start_date": "2026-03-01",
+            "end_date": "2026-06-30",
+            "status": "ACTIVE",
+            "manager_user_id": _manager_user_id(client),
+            "total_story_points": 120,
+        },
+    ).json()
+    client.post(
+        f"/admin/projects/{project['id']}/milestones",
+        headers=_admin_headers(client),
+        json={
+            "title": "Design Complete",
+            "due_date": "2026-04-01",
+            "status": "DONE",
+            "story_points": 20,
+        },
+    )
+
+    response = client.get(
+        f"/admin/projects/{project['id']}/milestones",
+        headers=_admin_headers(client),
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_story_points"] == 120
+    assert body["completed_story_points"] == 20
+    assert body["remaining_story_points"] == 100
+    assert body["milestones"][0]["story_points"] == 20

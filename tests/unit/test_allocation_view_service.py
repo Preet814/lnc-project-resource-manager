@@ -19,6 +19,7 @@ from prm.infrastructure.db.models import (
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyEmployeeRepository,
+    SqlAlchemyMilestoneRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyUserRepository,
 )
@@ -61,6 +62,7 @@ def _project_service(session: Session) -> ProjectManagementService:
     return ProjectManagementService(
         project_repository=SqlAlchemyProjectRepository(session),
         user_repository=SqlAlchemyUserRepository(session),
+        milestone_repository=SqlAlchemyMilestoneRepository(session),
     )
 
 

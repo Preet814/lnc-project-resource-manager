@@ -120,7 +120,9 @@ curl -s -X POST http://localhost:8000/admin/users/reset-password \
 | `POST /admin/users/{id}/reactivate` | Admin JWT | Reactivate account |
 | `POST /admin/users/reset-password` | Admin JWT | Reset password (username or id) |
 
-### Admin employee and skills (BRD §3.1)
+### Admin employee and skills (BRD §3.1, V4)
+
+**Onboarding (V4):** Create the login with `POST /admin/users`, then create the work profile with `POST /admin/employees` (the console “Add Employee” menu is removed in V4; the API remains the profile-creation step). Assign the employee to a manager with `POST /admin/employees/assign-manager` so managers only see their team on the resource dashboard.
 
 Requires an **EMPLOYEE** or **MANAGER** user account first (`POST /admin/users`), then link the work profile with `user_id`. Admin accounts cannot have employee profiles.
 
@@ -136,6 +138,12 @@ curl -s -X POST http://localhost:8000/admin/employees \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"user_id":2,"full_name":"Ravi Kumar","email":"ravi@example.test","department":"Backend","designation":"Senior Developer"}'
+
+# Assign manager (BRD V4 §3.1.4 — user ids, not employee ids)
+curl -s -X POST http://localhost:8000/admin/employees/assign-manager \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"employee_user_id":2,"manager_user_id":3}'
 
 # Get / update / deactivate by employee id (not user id)
 curl -s http://localhost:8000/admin/employees/1 -H "Authorization: Bearer $TOKEN"
@@ -163,7 +171,8 @@ curl -s -X DELETE http://localhost:8000/admin/employees/1/skills/1 \
 | Endpoint | Auth | Purpose |
 |----------|------|---------|
 | `GET /admin/employees` | Admin JWT | List employees + bench/allocated counts |
-| `POST /admin/employees` | Admin JWT | Create employee profile (link `user_id`) |
+| `POST /admin/employees` | Admin JWT | Create employee work profile (link `user_id`; V4 profile step) |
+| `POST /admin/employees/assign-manager` | Admin JWT | Assign employee to manager (`employee_user_id`, `manager_user_id`) |
 | `GET /admin/employees/{id}` | Admin JWT | Get employee profile |
 | `PATCH /admin/employees/{id}` | Admin JWT | Update department, designation, etc. |
 | `POST /admin/employees/{id}/deactivate` | Admin JWT | Deactivate profile; end allocations; block login |
@@ -191,25 +200,25 @@ curl -s -X POST http://localhost:8000/admin/users \
 curl -s http://localhost:8000/admin/projects \
   -H "Authorization: Bearer $TOKEN"
 
-# Create project (manager_user_id from POST /admin/users)
+# Create project (manager_user_id from POST /admin/users; V4 adds total_story_points)
 curl -s -X POST http://localhost:8000/admin/projects \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Alpha Portal","description":"Customer portal rewrite","start_date":"2026-03-01","end_date":"2026-06-30","status":"ACTIVE","manager_user_id":2}'
+  -d '{"name":"Alpha Portal","description":"Customer portal rewrite","start_date":"2026-03-01","end_date":"2026-06-30","status":"ACTIVE","manager_user_id":2,"total_story_points":120}'
 
-# Get / update by project id
+# Get / update by project id (V4: status may be COMPLETED; total_story_points editable)
 curl -s http://localhost:8000/admin/projects/1 -H "Authorization: Bearer $TOKEN"
 curl -s -X PATCH http://localhost:8000/admin/projects/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Alpha Portal v2","status":"ON_HOLD"}'
+  -d '{"name":"Alpha Portal v2","status":"COMPLETED","total_story_points":120}'
 
-# Manage milestones on project id
+# Manage milestones on project id (V4: story_points on add; list returns SP totals)
 curl -s http://localhost:8000/admin/projects/1/milestones -H "Authorization: Bearer $TOKEN"
 curl -s -X POST http://localhost:8000/admin/projects/1/milestones \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"title":"Backend API","due_date":"2026-04-15"}'
+  -d '{"title":"Backend API","due_date":"2026-04-15","story_points":40}'
 curl -s -X PATCH http://localhost:8000/admin/projects/1/milestones/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -536,7 +545,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | ORM models & seed | Done — class diagram tables, migration, bootstrap Admin |
 | Auth API | Done — login, change-password, JWT (`POST /auth/login`, `POST /auth/change-password`) |
 | Admin users API | Done — create, list, deactivate, reactivate, reset password (`/admin/users/*`) |
-| Admin employees API | Done — create, list, update, deactivate, skills CRUD (`/admin/employees/*`) |
+| Admin employees API | Done — create, list, update, deactivate, assign manager, skills CRUD (`/admin/employees/*`) |
 | Admin projects API | Done — create, list, update, milestones CRUD (`/admin/projects/*`) |
 | Admin allocations & config API | Done — view allocations, system settings (`/admin/allocations`, `/admin/config/*`) |
 | Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |

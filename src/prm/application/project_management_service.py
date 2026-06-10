@@ -2,7 +2,7 @@
 
 from datetime import date
 
-from prm.application.protocols import ProjectRepository, UserRepository
+from prm.application.protocols import MilestoneRepository, ProjectRepository, UserRepository
 from prm.domain.dtos import ProjectListResult, ProjectSummary
 from prm.domain.entities.project import Project
 from prm.domain.entities.user import User
@@ -17,9 +17,11 @@ class ProjectManagementService:
         self,
         project_repository: ProjectRepository,
         user_repository: UserRepository,
+        milestone_repository: MilestoneRepository,
     ) -> None:
         self._projects = project_repository
         self._users = user_repository
+        self._milestones = milestone_repository
 
     def create_project(
         self,
@@ -30,6 +32,7 @@ class ProjectManagementService:
         end_date: date | None,
         status: ProjectStatus,
         manager_user_id: int,
+        total_story_points: int = 0,
     ) -> Project:
         cleaned_name = name.strip()
         if not cleaned_name:
@@ -37,6 +40,7 @@ class ProjectManagementService:
 
         self._require_manager_user(manager_user_id)
         self._validate_date_range(start_date, end_date)
+        self._validate_story_points(total_story_points)
 
         return self._projects.create(
             name=cleaned_name,
@@ -45,6 +49,7 @@ class ProjectManagementService:
             end_date=end_date,
             status=status,
             manager_user_id=manager_user_id,
+            total_story_points=total_story_points,
         )
 
     def list_projects(
@@ -60,18 +65,24 @@ class ProjectManagementService:
                 manager_full_name=self._manager_name(project.manager_user_id),
                 end_date=project.end_date,
                 status=project.status,
+                story_points_done=self._milestones.sum_completed_story_points(project.id),
+                story_points_total=project.total_story_points,
             )
             for project in projects
         )
         active_count = sum(1 for summary in summaries if summary.status == ProjectStatus.ACTIVE)
         planned_count = sum(1 for summary in summaries if summary.status == ProjectStatus.PLANNED)
         on_hold_count = sum(1 for summary in summaries if summary.status == ProjectStatus.ON_HOLD)
+        completed_count = sum(
+            1 for summary in summaries if summary.status == ProjectStatus.COMPLETED
+        )
         return ProjectListResult(
             projects=summaries,
             total=len(summaries),
             active_count=active_count,
             planned_count=planned_count,
             on_hold_count=on_hold_count,
+            completed_count=completed_count,
         )
 
     def get_project(self, project_id: int) -> Project:
@@ -87,6 +98,7 @@ class ProjectManagementService:
         end_date: date | None = None,
         status: ProjectStatus | None = None,
         manager_user_id: int | None = None,
+        total_story_points: int | None = None,
     ) -> Project:
         project = self._require_project(project_id)
 
@@ -98,6 +110,9 @@ class ProjectManagementService:
 
         if manager_user_id is not None:
             self._require_manager_user(manager_user_id)
+
+        if total_story_points is not None:
+            self._validate_story_points(total_story_points)
 
         effective_start = start_date if start_date is not None else project.start_date
         effective_end = end_date if end_date is not None else project.end_date
@@ -115,6 +130,7 @@ class ProjectManagementService:
             end_date=end_date,
             status=status,
             manager_user_id=manager_user_id,
+            total_story_points=total_story_points,
         )
 
     def _require_manager_user(self, manager_user_id: int) -> User:
@@ -143,3 +159,8 @@ class ProjectManagementService:
     def _validate_date_range(start_date: date, end_date: date | None) -> None:
         if end_date is not None and start_date > end_date:
             raise ValidationError("Project start date must be on or before the end date.")
+
+    @staticmethod
+    def _validate_story_points(story_points: int) -> None:
+        if story_points < 0:
+            raise ValidationError("Story points cannot be negative.")

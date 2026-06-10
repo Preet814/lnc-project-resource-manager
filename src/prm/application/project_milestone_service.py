@@ -1,9 +1,9 @@
-"""Admin project-milestone use cases (BRD §3.2.3)."""
+"""Admin project-milestone use cases (BRD §3.2.4)."""
 
 from datetime import date
 
 from prm.application.protocols import MilestoneRepository, ProjectRepository
-from prm.domain.dtos import MilestoneDetail
+from prm.domain.dtos import MilestoneDetail, MilestoneListResult
 from prm.domain.entities.milestone import Milestone
 from prm.domain.entities.project import Project
 from prm.domain.enums import MilestoneStatus
@@ -21,10 +21,17 @@ class ProjectMilestoneService:
         self._projects = project_repository
         self._milestones = milestone_repository
 
-    def list_milestones(self, project_id: int) -> tuple[MilestoneDetail, ...]:
-        self._require_project(project_id)
+    def list_milestones(self, project_id: int) -> MilestoneListResult:
+        project = self._require_project(project_id)
         milestones = self._milestones.list_for_project(project_id)
-        return tuple(self._to_detail(milestone) for milestone in milestones)
+        completed_story_points = self._milestones.sum_completed_story_points(project_id)
+        total_story_points = project.total_story_points
+        return MilestoneListResult(
+            milestones=tuple(self._to_detail(milestone) for milestone in milestones),
+            total_story_points=total_story_points,
+            completed_story_points=completed_story_points,
+            remaining_story_points=max(total_story_points - completed_story_points, 0),
+        )
 
     def add_milestone(
         self,
@@ -34,12 +41,14 @@ class ProjectMilestoneService:
         due_date: date,
         status: MilestoneStatus = MilestoneStatus.NOT_STARTED,
         sequence_order: int | None = None,
+        story_points: int = 0,
     ) -> MilestoneDetail:
         self._require_project(project_id)
 
         cleaned_title = title.strip()
         if not cleaned_title:
             raise ValidationError("Milestone title is required.")
+        self._validate_story_points(story_points)
 
         milestone = self._milestones.create(
             project_id=project_id,
@@ -47,6 +56,7 @@ class ProjectMilestoneService:
             due_date=due_date,
             status=status,
             sequence_order=sequence_order,
+            story_points=story_points,
         )
         return self._to_detail(milestone)
 
@@ -59,6 +69,7 @@ class ProjectMilestoneService:
         due_date: date | None = None,
         status: MilestoneStatus | None = None,
         sequence_order: int | None = None,
+        story_points: int | None = None,
     ) -> MilestoneDetail:
         self._require_project(project_id)
         self._require_project_milestone(project_id, milestone_id)
@@ -69,12 +80,16 @@ class ProjectMilestoneService:
             if not cleaned_title:
                 raise ValidationError("Milestone title is required.")
 
+        if story_points is not None:
+            self._validate_story_points(story_points)
+
         updated = self._milestones.update(
             milestone_id,
             title=cleaned_title,
             due_date=due_date,
             status=status,
             sequence_order=sequence_order,
+            story_points=story_points,
         )
         return self._to_detail(updated)
 
@@ -100,4 +115,10 @@ class ProjectMilestoneService:
             due_date=milestone.due_date,
             status=milestone.status,
             sequence_order=milestone.sequence_order,
+            story_points=milestone.story_points,
         )
+
+    @staticmethod
+    def _validate_story_points(story_points: int) -> None:
+        if story_points < 0:
+            raise ValidationError("Story points cannot be negative.")

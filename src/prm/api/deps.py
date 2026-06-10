@@ -113,6 +113,7 @@ def get_project_management_service(
     return ProjectManagementService(
         project_repository=SqlAlchemyProjectRepository(db),
         user_repository=SqlAlchemyUserRepository(db),
+        milestone_repository=SqlAlchemyMilestoneRepository(db),
     )
 
 

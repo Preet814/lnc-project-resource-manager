@@ -112,3 +112,12 @@ class SqlAlchemyMilestoneRepository:
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)
+
+    def sum_completed_story_points(self, project_id: int) -> int:
+        total = self._session.scalar(
+            select(func.coalesce(func.sum(MilestoneModel.story_points), 0)).where(
+                MilestoneModel.project_id == project_id,
+                MilestoneModel.status == MilestoneStatus.DONE,
+            )
+        )
+        return int(total or 0)
