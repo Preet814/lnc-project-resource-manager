@@ -33,6 +33,7 @@ def test_project_allows_allocation() -> None:
     assert _project(status=ProjectStatus.PLANNED).allows_allocation() is True
     assert _project(status=ProjectStatus.ACTIVE).allows_allocation() is True
     assert _project(status=ProjectStatus.ON_HOLD).allows_allocation() is False
+    assert _project(status=ProjectStatus.COMPLETED).allows_allocation() is False
 
 
 def test_milestone_is_overdue() -> None:

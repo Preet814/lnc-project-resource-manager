@@ -142,11 +142,17 @@ def test_allocate_direct_raises_conflict_when_over_cap() -> None:
             )
 
 
-def test_allocate_direct_raises_when_project_not_allocatable() -> None:
+@pytest.mark.parametrize(
+    "project_status",
+    [ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED],
+)
+def test_allocate_direct_raises_when_project_not_allocatable(
+    project_status: ProjectStatus,
+) -> None:
     with _session() as session:
         manager_id, employee_id, project_id = _seed(
             session,
-            project_status=ProjectStatus.ON_HOLD,
+            project_status=project_status,
         )
         session.commit()
         service = _service(session)

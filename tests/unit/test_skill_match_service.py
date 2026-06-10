@@ -221,6 +221,28 @@ def test_find_matches_skips_llm_when_no_part_time_capacity() -> None:
     assert llm.rank_calls == []
 
 
+def test_find_matches_rejects_non_allocatable_project() -> None:
+    session = _session()
+    manager_id, _project_id = _seed_manager_and_project(session)
+    project_repo = SqlAlchemyProjectRepository(session)
+    completed = project_repo.create(
+        name="Finished Portal",
+        description="Delivered",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 6, 30),
+        status=ProjectStatus.COMPLETED,
+        manager_user_id=manager_id,
+    )
+    llm = FakeLlmClient()
+
+    with pytest.raises(ValidationError, match="ACTIVE or PLANNED"):
+        _service(session, llm=llm).find_matches(
+            manager_id,
+            completed.id,
+            "Need a backend developer",
+        )
+
+
 def test_find_matches_rejects_blank_requirement() -> None:
     session = _session()
     manager_id, project_id = _seed_manager_and_project(session)

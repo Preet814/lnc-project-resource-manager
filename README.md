@@ -213,6 +213,8 @@ curl -s -X PATCH http://localhost:8000/admin/projects/1 \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"name":"Alpha Portal v2","status":"COMPLETED","total_story_points":120}'
 
+# V4: COMPLETED and ON_HOLD projects reject new allocations (managers may still end existing ones)
+
 # Manage milestones on project id (V4: story_points on add; list returns SP totals)
 curl -s http://localhost:8000/admin/projects/1/milestones -H "Authorization: Bearer $TOKEN"
 curl -s -X POST http://localhost:8000/admin/projects/1/milestones \
@@ -299,7 +301,7 @@ curl -s http://localhost:8000/manager/resources/1 \
 curl -s http://localhost:8000/manager/projects/1/allocations \
   -H "Authorization: Bearer $TOKEN"
 
-# Direct allocate (returns 409 if total utilisation would exceed 100%)
+# Direct allocate (returns 409 if total utilisation would exceed 100%; 400 if project is ON_HOLD or COMPLETED)
 curl -s -X POST http://localhost:8000/manager/allocations \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -317,7 +319,7 @@ curl -s -X POST http://localhost:8000/manager/allocations/1/end \
 | `GET /manager/resources` | Manager JWT | Resource dashboard + team counts (bench/active) |
 | `GET /manager/resources/{employee_id}` | Manager JWT | Employee drill-down |
 | `GET /manager/projects/{project_id}/allocations` | Manager JWT | Active allocations on owned project |
-| `POST /manager/allocations` | Manager JWT | Direct allocate |
+| `POST /manager/allocations` | Manager JWT | Direct allocate (ACTIVE/PLANNED projects only) |
 | `POST /manager/allocations/{allocation_id}/end` | Manager JWT | End allocation |
 
 ### Manager My Projects and team timesheets (BRD §4.3, §4.4)
@@ -409,7 +411,7 @@ docker compose restart api
 docker compose logs -f api
 ```
 
-Look for log lines such as `Background scheduler started` and `Scheduler tick complete`.
+Look for log lines such as `Background scheduler started` and `Scheduler tick complete`. Project health is recomputed for **ACTIVE** projects only (PLANNED, ON_HOLD, and COMPLETED are skipped each tick).
 
 | Setting | Where | Notes |
 |---------|--------|--------|
@@ -427,7 +429,7 @@ pytest tests/integration/test_scheduler_smoke.py -v -m integration
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
-Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
+Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. The project must be **ACTIVE** or **PLANNED** (same rule as direct allocation). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"

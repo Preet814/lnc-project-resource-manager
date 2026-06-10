@@ -208,6 +208,43 @@ def test_recompute_project_health_persists_status_and_snapshot() -> None:
         assert snapshot.risk_flags[0] == "Backend API milestone is 5 days overdue"
 
 
+def test_recompute_project_health_skips_completed_projects() -> None:
+    with _session() as session:
+        manager_id, _, _active_project_id = _seed_manager_and_employee(session)
+        project_repo = SqlAlchemyProjectRepository(session)
+        completed = project_repo.create(
+            name="Finished Portal",
+            description="Delivered",
+            start_date=date(2026, 1, 1),
+            end_date=date(2026, 6, 30),
+            status=ProjectStatus.COMPLETED,
+            manager_user_id=manager_id,
+        )
+        session.add(
+            MilestoneModel(
+                project_id=completed.id,
+                title="Backend API",
+                due_date=date(2026, 5, 15),
+                status=MilestoneStatus.IN_PROGRESS,
+                sequence_order=1,
+            )
+        )
+        session.commit()
+        service = _service(session)
+
+        evaluated = service.recompute_project_health(date(2026, 5, 20))
+
+        completed_project = project_repo.find_by_id(completed.id)
+        snapshot = SqlAlchemyProjectHealthSnapshotRepository(
+            session
+        ).find_latest_for_project(completed.id)
+
+        assert evaluated == 1
+        assert completed_project is not None
+        assert completed_project.health_computed_at is None
+        assert snapshot is None
+
+
 def test_flag_missed_timesheets_creates_row_for_closed_week_with_allocation() -> None:
     with _session() as session:
         manager_id, employee_id, project_id = _seed_manager_and_employee(session)

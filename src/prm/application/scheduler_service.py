@@ -72,6 +72,7 @@ class SchedulerService:
         return synced
 
     def recompute_project_health(self, as_of: date) -> int:
+        """Recompute health for ACTIVE projects only (skip PLANNED, ON_HOLD, COMPLETED)."""
         evaluated = 0
         computed_at = datetime.now(UTC)
         for project in self._projects.list_all(status=ProjectStatus.ACTIVE):

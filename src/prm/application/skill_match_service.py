@@ -51,6 +51,11 @@ class SkillMatchService:
         as_of: date | None = None,
     ) -> SkillMatchListResult:
         project = self._authorization.assert_project_owner(manager_user_id, project_id)
+        if not project.allows_allocation():
+            raise ValidationError(
+                "Project must be ACTIVE or PLANNED to accept allocations."
+            )
+
         cleaned = requirement.strip()
         if not cleaned:
             raise ValidationError("Requirement is required.")

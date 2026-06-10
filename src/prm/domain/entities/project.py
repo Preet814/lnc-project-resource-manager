@@ -25,4 +25,5 @@ class Project:
         return self.manager_user_id == manager_user_id
 
     def allows_allocation(self) -> bool:
+        """True when managers may add resources (BRD §4.2: ACTIVE or PLANNED only)."""
         return self.status in (ProjectStatus.PLANNED, ProjectStatus.ACTIVE)
