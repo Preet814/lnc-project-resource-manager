@@ -35,6 +35,16 @@ class UserModel(Base):
         onupdate=func.now(),
     )
 
-    employee = relationship("EmployeeModel", back_populates="user", uselist=False)
+    employee = relationship(
+        "EmployeeModel",
+        back_populates="user",
+        foreign_keys="EmployeeModel.user_id",
+        uselist=False,
+    )
+    team_members = relationship(
+        "EmployeeModel",
+        back_populates="manager",
+        foreign_keys="EmployeeModel.manager_id",
+    )
     managed_projects = relationship("ProjectModel", back_populates="manager")
     created_allocations = relationship("AllocationModel", back_populates="created_by")

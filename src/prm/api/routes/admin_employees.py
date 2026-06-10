@@ -13,6 +13,7 @@ from prm.api.deps import (
 )
 from prm.api.schemas.admin_employees import (
     AddEmployeeSkillRequest,
+    AssignManagerRequest,
     CreateEmployeeRequest,
     EmployeeListResponse,
     EmployeeResponse,
@@ -36,6 +37,7 @@ def _to_employee_response(employee: Employee) -> EmployeeResponse:
     return EmployeeResponse(
         id=employee.id,
         user_id=employee.user_id,
+        manager_id=employee.manager_id,
         full_name=employee.full_name,
         email=employee.email,
         department=employee.department,
@@ -117,6 +119,21 @@ def list_employees(
             active_only=active_only,
         )
     )
+
+
+@router.post("/assign-manager", response_model=EmployeeResponse)
+def assign_manager(
+    body: AssignManagerRequest,
+    _admin: Annotated[JwtTokenPayload, Depends(require_admin)],
+    service: Annotated[EmployeeManagementService, Depends(get_employee_management_service)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> EmployeeResponse:
+    updated = service.assign_manager(
+        employee_user_id=body.employee_user_id,
+        manager_user_id=body.manager_user_id,
+    )
+    db.commit()
+    return _to_employee_response(updated)
 
 
 @router.get("/{employee_id}", response_model=EmployeeResponse)

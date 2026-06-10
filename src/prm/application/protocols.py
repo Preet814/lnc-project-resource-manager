@@ -135,7 +135,17 @@ class EmployeeRepository(Protocol):
         email: str | None = None,
         department: str | None = None,
         designation: str | None = None,
+        manager_id: int | None = None,
     ) -> Employee: ...
+
+    def set_manager_id(self, employee_id: int, *, manager_id: int | None) -> Employee: ...
+
+    def list_by_manager_user_id(
+        self,
+        manager_user_id: int,
+        *,
+        active_only: bool = True,
+    ) -> list[Employee]: ...
 
     def set_active(self, employee_id: int, *, is_active: bool) -> Employee: ...
 

@@ -493,3 +493,115 @@ def test_deactivate_employee_fails_when_missing() -> None:
     with _session() as session:
         with pytest.raises(NotFoundError):
             _service(session).deactivate_employee(999)
+
+
+def test_assign_manager_links_employee_to_manager_user() -> None:
+    with _session() as session:
+        manager_user_id = _create_user(
+            session,
+            username="ankit",
+            email="ankit@example.test",
+            role=Role.MANAGER,
+        )
+        employee_user_id = _create_user(
+            session,
+            username="ravi",
+            email="ravi@example.test",
+            role=Role.EMPLOYEE,
+        )
+        service = _service(session)
+        service.create_employee(
+            user_id=employee_user_id,
+            full_name="Ravi Kumar",
+            email="ravi@example.test",
+            department="Backend",
+            designation="Developer",
+        )
+        session.commit()
+
+        updated = service.assign_manager(
+            employee_user_id=employee_user_id,
+            manager_user_id=manager_user_id,
+        )
+        session.commit()
+
+        assert updated.manager_id == manager_user_id
+
+
+def test_assign_manager_fails_when_employee_profile_missing() -> None:
+    with _session() as session:
+        manager_user_id = _create_user(
+            session,
+            username="ankit",
+            email="ankit@example.test",
+            role=Role.MANAGER,
+        )
+        employee_user_id = _create_user(
+            session,
+            username="ravi",
+            email="ravi@example.test",
+            role=Role.EMPLOYEE,
+        )
+        session.commit()
+
+        with pytest.raises(NotFoundError, match="No employee profile found"):
+            _service(session).assign_manager(
+                employee_user_id=employee_user_id,
+                manager_user_id=manager_user_id,
+            )
+
+
+def test_assign_manager_fails_when_manager_is_not_manager_role() -> None:
+    with _session() as session:
+        employee_user_id = _create_user(
+            session,
+            username="ravi",
+            email="ravi@example.test",
+            role=Role.EMPLOYEE,
+        )
+        other_employee_user_id = _create_user(
+            session,
+            username="priya",
+            email="priya@example.test",
+            role=Role.EMPLOYEE,
+        )
+        service = _service(session)
+        service.create_employee(
+            user_id=employee_user_id,
+            full_name="Ravi Kumar",
+            email="ravi@example.test",
+            department="Backend",
+            designation="Developer",
+        )
+        session.commit()
+
+        with pytest.raises(ValidationError, match="MANAGER role"):
+            service.assign_manager(
+                employee_user_id=employee_user_id,
+                manager_user_id=other_employee_user_id,
+            )
+
+
+def test_assign_manager_fails_when_self_assignment() -> None:
+    with _session() as session:
+        manager_user_id = _create_user(
+            session,
+            username="ankit",
+            email="ankit@example.test",
+            role=Role.MANAGER,
+        )
+        service = _service(session)
+        service.create_employee(
+            user_id=manager_user_id,
+            full_name="Ankit Shah",
+            email="ankit@example.test",
+            department="Delivery",
+            designation="Delivery Manager",
+        )
+        session.commit()
+
+        with pytest.raises(ValidationError, match="own manager"):
+            service.assign_manager(
+                employee_user_id=manager_user_id,
+                manager_user_id=manager_user_id,
+            )
