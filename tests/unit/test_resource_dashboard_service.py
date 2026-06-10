@@ -14,7 +14,7 @@ from prm.domain.enums import (
     Role,
     SkillCategory,
 )
-from prm.domain.exceptions import NotFoundError
+from prm.domain.exceptions import NotFoundError, UnauthorizedError
 from prm.infrastructure.db.models import (
     AllocationModel,
     EmployeeModel,
@@ -70,7 +70,7 @@ def _service(session: Session, *, tags: list[str] | None = None) -> ResourceDash
     )
 
 
-def _seed_bench_and_allocated(session: Session) -> tuple[int, int]:
+def _seed_bench_and_allocated(session: Session) -> tuple[int, int, int]:
     user_repo = SqlAlchemyUserRepository(session)
     hasher = BcryptPasswordHasher()
     manager = user_repo.create(
@@ -114,6 +114,8 @@ def _seed_bench_and_allocated(session: Session) -> tuple[int, int]:
         current_utilisation_percent=75,
         work_status=EmployeeWorkStatus.ALLOCATED,
     )
+    employee_repo.set_manager_id(bench_employee.id, manager_id=manager.id)
+    employee_repo.set_manager_id(allocated_employee.id, manager_id=manager.id)
     skill_repo = SqlAlchemySkillRepository(session)
     react = skill_repo.create(name="React", category=SkillCategory.FRONTEND)
     SqlAlchemyEmployeeSkillRepository(session).assign(
@@ -141,16 +143,16 @@ def _seed_bench_and_allocated(session: Session) -> tuple[int, int]:
         )
     )
     session.flush()
-    return bench_employee.id, allocated_employee.id
+    return manager.id, bench_employee.id, allocated_employee.id
 
 
 def test_get_dashboard_splits_bench_and_active_with_counts() -> None:
     with _session() as session:
-        bench_id, allocated_id = _seed_bench_and_allocated(session)
+        manager_id, bench_id, allocated_id = _seed_bench_and_allocated(session)
         session.commit()
         service = _service(session)
 
-        dashboard = service.get_dashboard()
+        dashboard = service.get_dashboard(manager_id)
 
         assert dashboard.bench_count == 1
         assert dashboard.on_bench[0].employee_id == bench_id
@@ -160,16 +162,56 @@ def test_get_dashboard_splits_bench_and_active_with_counts() -> None:
         assert dashboard.active[0].utilisation_percent == 75
         assert dashboard.active[0].availability_percent == 25
         assert dashboard.partial_count == 1
-        assert dashboard.over_utilised_count == 0
+
+
+def test_get_dashboard_excludes_employees_not_on_manager_team() -> None:
+    with _session() as session:
+        manager_id, bench_id, allocated_id = _seed_bench_and_allocated(session)
+        user_repo = SqlAlchemyUserRepository(session)
+        hasher = BcryptPasswordHasher()
+        other_manager = user_repo.create(
+            full_name="Other Manager",
+            username="other.manager",
+            email="other@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.MANAGER,
+        )
+        other_user = user_repo.create(
+            full_name="Outside Team",
+            username="outside",
+            email="outside@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.EMPLOYEE,
+        )
+        employee_repo = SqlAlchemyEmployeeRepository(session)
+        outside_employee = employee_repo.create(
+            user_id=other_user.id,
+            full_name="Outside Team",
+            email="outside@example.test",
+            department="QA",
+            designation="Tester",
+        )
+        employee_repo.set_manager_id(outside_employee.id, manager_id=other_manager.id)
+        session.commit()
+        service = _service(session)
+
+        dashboard = service.get_dashboard(manager_id)
+
+        visible_ids = {row.employee_id for row in dashboard.on_bench} | {
+            row.employee_id for row in dashboard.active
+        }
+        assert bench_id in visible_ids
+        assert allocated_id in visible_ids
+        assert outside_employee.id not in visible_ids
 
 
 def test_get_employee_detail_returns_allocations_skills_and_tags() -> None:
     with _session() as session:
-        _, allocated_id = _seed_bench_and_allocated(session)
+        manager_id, _, allocated_id = _seed_bench_and_allocated(session)
         session.commit()
         service = _service(session, tags=["Microservices", "Backend Api"])
 
-        detail = service.get_employee_detail(allocated_id)
+        detail = service.get_employee_detail(manager_id, allocated_id)
 
         assert detail.full_name == "Neha Joshi"
         assert detail.work_status == EmployeeWorkStatus.ALLOCATED
@@ -181,8 +223,28 @@ def test_get_employee_detail_returns_allocations_skills_and_tags() -> None:
 
 def test_get_employee_detail_raises_when_missing() -> None:
     with _session() as session:
+        manager_id, _, _ = _seed_bench_and_allocated(session)
         session.commit()
         service = _service(session)
 
         with pytest.raises(NotFoundError, match="Employee 999 not found"):
-            service.get_employee_detail(999)
+            service.get_employee_detail(manager_id, 999)
+
+
+def test_get_employee_detail_raises_when_not_on_manager_team() -> None:
+    with _session() as session:
+        manager_id, _, allocated_id = _seed_bench_and_allocated(session)
+        user_repo = SqlAlchemyUserRepository(session)
+        hasher = BcryptPasswordHasher()
+        other_manager = user_repo.create(
+            full_name="Other Manager",
+            username="other.manager",
+            email="other@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.MANAGER,
+        )
+        session.commit()
+        service = _service(session)
+
+        with pytest.raises(UnauthorizedError, match="not assigned to your team"):
+            service.get_employee_detail(other_manager.id, allocated_id)

@@ -229,7 +229,6 @@ class ResourceDashboardResult:
     on_bench: tuple[BenchEmployeeSummary, ...]
     active: tuple[ActiveEmployeeSummary, ...]
     bench_count: int
-    over_utilised_count: int
     partial_count: int
 
 

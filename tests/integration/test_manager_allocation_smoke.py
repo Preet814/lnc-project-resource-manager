@@ -109,6 +109,24 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> dict:
     return create_employee.json()
 
 
+def _assign_manager(
+    headers: dict[str, str],
+    *,
+    employee_user_id: int,
+    manager_user_id: int,
+) -> None:
+    assign = _request_or_skip(
+        "post",
+        _api_url("/admin/employees/assign-manager"),
+        headers=headers,
+        json={
+            "employee_user_id": employee_user_id,
+            "manager_user_id": manager_user_id,
+        },
+    )
+    assert assign.status_code == 200
+
+
 def _create_project(headers: dict[str, str], *, manager_user_id: int, prefix: str) -> dict:
     create_project = _request_or_skip(
         "post",
@@ -145,6 +163,11 @@ def test_manager_resource_dashboard_and_allocate_smoke() -> None:
     prefix = uuid.uuid4().hex[:8]
     manager = _create_manager(admin_headers, prefix=f"mgr_{prefix}")
     employee = _create_employee(admin_headers, prefix=f"emp_{prefix}")
+    _assign_manager(
+        admin_headers,
+        employee_user_id=employee["user_id"],
+        manager_user_id=manager["id"],
+    )
     project = _create_project(
         admin_headers,
         manager_user_id=manager["id"],

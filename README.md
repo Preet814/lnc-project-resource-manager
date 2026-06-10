@@ -282,12 +282,12 @@ curl -s -X PATCH http://localhost:8000/admin/config/max-weekly-hours \
 
 ### Manager resource dashboard and allocation (BRD §4.1, §4.2)
 
-Requires a **MANAGER** user and an employee profile (create via Admin API). Assign `manager_user_id` when creating the project so the manager owns it.
+Requires a **MANAGER** user and employee profiles assigned to that manager via `POST /admin/employees/assign-manager`. The resource dashboard, direct allocation, and AI skill match only include employees on the manager's direct team. Assign `manager_user_id` when creating the project so the manager owns it.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
 
-# Resource dashboard (bench + active employees)
+# Resource dashboard (bench + active employees on your team only)
 curl -s http://localhost:8000/manager/resources \
   -H "Authorization: Bearer $TOKEN"
 
@@ -314,7 +314,7 @@ curl -s -X POST http://localhost:8000/manager/allocations/1/end \
 
 | Endpoint | Auth | Purpose |
 |----------|------|---------|
-| `GET /manager/resources` | Manager JWT | Resource dashboard + counts |
+| `GET /manager/resources` | Manager JWT | Resource dashboard + team counts (bench/active) |
 | `GET /manager/resources/{employee_id}` | Manager JWT | Employee drill-down |
 | `GET /manager/projects/{project_id}/allocations` | Manager JWT | Active allocations on owned project |
 | `POST /manager/allocations` | Manager JWT | Direct allocate |
@@ -427,7 +427,7 @@ pytest tests/integration/test_scheduler_smoke.py -v -m integration
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
-Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
+Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"

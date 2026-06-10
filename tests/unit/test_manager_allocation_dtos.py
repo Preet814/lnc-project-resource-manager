@@ -31,7 +31,6 @@ def test_resource_dashboard_result_counts() -> None:
             ),
         ),
         bench_count=1,
-        over_utilised_count=0,
         partial_count=1,
     )
 
