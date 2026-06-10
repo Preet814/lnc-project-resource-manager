@@ -224,42 +224,19 @@ Enter option: _
 ║    MANAGE EMPLOYEES                          ║
 ╚══════════════════════════════════════════════╝
 
-1. Add Employee
-2. View All Employees
-3. Update Employee
-4. Deactivate Employee
-5. Manage Employee Skills
+1. View All Employees
+2. Update Employee
+3. Deactivate Employee
+4. Manage Employee Skills
+5. Assign Manager
 6. Back
 
 Enter option: _
 ```
 
-> **Note — Add Employee vs. Create User Account:** These are two different steps for the same person. When an Employee or Manager joins the company, Admin must do **both**: (1) Go to **Manage Users → Create User Account** to give them login credentials, then (2) Go to **Manage Employees → Add Employee** and enter the same User ID to link their work profile. The `employee.user_id` field connects the two records. The Admin role does not need an employee profile — only a user account.
-
 ---
 
-#### Screen 3.1.1 — Add Employee
-
-```
-╔══════════════════════════════════════════════╗
-║    ADD EMPLOYEE                              ║
-╚══════════════════════════════════════════════╝
-
-User ID      : (from Manage Users → View All Users) _
-Full Name    : _
-Email        : _
-Department   : _
-Designation  : _
-
-──────────────────────────────────────────────
-[S] Save     [B] Back
-```
-
-On save, the server creates the employee record with status `BENCH` by default and links it to the user account via `user_id`. The server validates that the User ID exists, has role EMPLOYEE or MANAGER, and does not already have an employee profile.
-
----
-
-#### Screen 3.1.2 — View All Employees
+#### Screen 3.1.1 — View All Employees
 
 ```
 ╔══════════════════════════════════════════════╗
@@ -281,7 +258,7 @@ Total: 5   |   Allocated: 2   |   Bench: 3
 
 ---
 
-#### Screen 3.1.3 — Deactivate Employee
+#### Screen 3.1.2 — Deactivate Employee
 
 ```
 ╔══════════════════════════════════════════════╗
@@ -317,7 +294,7 @@ Employee deactivated. ✓
 
 ---
 
-#### Screen 3.1.4 — Manage Employee Skills
+#### Screen 3.1.3 — Manage Employee Skills
 
 ```
 ╔══════════════════════════════════════════════╗
@@ -357,6 +334,24 @@ Skill added. ✓
 
 ---
 
+#### Screen 3.1.4 — Assign Manager
+
+```
+╔══════════════════════════════════════════════╗
+║    ASSIGN MANAGER                            ║
+╚══════════════════════════════════════════════╝
+
+Employee User ID : _
+Manager User ID  : _
+
+──────────────────────────────────────────────
+[S] Save     [B] Back
+```
+
+On save, the server links the employee to the specified manager by updating the `manager_id` field on the employee record.
+
+---
+
 #### Screen 3.2 — Manage Projects
 
 ```
@@ -382,12 +377,13 @@ Enter option: _
 ║    CREATE PROJECT                            ║
 ╚══════════════════════════════════════════════╝
 
-Project Name  : _
-Description   : _
-Start Date    : (DD-MM-YYYY) _
-End Date      : (DD-MM-YYYY) _
-Status        : (1) PLANNED   (2) ACTIVE   (3) ON_HOLD
-Assign Manager: (Enter Manager ID) _
+Project Name        : _
+Description         : _
+Start Date          : (DD-MM-YYYY) _
+End Date            : (DD-MM-YYYY) _
+Status              : (1) PLANNED   (2) ACTIVE   (3) ON_HOLD
+Assign Manager      : (Enter Manager ID) _
+Total Story Points  : _
 
 ──────────────────────────────────────────────
 [S] Save     [B] Back
@@ -402,19 +398,42 @@ Assign Manager: (Enter Manager ID) _
 ║    ALL PROJECTS                              ║
 ╚══════════════════════════════════════════════╝
 
-ID    Name              Manager        End Date     Status
-──────────────────────────────────────────────────────────
-201   Alpha Portal       Ankit Shah     30-Jun-26    ACTIVE
-202   Beta CRM           Ankit Shah     15-Aug-26    ACTIVE
-203   Gamma Rewrite      Neha Joshi     01-Jul-26    ACTIVE
-204   Delta Migrate      Rohan Verma    30-Sep-26    PLANNED
-──────────────────────────────────────────────────────────
+ID    Name              Manager        End Date     Status     SP Done/Total
+──────────────────────────────────────────────────────────────────────────────
+201   Alpha Portal       Ankit Shah     30-Jun-26    ACTIVE     40 / 120
+202   Beta CRM           Ankit Shah     15-Aug-26    ACTIVE     25 / 80
+203   Gamma Rewrite      Neha Joshi     01-Jul-26    ACTIVE     10 / 60
+204   Delta Migrate      Rohan Verma    30-Sep-26    PLANNED     0 / 100
+──────────────────────────────────────────────────────────────────────────────
 [B] Back
 ```
 
 ---
 
-#### Screen 3.2.3 — Manage Milestones
+#### Screen 3.2.3 — Update Project Details
+
+```
+╔══════════════════════════════════════════════╗
+║    UPDATE PROJECT DETAILS                    ║
+╚══════════════════════════════════════════════╝
+
+Enter Project ID: _
+
+── Alpha Portal ───────────────────────────────
+Project Name         : Alpha Portal          (editable)
+Description          : Customer web portal   (editable)
+Start Date           : 01-Jan-26             (editable)
+End Date             : 30-Jun-26             (editable)
+Status               : (1) PLANNED   (2) ACTIVE   (3) ON_HOLD   (4) COMPLETED
+Assign Manager       : (Enter Manager ID)    (editable)
+Total Story Points   : 120                   (editable)
+──────────────────────────────────────────────
+[S] Save     [B] Back
+```
+
+---
+
+#### Screen 3.2.4 — Manage Milestones
 
 ```
 ╔══════════════════════════════════════════════╗
@@ -424,19 +443,39 @@ ID    Name              Manager        End Date     Status
 Enter Project ID: 201
 
 ── Alpha Portal ───────────────────────────────
-#    Title               Due Date     Status
-──────────────────────────────────────────────
-1.   Design Complete      01-Apr-26    DONE
-2.   Backend API          15-Apr-26    IN_PROGRESS
-3.   Testing              30-Apr-26    NOT_STARTED
-4.   Go Live              15-May-26    NOT_STARTED
-──────────────────────────────────────────────
+#    Title               Due Date     Story Pts   Status
+────────────────────────────────────────────────────────
+1.   Design Complete      01-Apr-26       20       DONE
+2.   Backend API          15-Apr-26       40       IN_PROGRESS
+3.   Testing              30-Apr-26       35       NOT_STARTED
+4.   Go Live              15-May-26       25       NOT_STARTED
+────────────────────────────────────────────────────────
+Total: 120 SP   |   Completed: 20 SP   |   Remaining: 100 SP
 
 1. Add Milestone
 2. Update Milestone Status
 3. Back
 
 Enter option: _
+```
+
+**Add Milestone sub-prompt:**
+
+```
+Milestone Title  : _
+Due Date         : (DD-MM-YYYY) _
+Story Points     : _
+
+Milestone added. ✓
+```
+
+**Update Milestone Status sub-prompt:**
+
+```
+Enter Milestone # : _
+New Status        : (1) NOT_STARTED   (2) IN_PROGRESS   (3) DONE
+
+Milestone updated. ✓
 ```
 
 ---
@@ -640,6 +679,8 @@ Enter option: _
 
 #### Screen 4.1 — Resource Dashboard
 
+> **Manager Visibility Scope:** Managers can only see employees assigned to their own team. All views on this dashboard — bench, partially allocated, and fully allocated — are scoped to the Manager's direct team. There is no company-wide employee visibility for Managers.
+
 ```
 ╔══════════════════════════════════════════════╗
 ║    RESOURCE DASHBOARD — May 2026             ║
@@ -660,7 +701,7 @@ ID    Name             Alloc %   Availability
 106   Dev Patel           50%     50% free
 
 ──────────────────────────────────────────────
-Bench: 3   |   Over-utilised: 0   |   Partial: 2
+Bench: 3   |   Partial: 2
 
 [D] Drill into employee details     [B] Back
 ```
@@ -687,6 +728,8 @@ Recent Activity Tags (last 4 weeks):
 ---
 
 #### Screen 4.2 — Allocate Resource
+
+> **Manager Visibility Scope:** Managers can only search for and allocate employees within their own assigned team. No cross-team or company-wide employee lookup is available from this screen.
 
 This screen has two paths: **AI-assisted search** (recommended) and **direct allocation** (when the Manager already knows who they want). The Manager can also end an existing allocation from this screen.
 
@@ -808,7 +851,7 @@ Allocation ended. Ravi Kumar freed from Alpha Portal as of 14-May-2026. ✓
 Employee status updated to BENCH if no other active allocations remain.
 ```
 
-> **Rule:** Only the Manager who owns the project can end allocations on that project. Ending an allocation sets the `to_date` to today's date and triggers the scheduler to recompute the employee's status.
+> **Rule:** Only the Manager who owns the project can end allocations on that project. Ending an allocation sets the `to_date` to today's date and recompute the employee's status.
 
 ---
 

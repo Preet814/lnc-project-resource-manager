@@ -126,6 +126,24 @@ def _create_employee_profile(
     return create_employee.json()
 
 
+def _assign_manager(
+    headers: dict[str, str],
+    *,
+    employee_user_id: int,
+    manager_user_id: int,
+) -> None:
+    assign = _request_or_skip(
+        "post",
+        _api_url("/admin/employees/assign-manager"),
+        headers=headers,
+        json={
+            "employee_user_id": employee_user_id,
+            "manager_user_id": manager_user_id,
+        },
+    )
+    assert assign.status_code == 200
+
+
 def _create_project(headers: dict[str, str], *, manager_user_id: int, prefix: str) -> dict:
     create_project = _request_or_skip(
         "post",
@@ -177,6 +195,11 @@ def test_employee_timesheets_smoke() -> None:
         admin_headers,
         user_id=employee_user["id"],
         email=f"{employee_user['username']}@example.test",
+    )
+    _assign_manager(
+        admin_headers,
+        employee_user_id=employee_user["id"],
+        manager_user_id=manager["id"],
     )
     project = _create_project(
         admin_headers,

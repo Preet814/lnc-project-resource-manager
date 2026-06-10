@@ -2,7 +2,7 @@
 
 **Learn & Code — Final Project**
 
-Console client + REST server for resource planning, allocations, timesheets, and LLM-assisted matching — per the business requirements document.
+Console client + REST server for resource planning, allocations, timesheets, and LLM-assisted matching — per [PRM_BRD.md](requirements/PRM_BRD.md).
 
 **Implementation language:** Python 3.11+ (console client, REST API, background scheduler).
 
@@ -139,7 +139,7 @@ curl -s -X POST http://localhost:8000/admin/employees \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"user_id":2,"full_name":"Ravi Kumar","email":"ravi@example.test","department":"Backend","designation":"Senior Developer"}'
 
-# Assign manager (BRD V4 §3.1.4 — user ids, not employee ids)
+# Assign manager (BRD §3.1.4 — user ids, not employee ids)
 curl -s -X POST http://localhost:8000/admin/employees/assign-manager \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -508,6 +508,12 @@ docker compose down
 
 Integration smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The auth forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow. Admin user and employee smoke tests create uniquely named users each run.
 
+BRD alignment end-to-end flows (onboarding, story points, team scoping, COMPLETED allocation rules):
+
+```bash
+pytest tests/integration/test_brd_v4_smoke.py -v -m integration
+```
+
 Override API URL if needed:
 
 ```bash
@@ -517,13 +523,15 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 ## Documentation
 
 1. Read [requirements/PRM_BRD.md](requirements/PRM_BRD.md).
-2. Open diagram HTML in a browser:
+2. [docs/Implementation_roadmap.md](docs/Implementation_roadmap.md) — phases, status, and console checklist (incl. BRD changes for Phase 5).
+3. [docs/BRD_V4_ALIGNMENT.md](docs/BRD_V4_ALIGNMENT.md) — backend alignment summary and gap analysis.
+4. Open diagram HTML in a browser:
    - [docs/diagrams/class/class-diagram.html](docs/diagrams/class/class-diagram.html)
    - [docs/diagrams/sequence/sequence-diagram.html](docs/diagrams/sequence/sequence-diagram.html)
    - [docs/diagrams/use-case/use-case-diagram.html](docs/diagrams/use-case/use-case-diagram.html)
-3. Class diagram notes: [docs/diagrams/class/class-diagram.md](docs/diagrams/class/class-diagram.md).
-4. Engineering guide: [docs/architecture/DESIGN.md](docs/architecture/DESIGN.md).
-5. Doc index: [docs/README.md](docs/README.md).
+6. Class diagram notes: [docs/diagrams/class/class-diagram.md](docs/diagrams/class/class-diagram.md).
+7. Engineering guide: [docs/architecture/DESIGN.md](docs/architecture/DESIGN.md).
+8. Doc index: [docs/README.md](docs/README.md).
 
 ## Stack
 
@@ -541,6 +549,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Area | Status |
 |------|--------|
 | Requirements | [PRM_BRD.md](requirements/PRM_BRD.md) |
+| BRD API alignment (backend) | Done — `manager_id`, assign-manager, story points, team scoping, `COMPLETED` allocation rules |
 | Diagrams | `docs/diagrams/` |
 | Design compliance | [DESIGN.md](docs/architecture/DESIGN.md) |
 | Project scaffold | Done — Docker, health check, DB/Alembic init |
