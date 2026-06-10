@@ -32,7 +32,6 @@ class ResourceDashboardResponse(BaseModel):
     on_bench: list[BenchEmployeeResponse]
     active: list[ActiveEmployeeResponse]
     bench_count: int
-    over_utilised_count: int
     partial_count: int
 
 

@@ -23,6 +23,9 @@ class EmployeeModel(Base):
     user_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), unique=True, nullable=True
     )
+    manager_id: Mapped[int | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     full_name: Mapped[str] = mapped_column(String(255), nullable=False)
     email: Mapped[str] = mapped_column(String(255), nullable=False)
     department: Mapped[str] = mapped_column(String(255), nullable=False)
@@ -36,7 +39,16 @@ class EmployeeModel(Base):
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )
 
-    user = relationship("UserModel", back_populates="employee")
+    user = relationship(
+        "UserModel",
+        back_populates="employee",
+        foreign_keys=[user_id],
+    )
+    manager = relationship(
+        "UserModel",
+        back_populates="team_members",
+        foreign_keys=[manager_id],
+    )
     skills = relationship("EmployeeSkillModel", back_populates="employee")
     allocations = relationship("AllocationModel", back_populates="employee")
     timesheet_weeks = relationship("TimesheetWeekModel", back_populates="employee")

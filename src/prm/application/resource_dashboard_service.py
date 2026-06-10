@@ -18,7 +18,8 @@ from prm.domain.dtos import (
     EmployeeResourceDetail,
     ResourceDashboardResult,
 )
-from prm.domain.exceptions import NotFoundError
+from prm.domain.entities.employee import Employee
+from prm.domain.exceptions import NotFoundError, UnauthorizedError
 
 
 class ResourceDashboardService:
@@ -40,13 +41,20 @@ class ResourceDashboardService:
         self._projects = project_repository
         self._timesheets = timesheet_repository
 
-    def get_dashboard(self, *, as_of: date | None = None) -> ResourceDashboardResult:
+    def get_dashboard(
+        self,
+        manager_user_id: int,
+        *,
+        as_of: date | None = None,
+    ) -> ResourceDashboardResult:
         _ = as_of  # reserved for future as-of dashboard snapshots
-        employees = self._employees.list_all(active_only=True)
+        employees = self._employees.list_by_manager_user_id(
+            manager_user_id,
+            active_only=True,
+        )
 
         on_bench: list[BenchEmployeeSummary] = []
         active: list[ActiveEmployeeSummary] = []
-        over_utilised_count = 0
         partial_count = 0
 
         for employee in employees:
@@ -71,21 +79,19 @@ class ResourceDashboardService:
                     availability_percent=availability,
                 )
             )
-            if employee.is_over_utilised():
-                over_utilised_count += 1
-            elif 0 < utilisation < MAX_UTILISATION_PERCENT:
+            if 0 < utilisation < MAX_UTILISATION_PERCENT:
                 partial_count += 1
 
         return ResourceDashboardResult(
             on_bench=tuple(on_bench),
             active=tuple(active),
             bench_count=len(on_bench),
-            over_utilised_count=over_utilised_count,
             partial_count=partial_count,
         )
 
     def get_employee_detail(
         self,
+        manager_user_id: int,
         employee_id: int,
         *,
         as_of: date | None = None,
@@ -94,6 +100,8 @@ class ResourceDashboardService:
         employee = self._employees.find_by_id(employee_id)
         if employee is None or not employee.is_active:
             raise NotFoundError(f"Employee {employee_id} not found.")
+
+        self._assert_direct_team_member(manager_user_id, employee)
 
         allocations = self._allocations.find_active_by_employee(employee_id)
         active_allocations = tuple(
@@ -123,6 +131,11 @@ class ResourceDashboardService:
                 )
             ),
         )
+
+    @staticmethod
+    def _assert_direct_team_member(manager_user_id: int, employee: Employee) -> None:
+        if employee.manager_id != manager_user_id:
+            raise UnauthorizedError("Employee is not assigned to your team.")
 
     def _skill_names(self, employee_id: int) -> tuple[str, ...]:
         assignments = self._employee_skills.list_for_employee(employee_id)

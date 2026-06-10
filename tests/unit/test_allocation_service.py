@@ -77,6 +77,7 @@ def _seed(
         designation="Developer",
     )
     owner_id = manager_user_id or manager.id
+    employee_repo.set_manager_id(employee.id, manager_id=owner_id)
     project = ProjectModel(
         name="Alpha Portal",
         description="Test project",
@@ -141,11 +142,17 @@ def test_allocate_direct_raises_conflict_when_over_cap() -> None:
             )
 
 
-def test_allocate_direct_raises_when_project_not_allocatable() -> None:
+@pytest.mark.parametrize(
+    "project_status",
+    [ProjectStatus.ON_HOLD, ProjectStatus.COMPLETED],
+)
+def test_allocate_direct_raises_when_project_not_allocatable(
+    project_status: ProjectStatus,
+) -> None:
     with _session() as session:
         manager_id, employee_id, project_id = _seed(
             session,
-            project_status=ProjectStatus.ON_HOLD,
+            project_status=project_status,
         )
         session.commit()
         service = _service(session)
@@ -258,3 +265,37 @@ def test_end_allocation_raises_when_allocation_missing() -> None:
 
         with pytest.raises(NotFoundError, match="Allocation 999 not found"):
             service.end_allocation(manager_id, 999)
+
+
+def test_allocate_direct_rejects_employee_not_on_manager_team() -> None:
+    with _session() as session:
+        manager_id, employee_id, _project_id = _seed(session)
+        user_repo = SqlAlchemyUserRepository(session)
+        hasher = BcryptPasswordHasher()
+        other_manager = user_repo.create(
+            full_name="Other Manager",
+            username="other.manager",
+            email="other@example.test",
+            password_hash=hasher.hash("TempPass1"),
+            role=Role.MANAGER,
+        )
+        other_project = ProjectModel(
+            name="Beta CRM",
+            description="Other manager project",
+            start_date=date(2026, 3, 1),
+            status=ProjectStatus.ACTIVE,
+            manager_user_id=other_manager.id,
+        )
+        session.add(other_project)
+        session.commit()
+        service = _service(session)
+
+        with pytest.raises(UnauthorizedError, match="assigned to your team"):
+            service.allocate_direct(
+                other_manager.id,
+                project_id=other_project.id,
+                employee_id=employee_id,
+                utilisation_percent=50,
+                from_date=date(2026, 3, 1),
+                to_date=date(2026, 6, 30),
+            )

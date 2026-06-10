@@ -51,12 +51,21 @@ class SkillMatchService:
         as_of: date | None = None,
     ) -> SkillMatchListResult:
         project = self._authorization.assert_project_owner(manager_user_id, project_id)
+        if not project.allows_allocation():
+            raise ValidationError(
+                "Project must be ACTIVE or PLANNED to accept allocations."
+            )
+
         cleaned = requirement.strip()
         if not cleaned:
             raise ValidationError("Requirement is required.")
 
         requested_hours = parse_requested_hours_per_week(cleaned)
-        candidates = self._load_qualified_candidates(requested_hours, as_of=as_of)
+        candidates = self._load_qualified_candidates(
+            manager_user_id,
+            requested_hours,
+            as_of=as_of,
+        )
         if not candidates:
             return SkillMatchListResult(
                 project_id=project_id,
@@ -82,6 +91,7 @@ class SkillMatchService:
 
     def _load_qualified_candidates(
         self,
+        manager_user_id: int,
         requested_hours: int | None,
         *,
         as_of: date | None,
@@ -89,7 +99,10 @@ class SkillMatchService:
         reference = as_of or date.today()
         qualified: list[SkillMatchCandidate] = []
 
-        for employee in self._employees.list_all(active_only=True):
+        for employee in self._employees.list_by_manager_user_id(
+            manager_user_id,
+            active_only=True,
+        ):
             free_hours = self._free_hours_per_week(employee.current_utilisation_percent)
             if requested_hours is not None:
                 if free_hours < requested_hours:

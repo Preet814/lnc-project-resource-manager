@@ -129,13 +129,15 @@ def client() -> Generator[TestClient, None, None]:
             department="Backend",
             designation="Developer",
         )
-        employee_repo.create(
+        bench_employee = employee_repo.create(
             user_id=bench_user.id,
             full_name="Priya Sharma",
             email=BENCH_EMAIL,
             department="Frontend",
             designation="Developer",
         )
+        employee_repo.set_manager_id(employee.id, manager_id=manager.id)
+        employee_repo.set_manager_id(bench_employee.id, manager_id=manager.id)
         employee_repo.update_utilisation_and_status(
             employee.id,
             current_utilisation_percent=50,

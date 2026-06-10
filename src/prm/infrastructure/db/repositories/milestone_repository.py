@@ -19,6 +19,7 @@ def _to_domain(model: MilestoneModel) -> Milestone:
         due_date=model.due_date,
         status=model.status,
         sequence_order=model.sequence_order,
+        story_points=model.story_points,
     )
 
 
@@ -59,6 +60,7 @@ class SqlAlchemyMilestoneRepository:
         due_date: date,
         status: MilestoneStatus = MilestoneStatus.NOT_STARTED,
         sequence_order: int | None = None,
+        story_points: int = 0,
     ) -> Milestone:
         resolved_sequence = sequence_order
         if resolved_sequence is None:
@@ -75,6 +77,7 @@ class SqlAlchemyMilestoneRepository:
             due_date=due_date,
             status=status,
             sequence_order=resolved_sequence,
+            story_points=story_points,
         )
         self._session.add(model)
         self._session.flush()
@@ -89,6 +92,7 @@ class SqlAlchemyMilestoneRepository:
         due_date: date | None = None,
         status: MilestoneStatus | None = None,
         sequence_order: int | None = None,
+        story_points: int | None = None,
     ) -> Milestone:
         model = self._session.get(MilestoneModel, milestone_id)
         if model is None:
@@ -102,7 +106,18 @@ class SqlAlchemyMilestoneRepository:
             model.status = status
         if sequence_order is not None:
             model.sequence_order = sequence_order
+        if story_points is not None:
+            model.story_points = story_points
 
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)
+
+    def sum_completed_story_points(self, project_id: int) -> int:
+        total = self._session.scalar(
+            select(func.coalesce(func.sum(MilestoneModel.story_points), 0)).where(
+                MilestoneModel.project_id == project_id,
+                MilestoneModel.status == MilestoneStatus.DONE,
+            )
+        )
+        return int(total or 0)

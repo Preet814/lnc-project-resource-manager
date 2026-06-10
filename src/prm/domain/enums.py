@@ -37,6 +37,7 @@ class ProjectStatus(StrEnum):
     PLANNED = "PLANNED"
     ACTIVE = "ACTIVE"
     ON_HOLD = "ON_HOLD"
+    COMPLETED = "COMPLETED"
 
 
 class ProjectHealthStatus(StrEnum):

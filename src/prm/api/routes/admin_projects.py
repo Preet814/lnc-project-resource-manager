@@ -24,7 +24,7 @@ from prm.api.schemas.admin_projects import (
 )
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
-from prm.domain.dtos import MilestoneDetail, ProjectListResult
+from prm.domain.dtos import MilestoneDetail, MilestoneListResult, ProjectListResult
 from prm.domain.entities.project import Project
 from prm.domain.enums import ProjectStatus
 from prm.infrastructure.security.jwt import JwtTokenPayload
@@ -41,6 +41,7 @@ def _to_project_response(project: Project) -> ProjectResponse:
         end_date=project.end_date,
         status=project.status,
         manager_user_id=project.manager_user_id,
+        total_story_points=project.total_story_points,
         health_status=project.health_status,
         health_computed_at=project.health_computed_at,
     )
@@ -55,6 +56,8 @@ def _to_project_list_response(result: ProjectListResult) -> ProjectListResponse:
                 manager_full_name=summary.manager_full_name,
                 end_date=summary.end_date,
                 status=summary.status,
+                story_points_done=summary.story_points_done,
+                story_points_total=summary.story_points_total,
             )
             for summary in result.projects
         ],
@@ -62,6 +65,7 @@ def _to_project_list_response(result: ProjectListResult) -> ProjectListResponse:
         active_count=result.active_count,
         planned_count=result.planned_count,
         on_hold_count=result.on_hold_count,
+        completed_count=result.completed_count,
     )
 
 
@@ -72,14 +76,16 @@ def _to_milestone_response(detail: MilestoneDetail) -> MilestoneResponse:
         due_date=detail.due_date,
         status=detail.status,
         sequence_order=detail.sequence_order,
+        story_points=detail.story_points,
     )
 
 
-def _to_milestone_list_response(
-    milestones: tuple[MilestoneDetail, ...],
-) -> MilestoneListResponse:
+def _to_milestone_list_response(result: MilestoneListResult) -> MilestoneListResponse:
     return MilestoneListResponse(
-        milestones=[_to_milestone_response(milestone) for milestone in milestones],
+        milestones=[_to_milestone_response(milestone) for milestone in result.milestones],
+        total_story_points=result.total_story_points,
+        completed_story_points=result.completed_story_points,
+        remaining_story_points=result.remaining_story_points,
     )
 
 
@@ -97,6 +103,7 @@ def create_project(
         end_date=body.end_date,
         status=body.status,
         manager_user_id=body.manager_user_id,
+        total_story_points=body.total_story_points,
     )
     db.commit()
     return _to_project_response(created)
@@ -138,6 +145,7 @@ def update_project(
         end_date=body.end_date,
         status=body.status,
         manager_user_id=body.manager_user_id,
+        total_story_points=body.total_story_points,
     )
     db.commit()
     return _to_project_response(updated)
@@ -170,6 +178,7 @@ def add_project_milestone(
         due_date=body.due_date,
         status=body.status,
         sequence_order=body.sequence_order,
+        story_points=body.story_points,
     )
     db.commit()
     return _to_milestone_response(added)
@@ -191,6 +200,7 @@ def update_project_milestone(
         due_date=body.due_date,
         status=body.status,
         sequence_order=body.sequence_order,
+        story_points=body.story_points,
     )
     db.commit()
     return _to_milestone_response(updated)

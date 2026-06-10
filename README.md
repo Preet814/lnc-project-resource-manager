@@ -2,7 +2,7 @@
 
 **Learn & Code — Final Project**
 
-Console client + REST server for resource planning, allocations, timesheets, and LLM-assisted matching — per the business requirements document.
+Console client + REST server for resource planning, allocations, timesheets, and LLM-assisted matching — per [PRM_BRD.md](requirements/PRM_BRD.md).
 
 **Implementation language:** Python 3.11+ (console client, REST API, background scheduler).
 
@@ -120,7 +120,9 @@ curl -s -X POST http://localhost:8000/admin/users/reset-password \
 | `POST /admin/users/{id}/reactivate` | Admin JWT | Reactivate account |
 | `POST /admin/users/reset-password` | Admin JWT | Reset password (username or id) |
 
-### Admin employee and skills (BRD §3.1)
+### Admin employee and skills (BRD §3.1, V4)
+
+**Onboarding (V4):** Create the login with `POST /admin/users`, then create the work profile with `POST /admin/employees` (the console “Add Employee” menu is removed in V4; the API remains the profile-creation step). Assign the employee to a manager with `POST /admin/employees/assign-manager` so managers only see their team on the resource dashboard.
 
 Requires an **EMPLOYEE** or **MANAGER** user account first (`POST /admin/users`), then link the work profile with `user_id`. Admin accounts cannot have employee profiles.
 
@@ -136,6 +138,12 @@ curl -s -X POST http://localhost:8000/admin/employees \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"user_id":2,"full_name":"Ravi Kumar","email":"ravi@example.test","department":"Backend","designation":"Senior Developer"}'
+
+# Assign manager (BRD §3.1.4 — user ids, not employee ids)
+curl -s -X POST http://localhost:8000/admin/employees/assign-manager \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer $TOKEN" \
+  -d '{"employee_user_id":2,"manager_user_id":3}'
 
 # Get / update / deactivate by employee id (not user id)
 curl -s http://localhost:8000/admin/employees/1 -H "Authorization: Bearer $TOKEN"
@@ -163,7 +171,8 @@ curl -s -X DELETE http://localhost:8000/admin/employees/1/skills/1 \
 | Endpoint | Auth | Purpose |
 |----------|------|---------|
 | `GET /admin/employees` | Admin JWT | List employees + bench/allocated counts |
-| `POST /admin/employees` | Admin JWT | Create employee profile (link `user_id`) |
+| `POST /admin/employees` | Admin JWT | Create employee work profile (link `user_id`; V4 profile step) |
+| `POST /admin/employees/assign-manager` | Admin JWT | Assign employee to manager (`employee_user_id`, `manager_user_id`) |
 | `GET /admin/employees/{id}` | Admin JWT | Get employee profile |
 | `PATCH /admin/employees/{id}` | Admin JWT | Update department, designation, etc. |
 | `POST /admin/employees/{id}/deactivate` | Admin JWT | Deactivate profile; end allocations; block login |
@@ -191,25 +200,27 @@ curl -s -X POST http://localhost:8000/admin/users \
 curl -s http://localhost:8000/admin/projects \
   -H "Authorization: Bearer $TOKEN"
 
-# Create project (manager_user_id from POST /admin/users)
+# Create project (manager_user_id from POST /admin/users; V4 adds total_story_points)
 curl -s -X POST http://localhost:8000/admin/projects \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Alpha Portal","description":"Customer portal rewrite","start_date":"2026-03-01","end_date":"2026-06-30","status":"ACTIVE","manager_user_id":2}'
+  -d '{"name":"Alpha Portal","description":"Customer portal rewrite","start_date":"2026-03-01","end_date":"2026-06-30","status":"ACTIVE","manager_user_id":2,"total_story_points":120}'
 
-# Get / update by project id
+# Get / update by project id (V4: status may be COMPLETED; total_story_points editable)
 curl -s http://localhost:8000/admin/projects/1 -H "Authorization: Bearer $TOKEN"
 curl -s -X PATCH http://localhost:8000/admin/projects/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"name":"Alpha Portal v2","status":"ON_HOLD"}'
+  -d '{"name":"Alpha Portal v2","status":"COMPLETED","total_story_points":120}'
 
-# Manage milestones on project id
+# V4: COMPLETED and ON_HOLD projects reject new allocations (managers may still end existing ones)
+
+# Manage milestones on project id (V4: story_points on add; list returns SP totals)
 curl -s http://localhost:8000/admin/projects/1/milestones -H "Authorization: Bearer $TOKEN"
 curl -s -X POST http://localhost:8000/admin/projects/1/milestones \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"title":"Backend API","due_date":"2026-04-15"}'
+  -d '{"title":"Backend API","due_date":"2026-04-15","story_points":40}'
 curl -s -X PATCH http://localhost:8000/admin/projects/1/milestones/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -273,12 +284,12 @@ curl -s -X PATCH http://localhost:8000/admin/config/max-weekly-hours \
 
 ### Manager resource dashboard and allocation (BRD §4.1, §4.2)
 
-Requires a **MANAGER** user and an employee profile (create via Admin API). Assign `manager_user_id` when creating the project so the manager owns it.
+Requires a **MANAGER** user and employee profiles assigned to that manager via `POST /admin/employees/assign-manager`. The resource dashboard, direct allocation, and AI skill match only include employees on the manager's direct team. Assign `manager_user_id` when creating the project so the manager owns it.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
 
-# Resource dashboard (bench + active employees)
+# Resource dashboard (bench + active employees on your team only)
 curl -s http://localhost:8000/manager/resources \
   -H "Authorization: Bearer $TOKEN"
 
@@ -290,7 +301,7 @@ curl -s http://localhost:8000/manager/resources/1 \
 curl -s http://localhost:8000/manager/projects/1/allocations \
   -H "Authorization: Bearer $TOKEN"
 
-# Direct allocate (returns 409 if total utilisation would exceed 100%)
+# Direct allocate (returns 409 if total utilisation would exceed 100%; 400 if project is ON_HOLD or COMPLETED)
 curl -s -X POST http://localhost:8000/manager/allocations \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -305,10 +316,10 @@ curl -s -X POST http://localhost:8000/manager/allocations/1/end \
 
 | Endpoint | Auth | Purpose |
 |----------|------|---------|
-| `GET /manager/resources` | Manager JWT | Resource dashboard + counts |
+| `GET /manager/resources` | Manager JWT | Resource dashboard + team counts (bench/active) |
 | `GET /manager/resources/{employee_id}` | Manager JWT | Employee drill-down |
 | `GET /manager/projects/{project_id}/allocations` | Manager JWT | Active allocations on owned project |
-| `POST /manager/allocations` | Manager JWT | Direct allocate |
+| `POST /manager/allocations` | Manager JWT | Direct allocate (ACTIVE/PLANNED projects only) |
 | `POST /manager/allocations/{allocation_id}/end` | Manager JWT | End allocation |
 
 ### Manager My Projects and team timesheets (BRD §4.3, §4.4)
@@ -400,7 +411,7 @@ docker compose restart api
 docker compose logs -f api
 ```
 
-Look for log lines such as `Background scheduler started` and `Scheduler tick complete`.
+Look for log lines such as `Background scheduler started` and `Scheduler tick complete`. Project health is recomputed for **ACTIVE** projects only (PLANNED, ON_HOLD, and COMPLETED are skipped each tick).
 
 | Setting | Where | Notes |
 |---------|--------|--------|
@@ -418,7 +429,7 @@ pytest tests/integration/test_scheduler_smoke.py -v -m integration
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
-Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
+Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. The project must be **ACTIVE** or **PLANNED** (same rule as direct allocation). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
@@ -497,6 +508,12 @@ docker compose down
 
 Integration smoke reads `BOOTSTRAP_ADMIN_USERNAME` / `BOOTSTRAP_ADMIN_PASSWORD` from the environment. The auth forced password-change test skips if the admin already changed password; reset with `docker compose down -v` to re-test that flow. Admin user and employee smoke tests create uniquely named users each run.
 
+BRD alignment end-to-end flows (onboarding, story points, team scoping, COMPLETED allocation rules):
+
+```bash
+pytest tests/integration/test_brd_v4_smoke.py -v -m integration
+```
+
 Override API URL if needed:
 
 ```bash
@@ -506,13 +523,15 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 ## Documentation
 
 1. Read [requirements/PRM_BRD.md](requirements/PRM_BRD.md).
-2. Open diagram HTML in a browser:
+2. [docs/Implementation_roadmap.md](docs/Implementation_roadmap.md) — phases, status, and console checklist (incl. BRD changes for Phase 5).
+3. [docs/BRD_V4_ALIGNMENT.md](docs/BRD_V4_ALIGNMENT.md) — backend alignment summary and gap analysis.
+4. Open diagram HTML in a browser:
    - [docs/diagrams/class/class-diagram.html](docs/diagrams/class/class-diagram.html)
    - [docs/diagrams/sequence/sequence-diagram.html](docs/diagrams/sequence/sequence-diagram.html)
    - [docs/diagrams/use-case/use-case-diagram.html](docs/diagrams/use-case/use-case-diagram.html)
-3. Class diagram notes: [docs/diagrams/class/class-diagram.md](docs/diagrams/class/class-diagram.md).
-4. Engineering guide: [docs/architecture/DESIGN.md](docs/architecture/DESIGN.md).
-5. Doc index: [docs/README.md](docs/README.md).
+6. Class diagram notes: [docs/diagrams/class/class-diagram.md](docs/diagrams/class/class-diagram.md).
+7. Engineering guide: [docs/architecture/DESIGN.md](docs/architecture/DESIGN.md).
+8. Doc index: [docs/README.md](docs/README.md).
 
 ## Stack
 
@@ -530,13 +549,14 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Area | Status |
 |------|--------|
 | Requirements | [PRM_BRD.md](requirements/PRM_BRD.md) |
+| BRD API alignment (backend) | Done — `manager_id`, assign-manager, story points, team scoping, `COMPLETED` allocation rules |
 | Diagrams | `docs/diagrams/` |
 | Design compliance | [DESIGN.md](docs/architecture/DESIGN.md) |
 | Project scaffold | Done — Docker, health check, DB/Alembic init |
 | ORM models & seed | Done — class diagram tables, migration, bootstrap Admin |
 | Auth API | Done — login, change-password, JWT (`POST /auth/login`, `POST /auth/change-password`) |
 | Admin users API | Done — create, list, deactivate, reactivate, reset password (`/admin/users/*`) |
-| Admin employees API | Done — create, list, update, deactivate, skills CRUD (`/admin/employees/*`) |
+| Admin employees API | Done — create, list, update, deactivate, assign manager, skills CRUD (`/admin/employees/*`) |
 | Admin projects API | Done — create, list, update, milestones CRUD (`/admin/projects/*`) |
 | Admin allocations & config API | Done — view allocations, system settings (`/admin/allocations`, `/admin/config/*`) |
 | Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |

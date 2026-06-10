@@ -17,6 +17,7 @@ class Project:
     end_date: date | None
     status: ProjectStatus
     manager_user_id: int
+    total_story_points: int
     health_status: ProjectHealthStatus
     health_computed_at: datetime | None
 
@@ -24,4 +25,5 @@ class Project:
         return self.manager_user_id == manager_user_id
 
     def allows_allocation(self) -> bool:
+        """True when managers may add resources (BRD §4.2: ACTIVE or PLANNED only)."""
         return self.status in (ProjectStatus.PLANNED, ProjectStatus.ACTIVE)

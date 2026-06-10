@@ -8,10 +8,14 @@ from sqlalchemy.orm import Session
 
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.user_management_service import UserManagementService
-from prm.domain.enums import ProjectStatus, Role
+from prm.domain.enums import MilestoneStatus, ProjectStatus, Role
 from prm.domain.exceptions import NotFoundError, ValidationError
-from prm.infrastructure.db.models import ProjectModel, UserModel
-from prm.infrastructure.db.repositories import SqlAlchemyProjectRepository, SqlAlchemyUserRepository
+from prm.infrastructure.db.models import MilestoneModel, ProjectModel, UserModel
+from prm.infrastructure.db.repositories import (
+    SqlAlchemyMilestoneRepository,
+    SqlAlchemyProjectRepository,
+    SqlAlchemyUserRepository,
+)
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
@@ -21,6 +25,7 @@ def _session() -> Session:
     engine = create_engine("sqlite:///:memory:")
     UserModel.__table__.create(engine, checkfirst=True)
     ProjectModel.__table__.create(engine, checkfirst=True)
+    MilestoneModel.__table__.create(engine, checkfirst=True)
     return Session(engine)
 
 
@@ -28,6 +33,7 @@ def _service(session: Session) -> ProjectManagementService:
     return ProjectManagementService(
         project_repository=SqlAlchemyProjectRepository(session),
         user_repository=SqlAlchemyUserRepository(session),
+        milestone_repository=SqlAlchemyMilestoneRepository(session),
     )
 
 
@@ -340,3 +346,96 @@ def test_update_project_fails_when_missing() -> None:
     with _session() as session:
         with pytest.raises(NotFoundError):
             _service(session).update_project(999, name="Missing Project")
+
+
+def test_create_project_persists_total_story_points() -> None:
+    with _session() as session:
+        manager_id = _create_user(
+            session,
+            username="ankit",
+            email="ankit@example.test",
+            role=Role.MANAGER,
+        )
+        created = _service(session).create_project(
+            name="Alpha Portal",
+            description=None,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 6, 30),
+            status=ProjectStatus.ACTIVE,
+            manager_user_id=manager_id,
+            total_story_points=120,
+        )
+        session.commit()
+
+        assert created.total_story_points == 120
+
+
+def test_list_projects_includes_story_point_rollups() -> None:
+    with _session() as session:
+        manager_id = _create_user(
+            session,
+            username="ankit",
+            email="ankit@example.test",
+            role=Role.MANAGER,
+        )
+        project_service = _service(session)
+        milestone_repo = SqlAlchemyMilestoneRepository(session)
+        project = project_service.create_project(
+            name="Alpha Portal",
+            description=None,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 6, 30),
+            status=ProjectStatus.ACTIVE,
+            manager_user_id=manager_id,
+            total_story_points=120,
+        )
+        milestone_repo.create(
+            project_id=project.id,
+            title="Design Complete",
+            due_date=date(2026, 4, 1),
+            status=MilestoneStatus.DONE,
+            story_points=20,
+        )
+        milestone_repo.create(
+            project_id=project.id,
+            title="Backend API",
+            due_date=date(2026, 4, 15),
+            status=MilestoneStatus.IN_PROGRESS,
+            story_points=40,
+        )
+        session.commit()
+
+        result = project_service.list_projects()
+
+        assert result.projects[0].story_points_done == 20
+        assert result.projects[0].story_points_total == 120
+
+
+def test_update_project_supports_completed_status_and_story_points() -> None:
+    with _session() as session:
+        manager_id = _create_user(
+            session,
+            username="ankit",
+            email="ankit@example.test",
+            role=Role.MANAGER,
+        )
+        created = _service(session).create_project(
+            name="Alpha Portal",
+            description=None,
+            start_date=date(2026, 3, 1),
+            end_date=date(2026, 6, 30),
+            status=ProjectStatus.ACTIVE,
+            manager_user_id=manager_id,
+            total_story_points=80,
+        )
+        session.commit()
+
+        updated = _service(session).update_project(
+            created.id,
+            status=ProjectStatus.COMPLETED,
+            total_story_points=100,
+        )
+        session.commit()
+
+        assert updated.status == ProjectStatus.COMPLETED
+        assert updated.total_story_points == 100

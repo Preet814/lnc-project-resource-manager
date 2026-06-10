@@ -22,9 +22,15 @@ class UpdateEmployeeRequest(BaseModel):
     designation: str | None = Field(default=None, min_length=1)
 
 
+class AssignManagerRequest(BaseModel):
+    employee_user_id: int
+    manager_user_id: int
+
+
 class EmployeeResponse(BaseModel):
     id: int
     user_id: int | None
+    manager_id: int | None
     full_name: str
     email: str
     department: str

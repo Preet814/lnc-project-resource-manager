@@ -118,6 +118,8 @@ def _seed_database(setup: Session) -> tuple[int, int]:
         department="Frontend",
         designation="Developer",
     )
+    employee_repo.set_manager_id(employee.id, manager_id=manager.id)
+    employee_repo.set_manager_id(bench_employee.id, manager_id=manager.id)
     employee_repo.update_utilisation_and_status(
         employee.id,
         current_utilisation_percent=50,

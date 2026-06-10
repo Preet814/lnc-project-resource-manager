@@ -123,6 +123,8 @@ class ProjectSummary:
     manager_full_name: str
     end_date: date | None
     status: ProjectStatus
+    story_points_done: int
+    story_points_total: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -134,17 +136,29 @@ class ProjectListResult:
     active_count: int
     planned_count: int
     on_hold_count: int
+    completed_count: int
 
 
 @dataclass(frozen=True, slots=True)
 class MilestoneDetail:
-    """Milestone row for admin manage-milestones screen (BRD §3.2.3)."""
+    """Milestone row for admin manage-milestones screen (BRD §3.2.4)."""
 
     milestone_id: int
     title: str
     due_date: date
     status: MilestoneStatus
     sequence_order: int
+    story_points: int
+
+
+@dataclass(frozen=True, slots=True)
+class MilestoneListResult:
+    """Milestones for a project plus story-point rollups (BRD §3.2.4)."""
+
+    milestones: tuple[MilestoneDetail, ...]
+    total_story_points: int
+    completed_story_points: int
+    remaining_story_points: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -215,7 +229,6 @@ class ResourceDashboardResult:
     on_bench: tuple[BenchEmployeeSummary, ...]
     active: tuple[ActiveEmployeeSummary, ...]
     bench_count: int
-    over_utilised_count: int
     partial_count: int
 
 

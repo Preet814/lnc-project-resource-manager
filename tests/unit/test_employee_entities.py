@@ -12,6 +12,7 @@ def _employee(*, work_status: EmployeeWorkStatus, utilisation: int) -> Employee:
     return Employee(
         id=1,
         user_id=4,
+        manager_id=None,
         full_name="Ravi Kumar",
         email="ravi@example.com",
         department="Backend",

@@ -85,7 +85,6 @@ def _to_dashboard_response(result: ResourceDashboardResult) -> ResourceDashboard
             for row in result.active
         ],
         bench_count=result.bench_count,
-        over_utilised_count=result.over_utilised_count,
         partial_count=result.partial_count,
     )
 
@@ -313,19 +312,21 @@ def get_employee_timesheet_detail(
 
 @router.get("/resources", response_model=ResourceDashboardResponse)
 def get_resource_dashboard(
-    _manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
     service: Annotated[ResourceDashboardService, Depends(get_resource_dashboard_service)],
 ) -> ResourceDashboardResponse:
-    return _to_dashboard_response(service.get_dashboard())
+    return _to_dashboard_response(service.get_dashboard(manager.user_id))
 
 
 @router.get("/resources/{employee_id}", response_model=EmployeeResourceDetailResponse)
 def get_employee_resource_detail(
     employee_id: int,
-    _manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
     service: Annotated[ResourceDashboardService, Depends(get_resource_dashboard_service)],
 ) -> EmployeeResourceDetailResponse:
-    return _to_employee_detail_response(service.get_employee_detail(employee_id))
+    return _to_employee_detail_response(
+        service.get_employee_detail(manager.user_id, employee_id)
+    )
 
 
 @router.get(

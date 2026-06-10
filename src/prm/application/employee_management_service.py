@@ -135,6 +135,32 @@ class EmployeeManagementService:
 
         return deactivated
 
+    def assign_manager(
+        self,
+        *,
+        employee_user_id: int,
+        manager_user_id: int,
+    ) -> Employee:
+        """Link an employee work profile to a manager (BRD V4 §3.1.4)."""
+        if employee_user_id == manager_user_id:
+            raise ValidationError("An employee cannot be assigned as their own manager.")
+
+        manager_user = self._require_manager_user(manager_user_id)
+        self._require_linkable_user(employee_user_id)
+
+        employee = self._employees.find_by_user_id(employee_user_id)
+        if employee is None:
+            raise NotFoundError(
+                f"No employee profile found for user {employee_user_id}. "
+                "Create the work profile first via POST /admin/employees."
+            )
+        if not employee.is_active:
+            raise ValidationError(
+                f"Employee '{employee.full_name}' is inactive and cannot be reassigned."
+            )
+
+        return self._employees.set_manager_id(employee.id, manager_id=manager_user.id)
+
     def _require_linkable_user(self, user_id: int) -> User:
         user = self._users.find_by_id(user_id)
         if user is None:
@@ -145,6 +171,16 @@ class EmployeeManagementService:
             )
         if not user.is_active():
             raise ValidationError("Cannot link an employee profile to an inactive user account.")
+        return user
+
+    def _require_manager_user(self, user_id: int) -> User:
+        user = self._users.find_by_id(user_id)
+        if user is None:
+            raise NotFoundError(f"User {user_id} not found.")
+        if user.role != Role.MANAGER:
+            raise ValidationError("Manager must be a user account with the MANAGER role.")
+        if not user.is_active():
+            raise ValidationError("Cannot assign employees to an inactive manager account.")
         return user
 
     def _require_employee(self, employee_id: int) -> Employee:

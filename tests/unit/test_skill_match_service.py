@@ -104,6 +104,7 @@ def _seed_manager_and_project(session: Session) -> tuple[int, int]:
 def _seed_employee(
     session: Session,
     *,
+    manager_user_id: int,
     full_name: str,
     email: str,
     username: str,
@@ -132,6 +133,7 @@ def _seed_employee(
         current_utilisation_percent=utilisation_percent,
         work_status=work_status,
     )
+    employee_repo.set_manager_id(employee.id, manager_id=manager_user_id)
     return employee.id
 
 
@@ -140,6 +142,7 @@ def test_find_matches_returns_llm_results_for_qualified_candidates() -> None:
     manager_id, project_id = _seed_manager_and_project(session)
     bench_id = _seed_employee(
         session,
+        manager_user_id=manager_id,
         full_name="Anil Mehta",
         email="anil@example.test",
         username="anil.mehta",
@@ -147,6 +150,7 @@ def test_find_matches_returns_llm_results_for_qualified_candidates() -> None:
     )
     _seed_employee(
         session,
+        manager_user_id=manager_id,
         full_name="Fully Booked",
         email="booked@example.test",
         username="fully.booked",
@@ -196,6 +200,7 @@ def test_find_matches_skips_llm_when_no_part_time_capacity() -> None:
     manager_id, project_id = _seed_manager_and_project(session)
     _seed_employee(
         session,
+        manager_user_id=manager_id,
         full_name="Dev Patel",
         email="dev@example.test",
         username="dev.patel",
@@ -214,6 +219,28 @@ def test_find_matches_skips_llm_when_no_part_time_capacity() -> None:
     assert result.matches == ()
     assert result.message == "No employees have at least 20 free hours per week."
     assert llm.rank_calls == []
+
+
+def test_find_matches_rejects_non_allocatable_project() -> None:
+    session = _session()
+    manager_id, _project_id = _seed_manager_and_project(session)
+    project_repo = SqlAlchemyProjectRepository(session)
+    completed = project_repo.create(
+        name="Finished Portal",
+        description="Delivered",
+        start_date=date(2026, 1, 1),
+        end_date=date(2026, 6, 30),
+        status=ProjectStatus.COMPLETED,
+        manager_user_id=manager_id,
+    )
+    llm = FakeLlmClient()
+
+    with pytest.raises(ValidationError, match="ACTIVE or PLANNED"):
+        _service(session, llm=llm).find_matches(
+            manager_id,
+            completed.id,
+            "Need a backend developer",
+        )
 
 
 def test_find_matches_rejects_blank_requirement() -> None:
@@ -254,3 +281,44 @@ def test_find_matches_requires_project_owner() -> None:
             other_project.id,
             "Need a backend developer",
         )
+
+
+def test_find_matches_excludes_employees_not_on_manager_team() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_and_project(session)
+    user_repo = SqlAlchemyUserRepository(session)
+    hasher = BcryptPasswordHasher()
+    other_manager = user_repo.create(
+        full_name="Other Manager",
+        username="other.manager",
+        email="other@example.test",
+        password_hash=hasher.hash("TempPass1"),
+        role=Role.MANAGER,
+    )
+    other_team_employee_id = _seed_employee(
+        session,
+        manager_user_id=other_manager.id,
+        full_name="Other Team Dev",
+        email="other.team@example.test",
+        username="other.team",
+        utilisation_percent=0,
+    )
+    skill_repo = SqlAlchemySkillRepository(session)
+    skill = skill_repo.create(name="Microservices", category=SkillCategory.BACKEND)
+    employee_skill_repo = SqlAlchemyEmployeeSkillRepository(session)
+    employee_skill_repo.assign(
+        employee_id=other_team_employee_id,
+        skill_id=skill.id,
+        proficiency=ProficiencyLevel.ADVANCED,
+    )
+    llm = FakeLlmClient()
+
+    result = _service(session, llm=llm, tags=["Microservices"]).find_matches(
+        manager_id,
+        project_id,
+        "Java developer with microservices experience",
+    )
+
+    assert result.total == 0
+    assert result.matches == ()
+    assert llm.rank_calls == []

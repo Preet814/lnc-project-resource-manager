@@ -368,3 +368,57 @@ def test_add_employee_skill_returns_400_for_duplicate(client: TestClient) -> Non
 
     assert response.status_code == 400
     assert "already has skill" in response.json()["detail"]
+
+
+def _manager_user_id(client: TestClient) -> int:
+    users = client.get("/admin/users", headers=_admin_headers(client))
+    assert users.status_code == 200
+    for user in users.json()["users"]:
+        if user["username"] == MANAGER_USERNAME:
+            return user["id"]
+    raise AssertionError("Manager user not found")
+
+
+def test_assign_manager_returns_updated_manager_id(client: TestClient) -> None:
+    employee_user = _create_user(client, username="emp_mgr", email="emp_mgr@example.test")
+    client.post(
+        "/admin/employees",
+        headers=_admin_headers(client),
+        json={
+            "user_id": employee_user["id"],
+            "full_name": "Team Member",
+            "email": "emp_mgr@example.test",
+            "department": "Backend",
+            "designation": "Developer",
+        },
+    )
+
+    response = client.post(
+        "/admin/employees/assign-manager",
+        headers=_admin_headers(client),
+        json={
+            "employee_user_id": employee_user["id"],
+            "manager_user_id": _manager_user_id(client),
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.json()["manager_id"] == _manager_user_id(client)
+
+
+def test_assign_manager_returns_404_when_profile_missing(client: TestClient) -> None:
+    employee_user = _create_user(
+        client, username="emp_no_profile", email="emp_no_profile@example.test"
+    )
+
+    response = client.post(
+        "/admin/employees/assign-manager",
+        headers=_admin_headers(client),
+        json={
+            "employee_user_id": employee_user["id"],
+            "manager_user_id": _manager_user_id(client),
+        },
+    )
+
+    assert response.status_code == 404
+    assert "No employee profile found" in response.json()["detail"]

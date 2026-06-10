@@ -39,6 +39,7 @@ def _project_service(session: Session) -> ProjectManagementService:
     return ProjectManagementService(
         project_repository=SqlAlchemyProjectRepository(session),
         user_repository=SqlAlchemyUserRepository(session),
+        milestone_repository=SqlAlchemyMilestoneRepository(session),
     )
 
 
@@ -86,11 +87,11 @@ def test_list_milestones_returns_milestone_details() -> None:
 
         milestones = service.list_milestones(project_id)
 
-        assert len(milestones) == 2
-        assert milestones[0].title == "Design Complete"
-        assert milestones[0].status == MilestoneStatus.DONE
-        assert milestones[1].title == "Backend API"
-        assert milestones[1].status == MilestoneStatus.IN_PROGRESS
+        assert len(milestones.milestones) == 2
+        assert milestones.milestones[0].title == "Design Complete"
+        assert milestones.milestones[0].status == MilestoneStatus.DONE
+        assert milestones.milestones[1].title == "Backend API"
+        assert milestones.milestones[1].status == MilestoneStatus.IN_PROGRESS
 
 
 def test_add_milestone_creates_milestone_with_defaults() -> None:
@@ -214,3 +215,35 @@ def test_list_milestones_fails_when_project_missing() -> None:
     with _session() as session:
         with pytest.raises(NotFoundError):
             _milestone_service(session).list_milestones(999)
+
+
+def test_list_milestones_returns_story_point_totals() -> None:
+    with _session() as session:
+        project_id = _create_project(session)
+        service = _milestone_service(session)
+        _project_service(session).update_project(
+            project_id,
+            total_story_points=120,
+        )
+        service.add_milestone(
+            project_id,
+            title="Design Complete",
+            due_date=date(2026, 4, 1),
+            status=MilestoneStatus.DONE,
+            story_points=20,
+        )
+        service.add_milestone(
+            project_id,
+            title="Backend API",
+            due_date=date(2026, 4, 15),
+            status=MilestoneStatus.IN_PROGRESS,
+            story_points=40,
+        )
+        session.commit()
+
+        result = service.list_milestones(project_id)
+
+        assert result.total_story_points == 120
+        assert result.completed_story_points == 20
+        assert result.remaining_story_points == 100
+        assert result.milestones[0].story_points == 20

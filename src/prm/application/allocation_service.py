@@ -13,7 +13,7 @@ from prm.domain.dtos import AllocationSummary
 from prm.domain.entities.allocation import Allocation
 from prm.domain.entities.employee import Employee
 from prm.domain.enums import EmployeeWorkStatus
-from prm.domain.exceptions import ConflictError, NotFoundError, ValidationError
+from prm.domain.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
 
 
 class AllocationService:
@@ -49,7 +49,7 @@ class AllocationService:
                 "Project must be ACTIVE or PLANNED to accept allocations."
             )
 
-        self._require_active_employee(employee_id)
+        self._require_active_employee(employee_id, manager_user_id=manager_user_id)
 
         validation = self._utilisation.validate_new_allocation(
             employee_id,
@@ -132,10 +132,17 @@ class AllocationService:
             return "Unknown"
         return project.name
 
-    def _require_active_employee(self, employee_id: int) -> Employee:
+    def _require_active_employee(
+        self,
+        employee_id: int,
+        *,
+        manager_user_id: int,
+    ) -> Employee:
         employee = self._employees.find_by_id(employee_id)
         if employee is None or not employee.is_active:
             raise NotFoundError(f"Employee {employee_id} not found.")
+        if employee.manager_id != manager_user_id:
+            raise UnauthorizedError("Employee is not assigned to your team.")
         return employee
 
     def _require_active_allocation(self, allocation_id: int) -> Allocation:

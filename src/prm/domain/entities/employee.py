@@ -13,6 +13,7 @@ class Employee:
 
     id: int
     user_id: int | None
+    manager_id: int | None
     full_name: str
     email: str
     department: str
