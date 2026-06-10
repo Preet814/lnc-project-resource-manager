@@ -20,6 +20,7 @@ def _to_domain(model: ProjectModel) -> Project:
         end_date=model.end_date,
         status=model.status,
         manager_user_id=model.manager_user_id,
+        total_story_points=model.total_story_points,
         health_status=model.health_status,
         health_computed_at=model.health_computed_at,
     )
@@ -63,6 +64,7 @@ class SqlAlchemyProjectRepository:
         end_date: date | None,
         status: ProjectStatus,
         manager_user_id: int,
+        total_story_points: int = 0,
     ) -> Project:
         model = ProjectModel(
             name=name,
@@ -71,6 +73,7 @@ class SqlAlchemyProjectRepository:
             end_date=end_date,
             status=status,
             manager_user_id=manager_user_id,
+            total_story_points=total_story_points,
             health_status=ProjectHealthStatus.ON_TRACK,
         )
         self._session.add(model)
@@ -88,6 +91,7 @@ class SqlAlchemyProjectRepository:
         end_date: date | None = None,
         status: ProjectStatus | None = None,
         manager_user_id: int | None = None,
+        total_story_points: int | None = None,
     ) -> Project:
         model = self._session.get(ProjectModel, project_id)
         if model is None:
@@ -105,6 +109,8 @@ class SqlAlchemyProjectRepository:
             model.status = status
         if manager_user_id is not None:
             model.manager_user_id = manager_user_id
+        if total_story_points is not None:
+            model.total_story_points = total_story_points
 
         self._session.flush()
         self._session.refresh(model)

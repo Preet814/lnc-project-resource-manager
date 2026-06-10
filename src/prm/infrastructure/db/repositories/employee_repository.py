@@ -13,6 +13,7 @@ def _to_domain(model: EmployeeModel) -> Employee:
     return Employee(
         id=model.id,
         user_id=model.user_id,
+        manager_id=model.manager_id,
         full_name=model.full_name,
         email=model.email,
         department=model.department,
@@ -63,6 +64,18 @@ class SqlAlchemyEmployeeRepository:
         models = self._session.scalars(stmt.order_by(EmployeeModel.id)).all()
         return [_to_domain(model) for model in models]
 
+    def list_by_manager_user_id(
+        self,
+        manager_user_id: int,
+        *,
+        active_only: bool = True,
+    ) -> list[Employee]:
+        stmt = select(EmployeeModel).where(EmployeeModel.manager_id == manager_user_id)
+        if active_only:
+            stmt = stmt.where(EmployeeModel.is_active.is_(True))
+        models = self._session.scalars(stmt.order_by(EmployeeModel.id)).all()
+        return [_to_domain(model) for model in models]
+
     def create(
         self,
         *,
@@ -94,6 +107,7 @@ class SqlAlchemyEmployeeRepository:
         email: str | None = None,
         department: str | None = None,
         designation: str | None = None,
+        manager_id: int | None = None,
     ) -> Employee:
         model = self._session.get(EmployeeModel, employee_id)
         if model is None:
@@ -107,7 +121,19 @@ class SqlAlchemyEmployeeRepository:
             model.department = department
         if designation is not None:
             model.designation = designation
+        if manager_id is not None:
+            model.manager_id = manager_id
 
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)
+
+    def set_manager_id(self, employee_id: int, *, manager_id: int | None) -> Employee:
+        model = self._session.get(EmployeeModel, employee_id)
+        if model is None:
+            raise NotFoundError(f"Employee {employee_id} not found.")
+
+        model.manager_id = manager_id
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)

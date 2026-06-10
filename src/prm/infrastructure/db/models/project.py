@@ -30,6 +30,7 @@ class ProjectModel(Base):
     manager_user_id: Mapped[int] = mapped_column(
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
+    total_story_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     health_status: Mapped[ProjectHealthStatus] = mapped_column(
         project_health_status_enum, nullable=False, default=ProjectHealthStatus.ON_TRACK
     )
@@ -61,6 +62,7 @@ class MilestoneModel(Base):
         milestone_status_enum, nullable=False, default=MilestoneStatus.NOT_STARTED
     )
     sequence_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    story_points: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
 
     project = relationship("ProjectModel", back_populates="milestones")
 

@@ -16,6 +16,7 @@ def _project(*, status: ProjectStatus, manager_user_id: int = 2) -> Project:
         end_date=datetime(2026, 6, 30).date(),
         status=status,
         manager_user_id=manager_user_id,
+        total_story_points=120,
         health_status=ProjectHealthStatus.ON_TRACK,
         health_computed_at=None,
     )
@@ -42,6 +43,7 @@ def test_milestone_is_overdue() -> None:
         due_date=datetime(2026, 4, 15).date(),
         status=MilestoneStatus.IN_PROGRESS,
         sequence_order=2,
+        story_points=40,
     )
     done = Milestone(
         id=2,
@@ -50,6 +52,7 @@ def test_milestone_is_overdue() -> None:
         due_date=datetime(2026, 4, 1).date(),
         status=MilestoneStatus.DONE,
         sequence_order=1,
+        story_points=20,
     )
 
     assert milestone.is_overdue(datetime(2026, 4, 20).date()) is True

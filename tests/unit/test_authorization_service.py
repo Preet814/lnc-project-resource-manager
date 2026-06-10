@@ -36,6 +36,7 @@ def _project(*, project_id: int = 10, manager_user_id: int = 2) -> Project:
         end_date=date(2026, 12, 31),
         status=ProjectStatus.ACTIVE,
         manager_user_id=manager_user_id,
+        total_story_points=0,
         health_status=ProjectHealthStatus.ON_TRACK,
         health_computed_at=None,
     )

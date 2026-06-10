@@ -17,6 +17,7 @@ class Project:
     end_date: date | None
     status: ProjectStatus
     manager_user_id: int
+    total_story_points: int
     health_status: ProjectHealthStatus
     health_computed_at: datetime | None
 
