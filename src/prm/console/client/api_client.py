@@ -1,0 +1,687 @@
+"""Thin HTTP client for console → REST API communication."""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from datetime import date, datetime
+from typing import Any
+
+import httpx
+
+from prm.console.client.errors import ApiError, parse_error_message
+from prm.console.client.models import (
+    AllocationList,
+    AllocationSummary,
+    EngineerDetail,
+    EngineerList,
+    EngineerSummary,
+    Milestone,
+    MilestoneList,
+    ProjectDetail,
+    ProjectList,
+    ProjectSummary,
+    SystemConfig,
+    UserList,
+    UserSkill,
+    UserSummary,
+)
+from prm.domain.enums import (
+    LLMProvider,
+    MilestoneStatus,
+    ProficiencyLevel,
+    ProjectStatus,
+    ResourceWorkStatus,
+    Role,
+    SkillCategory,
+    UserAccountStatus,
+)
+
+
+@dataclass(frozen=True)
+class LoginResult:
+    access_token: str
+    token_type: str
+    user_id: int
+    username: str
+    full_name: str
+    role: Role
+    force_password_change: bool
+    expires_at: datetime
+
+
+@dataclass(frozen=True)
+class CreatedUser:
+    id: int
+    full_name: str
+    username: str
+    email: str
+    role: Role
+    force_password_change: bool
+
+
+class PrmApiClient:
+    """Synchronous REST client used by console screens."""
+
+    def __init__(self, base_url: str, *, timeout_seconds: float = 30.0) -> None:
+        self._client = httpx.Client(
+            base_url=base_url.rstrip("/"),
+            timeout=timeout_seconds,
+        )
+
+    def close(self) -> None:
+        self._client.close()
+
+    def __enter__(self) -> "PrmApiClient":
+        return self
+
+    def __exit__(self, *_args: object) -> None:
+        self.close()
+
+    def wait_for_health(self, *, max_attempts: int, retry_seconds: float) -> dict[str, Any]:
+        import time
+
+        last_error = "API not reachable"
+        for attempt in range(1, max_attempts + 1):
+            try:
+                response = self._client.get("/health")
+                if response.status_code == 200:
+                    body = response.json()
+                    if isinstance(body, dict):
+                        return body
+                    return {"status": "ok"}
+            except httpx.HTTPError as exc:
+                last_error = str(exc)
+            if attempt < max_attempts:
+                time.sleep(retry_seconds)
+        raise ApiError(
+            f"API did not become reachable in time ({last_error}).",
+            status_code=None,
+        )
+
+    def login(self, username: str, password: str) -> LoginResult:
+        return self._parse_login(
+            self._request("POST", "/auth/login", json={"username": username, "password": password})
+        )
+
+    def change_password(
+        self,
+        access_token: str,
+        *,
+        new_password: str,
+        confirm_password: str,
+    ) -> LoginResult:
+        return self._parse_login(
+            self._request(
+                "POST",
+                "/auth/change-password",
+                json={"new_password": new_password, "confirm_password": confirm_password},
+                headers=self._auth_header(access_token),
+            )
+        )
+
+    def create_user(
+        self,
+        access_token: str,
+        *,
+        full_name: str,
+        email: str,
+        username: str,
+        temporary_password: str,
+        role: Role,
+    ) -> CreatedUser:
+        body = self._request(
+            "POST",
+            "/admin/users",
+            json={
+                "full_name": full_name,
+                "email": email,
+                "username": username,
+                "temporary_password": temporary_password,
+                "role": role.value,
+            },
+            headers=self._auth_header(access_token),
+        )
+        return CreatedUser(
+            id=body["id"],
+            full_name=body["full_name"],
+            username=body["username"],
+            email=body["email"],
+            role=Role(body["role"]),
+            force_password_change=body["force_password_change"],
+        )
+
+    def list_users(self, access_token: str) -> UserList:
+        body = self._request("GET", "/admin/users", headers=self._auth_header(access_token))
+        return UserList(
+            users=tuple(
+                UserSummary(
+                    id=item["id"],
+                    username=item["username"],
+                    full_name=item["full_name"],
+                    role=Role(item["role"]),
+                    account_status=UserAccountStatus(item["account_status"]),
+                )
+                for item in body["users"]
+            ),
+            total=body["total"],
+            active_count=body["active_count"],
+            inactive_count=body["inactive_count"],
+        )
+
+    def reset_user_password(
+        self,
+        access_token: str,
+        *,
+        identifier: str,
+        temporary_password: str,
+    ) -> None:
+        self._request(
+            "POST",
+            "/admin/users/reset-password",
+            json={"identifier": identifier, "temporary_password": temporary_password},
+            headers=self._auth_header(access_token),
+        )
+
+    def deactivate_user(self, access_token: str, user_id: int) -> None:
+        self._request(
+            "POST",
+            f"/admin/users/{user_id}/deactivate",
+            headers=self._auth_header(access_token),
+        )
+
+    def reactivate_user(self, access_token: str, user_id: int) -> None:
+        self._request(
+            "POST",
+            f"/admin/users/{user_id}/reactivate",
+            headers=self._auth_header(access_token),
+        )
+
+    def list_employees(
+        self,
+        access_token: str,
+        *,
+        work_status: ResourceWorkStatus | None = None,
+        department: str | None = None,
+        active_only: bool = True,
+    ) -> EngineerList:
+        params: dict[str, str | bool] = {"active_only": active_only}
+        if work_status is not None:
+            params["work_status"] = work_status.value
+        if department is not None:
+            params["department"] = department
+        body = self._request(
+            "GET",
+            "/admin/employees",
+            params=params,
+            headers=self._auth_header(access_token),
+        )
+        return EngineerList(
+            engineers=tuple(
+                EngineerSummary(
+                    id=item["id"],
+                    full_name=item["full_name"],
+                    department=item["department"],
+                    work_status=ResourceWorkStatus(item["work_status"]),
+                    is_active=item["is_active"],
+                )
+                for item in body["engineers"]
+            ),
+            total=body["total"],
+            allocated_count=body["allocated_count"],
+            bench_count=body["bench_count"],
+        )
+
+    def get_employee(self, access_token: str, user_id: int) -> EngineerDetail:
+        body = self._request(
+            "GET",
+            f"/admin/employees/{user_id}",
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_employee(body)
+
+    def update_employee(
+        self,
+        access_token: str,
+        user_id: int,
+        *,
+        full_name: str | None = None,
+        email: str | None = None,
+        department: str | None = None,
+        designation: str | None = None,
+    ) -> EngineerDetail:
+        payload = self._omit_none(
+            full_name=full_name,
+            email=email,
+            department=department,
+            designation=designation,
+        )
+        body = self._request(
+            "PATCH",
+            f"/admin/employees/{user_id}",
+            json=payload,
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_employee(body)
+
+    def deactivate_employee(self, access_token: str, user_id: int) -> EngineerDetail:
+        body = self._request(
+            "POST",
+            f"/admin/employees/{user_id}/deactivate",
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_employee(body)
+
+    def assign_manager(
+        self,
+        access_token: str,
+        *,
+        engineer_user_id: int,
+        manager_user_id: int,
+    ) -> EngineerDetail:
+        body = self._request(
+            "POST",
+            "/admin/employees/assign-manager",
+            json={
+                "engineer_user_id": engineer_user_id,
+                "manager_user_id": manager_user_id,
+            },
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_employee(body)
+
+    def list_user_skills(self, access_token: str, user_id: int) -> tuple[UserSkill, ...]:
+        body = self._request(
+            "GET",
+            f"/admin/employees/{user_id}/skills",
+            headers=self._auth_header(access_token),
+        )
+        return tuple(
+            UserSkill(
+                user_skill_id=item["user_skill_id"],
+                skill_id=item["skill_id"],
+                skill_name=item["skill_name"],
+                category=SkillCategory(item["category"]),
+                proficiency=ProficiencyLevel(item["proficiency"]),
+            )
+            for item in body["skills"]
+        )
+
+    def add_user_skill(
+        self,
+        access_token: str,
+        user_id: int,
+        *,
+        skill_name: str,
+        category: SkillCategory,
+        proficiency: ProficiencyLevel,
+    ) -> None:
+        self._request(
+            "POST",
+            f"/admin/employees/{user_id}/skills",
+            json={
+                "skill_name": skill_name,
+                "category": category.value,
+                "proficiency": proficiency.value,
+            },
+            headers=self._auth_header(access_token),
+        )
+
+    def update_user_skill(
+        self,
+        access_token: str,
+        user_id: int,
+        user_skill_id: int,
+        *,
+        proficiency: ProficiencyLevel,
+    ) -> None:
+        self._request(
+            "PATCH",
+            f"/admin/employees/{user_id}/skills/{user_skill_id}",
+            json={"proficiency": proficiency.value},
+            headers=self._auth_header(access_token),
+        )
+
+    def remove_user_skill(
+        self,
+        access_token: str,
+        user_id: int,
+        user_skill_id: int,
+    ) -> None:
+        self._request(
+            "DELETE",
+            f"/admin/employees/{user_id}/skills/{user_skill_id}",
+            headers=self._auth_header(access_token),
+        )
+
+    def create_project(
+        self,
+        access_token: str,
+        *,
+        name: str,
+        description: str | None,
+        start_date: date,
+        end_date: date | None,
+        status: ProjectStatus,
+        manager_user_id: int,
+        total_story_points: int,
+    ) -> ProjectDetail:
+        body = self._request(
+            "POST",
+            "/admin/projects",
+            json=self._omit_none(
+                name=name,
+                description=description,
+                start_date=start_date.isoformat(),
+                end_date=end_date.isoformat() if end_date else None,
+                status=status.value,
+                manager_user_id=manager_user_id,
+                total_story_points=total_story_points,
+            ),
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_project(body)
+
+    def list_projects(
+        self,
+        access_token: str,
+        *,
+        status: ProjectStatus | None = None,
+    ) -> ProjectList:
+        params = {"status": status.value} if status else None
+        body = self._request(
+            "GET",
+            "/admin/projects",
+            params=params,
+            headers=self._auth_header(access_token),
+        )
+        return ProjectList(
+            projects=tuple(
+                ProjectSummary(
+                    id=item["id"],
+                    name=item["name"],
+                    manager_full_name=item["manager_full_name"],
+                    end_date=self._parse_optional_date(item.get("end_date")),
+                    status=ProjectStatus(item["status"]),
+                    story_points_done=item["story_points_done"],
+                    story_points_total=item["story_points_total"],
+                )
+                for item in body["projects"]
+            ),
+            total=body["total"],
+        )
+
+    def get_project(self, access_token: str, project_id: int) -> ProjectDetail:
+        body = self._request(
+            "GET",
+            f"/admin/projects/{project_id}",
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_project(body)
+
+    def update_project(
+        self,
+        access_token: str,
+        project_id: int,
+        *,
+        name: str | None = None,
+        description: str | None = None,
+        start_date: date | None = None,
+        end_date: date | None = None,
+        status: ProjectStatus | None = None,
+        manager_user_id: int | None = None,
+        total_story_points: int | None = None,
+    ) -> ProjectDetail:
+        payload = self._omit_none(
+            name=name,
+            description=description,
+            start_date=start_date.isoformat() if start_date else None,
+            end_date=end_date.isoformat() if end_date else None,
+            status=status.value if status else None,
+            manager_user_id=manager_user_id,
+            total_story_points=total_story_points,
+        )
+        body = self._request(
+            "PATCH",
+            f"/admin/projects/{project_id}",
+            json=payload,
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_project(body)
+
+    def list_milestones(self, access_token: str, project_id: int) -> MilestoneList:
+        body = self._request(
+            "GET",
+            f"/admin/projects/{project_id}/milestones",
+            headers=self._auth_header(access_token),
+        )
+        return MilestoneList(
+            milestones=tuple(
+                Milestone(
+                    milestone_id=item["milestone_id"],
+                    title=item["title"],
+                    due_date=date.fromisoformat(item["due_date"]),
+                    status=MilestoneStatus(item["status"]),
+                    sequence_order=item["sequence_order"],
+                    story_points=item["story_points"],
+                )
+                for item in body["milestones"]
+            ),
+            total_story_points=body["total_story_points"],
+            completed_story_points=body["completed_story_points"],
+            remaining_story_points=body["remaining_story_points"],
+        )
+
+    def add_milestone(
+        self,
+        access_token: str,
+        project_id: int,
+        *,
+        title: str,
+        due_date: date,
+        story_points: int,
+    ) -> None:
+        self._request(
+            "POST",
+            f"/admin/projects/{project_id}/milestones",
+            json={
+                "title": title,
+                "due_date": due_date.isoformat(),
+                "story_points": story_points,
+            },
+            headers=self._auth_header(access_token),
+        )
+
+    def update_milestone_status(
+        self,
+        access_token: str,
+        project_id: int,
+        milestone_id: int,
+        *,
+        status: MilestoneStatus,
+    ) -> None:
+        self._request(
+            "PATCH",
+            f"/admin/projects/{project_id}/milestones/{milestone_id}",
+            json={"status": status.value},
+            headers=self._auth_header(access_token),
+        )
+
+    def list_allocations(
+        self,
+        access_token: str,
+        *,
+        user_id: int | None = None,
+        project_id: int | None = None,
+    ) -> AllocationList:
+        params = self._omit_none(user_id=user_id, project_id=project_id)
+        body = self._request(
+            "GET",
+            "/admin/allocations",
+            params=params or None,
+            headers=self._auth_header(access_token),
+        )
+        return AllocationList(
+            allocations=tuple(
+                AllocationSummary(
+                    allocation_id=item["allocation_id"],
+                    user_id=item["user_id"],
+                    user_full_name=item["user_full_name"],
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    from_date=date.fromisoformat(item["from_date"]),
+                    to_date=self._parse_optional_date(item.get("to_date")),
+                )
+                for item in body["allocations"]
+            ),
+            total=body["total"],
+        )
+
+    def get_configuration(self, access_token: str) -> SystemConfig:
+        body = self._request("GET", "/admin/config", headers=self._auth_header(access_token))
+        return SystemConfig(
+            llm_provider=LLMProvider(body["llm_provider"]),
+            llm_api_key_masked=body.get("llm_api_key_masked"),
+            scheduler_interval_hours=body["scheduler_interval_hours"],
+            max_weekly_hours=body["max_weekly_hours"],
+        )
+
+    def update_llm_api_key(self, access_token: str, api_key: str) -> SystemConfig:
+        body = self._request(
+            "PATCH",
+            "/admin/config/llm-api-key",
+            json={"api_key": api_key},
+            headers=self._auth_header(access_token),
+        )
+        return SystemConfig(
+            llm_provider=LLMProvider(body["llm_provider"]),
+            llm_api_key_masked=body.get("llm_api_key_masked"),
+            scheduler_interval_hours=body["scheduler_interval_hours"],
+            max_weekly_hours=body["max_weekly_hours"],
+        )
+
+    def update_llm_provider(self, access_token: str, provider: LLMProvider) -> SystemConfig:
+        body = self._request(
+            "PATCH",
+            "/admin/config/llm-provider",
+            json={"provider": provider.value},
+            headers=self._auth_header(access_token),
+        )
+        return SystemConfig(
+            llm_provider=LLMProvider(body["llm_provider"]),
+            llm_api_key_masked=body.get("llm_api_key_masked"),
+            scheduler_interval_hours=body["scheduler_interval_hours"],
+            max_weekly_hours=body["max_weekly_hours"],
+        )
+
+    def update_scheduler_interval(self, access_token: str, hours: int) -> SystemConfig:
+        body = self._request(
+            "PATCH",
+            "/admin/config/scheduler-interval",
+            json={"scheduler_interval_hours": hours},
+            headers=self._auth_header(access_token),
+        )
+        return SystemConfig(
+            llm_provider=LLMProvider(body["llm_provider"]),
+            llm_api_key_masked=body.get("llm_api_key_masked"),
+            scheduler_interval_hours=body["scheduler_interval_hours"],
+            max_weekly_hours=body["max_weekly_hours"],
+        )
+
+    def update_max_weekly_hours(self, access_token: str, hours: int) -> SystemConfig:
+        body = self._request(
+            "PATCH",
+            "/admin/config/max-weekly-hours",
+            json={"max_weekly_hours": hours},
+            headers=self._auth_header(access_token),
+        )
+        return SystemConfig(
+            llm_provider=LLMProvider(body["llm_provider"]),
+            llm_api_key_masked=body.get("llm_api_key_masked"),
+            scheduler_interval_hours=body["scheduler_interval_hours"],
+            max_weekly_hours=body["max_weekly_hours"],
+        )
+
+    @staticmethod
+    def _auth_header(access_token: str) -> dict[str, str]:
+        return {"Authorization": f"Bearer {access_token}"}
+
+    @staticmethod
+    def _omit_none(**fields: object) -> dict[str, object]:
+        return {key: value for key, value in fields.items() if value is not None}
+
+    def _request(
+        self,
+        method: str,
+        path: str,
+        *,
+        json: dict[str, Any] | None = None,
+        params: dict[str, Any] | None = None,
+        headers: dict[str, str] | None = None,
+    ) -> dict[str, Any]:
+        try:
+            response = self._client.request(
+                method,
+                path,
+                json=json,
+                params=params,
+                headers=headers,
+            )
+        except httpx.HTTPError as exc:
+            raise ApiError(f"Could not reach API: {exc}") from exc
+
+        if response.is_success:
+            if not response.content:
+                return {}
+            body = response.json()
+            if isinstance(body, dict):
+                return body
+            raise ApiError("Unexpected API response format.")
+
+        raise ApiError(parse_error_message(response), status_code=response.status_code)
+
+    @staticmethod
+    def _parse_login(body: dict[str, Any]) -> LoginResult:
+        return LoginResult(
+            access_token=body["access_token"],
+            token_type=body["token_type"],
+            user_id=body["user_id"],
+            username=body["username"],
+            full_name=body["full_name"],
+            role=Role(body["role"]),
+            force_password_change=body["force_password_change"],
+            expires_at=datetime.fromisoformat(body["expires_at"].replace("Z", "+00:00")),
+        )
+
+    @staticmethod
+    def _parse_optional_date(value: str | None) -> date | None:
+        if not value:
+            return None
+        return date.fromisoformat(value)
+
+    @staticmethod
+    def _parse_employee(body: dict[str, Any]) -> EngineerDetail:
+        return EngineerDetail(
+            id=body["id"],
+            manager_id=body.get("manager_id"),
+            full_name=body["full_name"],
+            email=body["email"],
+            department=body["department"],
+            designation=body["designation"],
+            work_status=ResourceWorkStatus(body["work_status"]),
+            is_active=body["is_active"],
+            current_utilisation_percent=body["current_utilisation_percent"],
+        )
+
+    @staticmethod
+    def _parse_project(body: dict[str, Any]) -> ProjectDetail:
+        return ProjectDetail(
+            id=body["id"],
+            name=body["name"],
+            description=body.get("description"),
+            start_date=date.fromisoformat(body["start_date"]),
+            end_date=PrmApiClient._parse_optional_date(body.get("end_date")),
+            status=ProjectStatus(body["status"]),
+            manager_user_id=body["manager_user_id"],
+            total_story_points=body["total_story_points"],
+        )
