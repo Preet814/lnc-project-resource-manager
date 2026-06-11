@@ -6,13 +6,16 @@ from dataclasses import dataclass
 from datetime import date, datetime
 
 from prm.domain.enums import (
+    AllocationStatus,
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
+    ProjectHealthStatus,
     ProjectStatus,
     ResourceWorkStatus,
     Role,
     SkillCategory,
+    TimesheetWeekStatus,
     UserAccountStatus,
 )
 
@@ -144,3 +147,162 @@ class SystemConfig:
     llm_api_key_masked: str | None
     scheduler_interval_hours: int
     max_weekly_hours: int
+
+
+@dataclass(frozen=True)
+class BenchEngineer:
+    user_id: int
+    full_name: str
+    department: str
+    skill_names: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ActiveEngineer:
+    user_id: int
+    full_name: str
+    utilisation_percent: int
+    availability_percent: int
+
+
+@dataclass(frozen=True)
+class ResourceDashboard:
+    on_bench: tuple[BenchEngineer, ...]
+    active: tuple[ActiveEngineer, ...]
+    bench_count: int
+    partial_count: int
+
+
+@dataclass(frozen=True)
+class EngineerAllocationDetail:
+    project_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+
+
+@dataclass(frozen=True)
+class EngineerResourceDetail:
+    user_id: int
+    full_name: str
+    department: str
+    work_status: ResourceWorkStatus
+    current_utilisation_percent: int
+    profile_skills: tuple[str, ...]
+    active_allocations: tuple[EngineerAllocationDetail, ...]
+    recent_activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class ManagerProjectSummary:
+    project_id: int
+    name: str
+    end_date: date | None
+    health_status: ProjectHealthStatus
+
+
+@dataclass(frozen=True)
+class ManagerProjectList:
+    projects: tuple[ManagerProjectSummary, ...]
+    total: int
+
+
+@dataclass(frozen=True)
+class ManagerProjectMilestone:
+    milestone_id: int
+    title: str
+    due_date: date
+    status: MilestoneStatus
+    sequence_order: int
+    is_overdue: bool
+
+
+@dataclass(frozen=True)
+class ManagerProjectResource:
+    user_id: int
+    user_full_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+
+
+@dataclass(frozen=True)
+class ManagerProjectDetail:
+    project_id: int
+    name: str
+    health_status: ProjectHealthStatus
+    health_computed_at: datetime | None
+    risk_flags: tuple[str, ...]
+    milestones: tuple[ManagerProjectMilestone, ...]
+    allocated_resources: tuple[ManagerProjectResource, ...]
+
+
+@dataclass(frozen=True)
+class TeamTimesheetRow:
+    user_id: int
+    user_full_name: str
+    project_id: int
+    project_name: str
+    hours: int
+    status: TimesheetWeekStatus
+
+
+@dataclass(frozen=True)
+class TeamTimesheetList:
+    week_start_date: date
+    rows: tuple[TeamTimesheetRow, ...]
+    total: int
+
+
+@dataclass(frozen=True)
+class EngineerTimesheetEntry:
+    project_id: int
+    project_name: str
+    hours_worked: int
+    activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class EngineerTimesheetWeekDetail:
+    user_id: int
+    user_full_name: str
+    week_start_date: date
+    status: TimesheetWeekStatus
+    total_hours: int
+    entries: tuple[EngineerTimesheetEntry, ...]
+
+
+@dataclass(frozen=True)
+class SkillMatchResult:
+    user_id: int
+    user_name: str
+    reason: str
+    suggested_allocation_percent: int
+    free_hours_per_week: int
+
+
+@dataclass(frozen=True)
+class SkillMatchList:
+    project_id: int
+    requirement: str
+    matches: tuple[SkillMatchResult, ...]
+    total: int
+    message: str | None
+
+
+@dataclass(frozen=True)
+class RiskSummary:
+    project_id: int
+    summary: str
+    disclaimer: str
+
+
+@dataclass(frozen=True)
+class ManagerAllocation:
+    allocation_id: int
+    user_id: int
+    project_id: int
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+    status: AllocationStatus

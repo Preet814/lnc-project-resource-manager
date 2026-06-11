@@ -10,29 +10,50 @@ import httpx
 
 from prm.console.client.errors import ApiError, parse_error_message
 from prm.console.client.models import (
+    ActiveEngineer,
     AllocationList,
     AllocationSummary,
+    BenchEngineer,
+    EngineerAllocationDetail,
     EngineerDetail,
     EngineerList,
+    EngineerResourceDetail,
     EngineerSummary,
+    EngineerTimesheetEntry,
+    EngineerTimesheetWeekDetail,
+    ManagerAllocation,
+    ManagerProjectDetail,
+    ManagerProjectList,
+    ManagerProjectMilestone,
+    ManagerProjectResource,
+    ManagerProjectSummary,
     Milestone,
     MilestoneList,
     ProjectDetail,
     ProjectList,
     ProjectSummary,
+    ResourceDashboard,
+    RiskSummary,
+    SkillMatchList,
+    SkillMatchResult,
     SystemConfig,
+    TeamTimesheetList,
+    TeamTimesheetRow,
     UserList,
     UserSkill,
     UserSummary,
 )
 from prm.domain.enums import (
+    AllocationStatus,
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
+    ProjectHealthStatus,
     ProjectStatus,
     ResourceWorkStatus,
     Role,
     SkillCategory,
+    TimesheetWeekStatus,
     UserAccountStatus,
 )
 
@@ -602,6 +623,254 @@ class PrmApiClient:
             max_weekly_hours=body["max_weekly_hours"],
         )
 
+    def get_resource_dashboard(self, access_token: str) -> ResourceDashboard:
+        body = self._request(
+            "GET",
+            "/manager/resources",
+            headers=self._auth_header(access_token),
+        )
+        return ResourceDashboard(
+            on_bench=tuple(
+                BenchEngineer(
+                    user_id=item["user_id"],
+                    full_name=item["full_name"],
+                    department=item["department"],
+                    skill_names=tuple(item["skill_names"]),
+                )
+                for item in body["on_bench"]
+            ),
+            active=tuple(
+                ActiveEngineer(
+                    user_id=item["user_id"],
+                    full_name=item["full_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    availability_percent=item["availability_percent"],
+                )
+                for item in body["active"]
+            ),
+            bench_count=body["bench_count"],
+            partial_count=body["partial_count"],
+        )
+
+    def get_engineer_resource_detail(
+        self,
+        access_token: str,
+        user_id: int,
+    ) -> EngineerResourceDetail:
+        body = self._request(
+            "GET",
+            f"/manager/resources/{user_id}",
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_engineer_resource(body)
+
+    def list_manager_projects(self, access_token: str) -> ManagerProjectList:
+        body = self._request(
+            "GET",
+            "/manager/projects",
+            headers=self._auth_header(access_token),
+        )
+        return ManagerProjectList(
+            projects=tuple(
+                ManagerProjectSummary(
+                    project_id=item["project_id"],
+                    name=item["name"],
+                    end_date=self._parse_optional_date(item.get("end_date")),
+                    health_status=ProjectHealthStatus(item["health_status"]),
+                )
+                for item in body["projects"]
+            ),
+            total=body["total"],
+        )
+
+    def get_manager_project(
+        self,
+        access_token: str,
+        project_id: int,
+    ) -> ManagerProjectDetail:
+        body = self._request(
+            "GET",
+            f"/manager/projects/{project_id}",
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_manager_project(body)
+
+    def list_project_allocations(
+        self,
+        access_token: str,
+        project_id: int,
+    ) -> AllocationList:
+        body = self._request(
+            "GET",
+            f"/manager/projects/{project_id}/allocations",
+            headers=self._auth_header(access_token),
+        )
+        return AllocationList(
+            allocations=tuple(
+                AllocationSummary(
+                    allocation_id=item["allocation_id"],
+                    user_id=item["user_id"],
+                    user_full_name=item["user_full_name"],
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    from_date=date.fromisoformat(item["from_date"]),
+                    to_date=self._parse_optional_date(item.get("to_date")),
+                )
+                for item in body["allocations"]
+            ),
+            total=body["total"],
+        )
+
+    def create_allocation(
+        self,
+        access_token: str,
+        *,
+        project_id: int,
+        user_id: int,
+        utilisation_percent: int,
+        from_date: date,
+        to_date: date | None,
+    ) -> ManagerAllocation:
+        body = self._request(
+            "POST",
+            "/manager/allocations",
+            json=self._omit_none(
+                project_id=project_id,
+                user_id=user_id,
+                utilisation_percent=utilisation_percent,
+                from_date=from_date.isoformat(),
+                to_date=to_date.isoformat() if to_date else None,
+            ),
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_manager_allocation(body)
+
+    def end_allocation(
+        self,
+        access_token: str,
+        allocation_id: int,
+        *,
+        as_of: date | None = None,
+    ) -> ManagerAllocation:
+        payload = {"as_of": as_of.isoformat()} if as_of else {}
+        body = self._request(
+            "POST",
+            f"/manager/allocations/{allocation_id}/end",
+            json=payload or None,
+            headers=self._auth_header(access_token),
+        )
+        return self._parse_manager_allocation(body)
+
+    def skill_match(
+        self,
+        access_token: str,
+        project_id: int,
+        requirement: str,
+    ) -> SkillMatchList:
+        body = self._request(
+            "POST",
+            f"/manager/projects/{project_id}/skill-match",
+            json={"requirement": requirement},
+            headers=self._auth_header(access_token),
+        )
+        return SkillMatchList(
+            project_id=body["project_id"],
+            requirement=body["requirement"],
+            matches=tuple(
+                SkillMatchResult(
+                    user_id=item["user_id"],
+                    user_name=item["user_name"],
+                    reason=item["reason"],
+                    suggested_allocation_percent=item["suggested_allocation_percent"],
+                    free_hours_per_week=item["free_hours_per_week"],
+                )
+                for item in body["matches"]
+            ),
+            total=body["total"],
+            message=body.get("message"),
+        )
+
+    def get_risk_summary(self, access_token: str, project_id: int) -> RiskSummary:
+        body = self._request(
+            "GET",
+            f"/manager/projects/{project_id}/risk-summary",
+            headers=self._auth_header(access_token),
+        )
+        return RiskSummary(
+            project_id=body["project_id"],
+            summary=body["summary"],
+            disclaimer=body["disclaimer"],
+        )
+
+    def list_team_timesheets(
+        self,
+        access_token: str,
+        *,
+        week_start_date: date | None = None,
+    ) -> TeamTimesheetList:
+        params = (
+            {"week_start_date": week_start_date.isoformat()}
+            if week_start_date is not None
+            else None
+        )
+        body = self._request(
+            "GET",
+            "/manager/timesheets",
+            params=params,
+            headers=self._auth_header(access_token),
+        )
+        return TeamTimesheetList(
+            week_start_date=date.fromisoformat(body["week_start_date"]),
+            rows=tuple(
+                TeamTimesheetRow(
+                    user_id=item["user_id"],
+                    user_full_name=item["user_full_name"],
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    hours=item["hours"],
+                    status=TimesheetWeekStatus(item["status"]),
+                )
+                for item in body["rows"]
+            ),
+            total=body["total"],
+        )
+
+    def get_engineer_timesheet_detail(
+        self,
+        access_token: str,
+        user_id: int,
+        *,
+        week_start_date: date | None = None,
+    ) -> EngineerTimesheetWeekDetail:
+        params = (
+            {"week_start_date": week_start_date.isoformat()}
+            if week_start_date is not None
+            else None
+        )
+        body = self._request(
+            "GET",
+            f"/manager/timesheets/{user_id}",
+            params=params,
+            headers=self._auth_header(access_token),
+        )
+        return EngineerTimesheetWeekDetail(
+            user_id=body["user_id"],
+            user_full_name=body["user_full_name"],
+            week_start_date=date.fromisoformat(body["week_start_date"]),
+            status=TimesheetWeekStatus(body["status"]),
+            total_hours=body["total_hours"],
+            entries=tuple(
+                EngineerTimesheetEntry(
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    hours_worked=item["hours_worked"],
+                    activity_tags=tuple(item["activity_tags"]),
+                )
+                for item in body["entries"]
+            ),
+        )
+
     @staticmethod
     def _auth_header(access_token: str) -> dict[str, str]:
         return {"Authorization": f"Bearer {access_token}"}
@@ -684,4 +953,73 @@ class PrmApiClient:
             status=ProjectStatus(body["status"]),
             manager_user_id=body["manager_user_id"],
             total_story_points=body["total_story_points"],
+        )
+
+    @staticmethod
+    def _parse_engineer_resource(body: dict[str, Any]) -> EngineerResourceDetail:
+        return EngineerResourceDetail(
+            user_id=body["user_id"],
+            full_name=body["full_name"],
+            department=body["department"],
+            work_status=ResourceWorkStatus(body["work_status"]),
+            current_utilisation_percent=body["current_utilisation_percent"],
+            profile_skills=tuple(body["profile_skills"]),
+            active_allocations=tuple(
+                EngineerAllocationDetail(
+                    project_name=item["project_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    from_date=date.fromisoformat(item["from_date"]),
+                    to_date=PrmApiClient._parse_optional_date(item.get("to_date")),
+                )
+                for item in body["active_allocations"]
+            ),
+            recent_activity_tags=tuple(body["recent_activity_tags"]),
+        )
+
+    @staticmethod
+    def _parse_manager_project(body: dict[str, Any]) -> ManagerProjectDetail:
+        computed_at = body.get("health_computed_at")
+        return ManagerProjectDetail(
+            project_id=body["project_id"],
+            name=body["name"],
+            health_status=ProjectHealthStatus(body["health_status"]),
+            health_computed_at=(
+                datetime.fromisoformat(computed_at.replace("Z", "+00:00"))
+                if computed_at
+                else None
+            ),
+            risk_flags=tuple(body["risk_flags"]),
+            milestones=tuple(
+                ManagerProjectMilestone(
+                    milestone_id=item["milestone_id"],
+                    title=item["title"],
+                    due_date=date.fromisoformat(item["due_date"]),
+                    status=MilestoneStatus(item["status"]),
+                    sequence_order=item["sequence_order"],
+                    is_overdue=item["is_overdue"],
+                )
+                for item in body["milestones"]
+            ),
+            allocated_resources=tuple(
+                ManagerProjectResource(
+                    user_id=item["user_id"],
+                    user_full_name=item["user_full_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    from_date=date.fromisoformat(item["from_date"]),
+                    to_date=PrmApiClient._parse_optional_date(item.get("to_date")),
+                )
+                for item in body["allocated_resources"]
+            ),
+        )
+
+    @staticmethod
+    def _parse_manager_allocation(body: dict[str, Any]) -> ManagerAllocation:
+        return ManagerAllocation(
+            allocation_id=body["allocation_id"],
+            user_id=body["user_id"],
+            project_id=body["project_id"],
+            utilisation_percent=body["utilisation_percent"],
+            from_date=date.fromisoformat(body["from_date"]),
+            to_date=PrmApiClient._parse_optional_date(body.get("to_date")),
+            status=AllocationStatus(body["status"]),
         )

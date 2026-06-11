@@ -9,7 +9,13 @@ from prm.console.ui.display import (
     print_error,
     print_success,
 )
-from prm.console.ui.prompts import read_line, read_option, read_password, read_save_or_back
+from prm.console.ui.prompts import (
+    read_line,
+    read_option,
+    read_password,
+    read_save_or_back,
+    read_yes_no,
+)
 
 __all__ = [
     "clear_screen",
@@ -23,4 +29,5 @@ __all__ = [
     "read_option",
     "read_password",
     "read_save_or_back",
+    "read_yes_no",
 ]
