@@ -5,12 +5,12 @@ from datetime import date, timedelta
 from prm.application.authorization_service import AuthorizationService
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     LLMClient,
     MilestoneRepository,
     ProjectHealthSnapshotRepository,
     ProjectRepository,
     TimesheetRepository,
+    UserRepository,
 )
 from prm.domain.constants import AI_RISK_SUMMARY_DISCLAIMER, RECENT_RISK_TIMESHEET_WEEKS
 from prm.domain.dtos import (
@@ -33,7 +33,7 @@ class RiskSummaryService:
         project_repository: ProjectRepository,
         milestone_repository: MilestoneRepository,
         allocation_repository: AllocationRepository,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         health_snapshot_repository: ProjectHealthSnapshotRepository,
         timesheet_repository: TimesheetRepository,
         authorization: AuthorizationService,
@@ -44,7 +44,7 @@ class RiskSummaryService:
         self._projects = project_repository
         self._milestones = milestone_repository
         self._allocations = allocation_repository
-        self._employees = employee_repository
+        self._users = user_repository
         self._health_snapshots = health_snapshot_repository
         self._timesheets = timesheet_repository
         self._authorization = authorization
@@ -84,7 +84,7 @@ class RiskSummaryService:
         allocations = self._allocations.list_active(project_id=project.id)
         resource_facts = tuple(
             RiskSummaryResourceFact(
-                employee_full_name=self._employee_name(allocation.employee_id),
+                user_full_name=self._user_name(allocation.user_id),
                 utilisation_percent=allocation.utilisation_percent,
             )
             for allocation in allocations
@@ -124,13 +124,13 @@ class RiskSummaryService:
                     allocation.utilisation_percent * self._max_weekly_hours
                 ) // 100
                 hours_logged = self._hours_logged_on_project(
-                    allocation.employee_id,
+                    allocation.user_id,
                     project_id,
                     week_start,
                 )
                 facts.append(
                     RiskSummaryTimesheetFact(
-                        employee_full_name=self._employee_name(allocation.employee_id),
+                        user_full_name=self._user_name(allocation.user_id),
                         week_start_date=week_start,
                         hours_logged=hours_logged,
                         expected_hours=expected_hours,
@@ -141,11 +141,11 @@ class RiskSummaryService:
 
     def _hours_logged_on_project(
         self,
-        employee_id: int,
+        user_id: int,
         project_id: int,
         week_start_date: date,
     ) -> int:
-        week = self._timesheets.find_week_by_employee(employee_id, week_start_date)
+        week = self._timesheets.find_week_by_user(user_id, week_start_date)
         if week is None or week.status == TimesheetWeekStatus.MISSED:
             return 0
 
@@ -154,11 +154,11 @@ class RiskSummaryService:
                 return entry.hours_worked
         return 0
 
-    def _employee_name(self, employee_id: int) -> str:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
+    def _user_name(self, user_id: int) -> str:
+        user = self._users.find_by_id(user_id)
+        if user is None:
             return "Unknown"
-        return employee.full_name
+        return user.full_name
 
     @staticmethod
     def _week_start_on_or_before(reference: date) -> date:

@@ -13,15 +13,21 @@ services:
       test: ["CMD-SHELL", "pg_isready -U prm -d prm"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
+    networks:
+      - prm-net
 
   api:
     build: .
     command: >
-      sh -c "alembic upgrade head &&
+      sh -c "python -m prm.infrastructure.db.wait_for_postgres &&
+             alembic upgrade head &&
              python -m prm.infrastructure.db.seed &&
              python -m prm.api"
     env_file: .env
+    environment:
+      DATABASE_URL: postgresql://prm:prm@postgres:5432/prm
     ports:
       - "8000:8000"
     depends_on:
@@ -38,17 +44,27 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
-      start_period: 15s
+      start_period: 30s
+    networks:
+      - prm-net
 
   console:
     build: .
     command: python -m prm.console
     env_file: .env
+    environment:
+      API_BASE_URL: http://api:8000
     depends_on:
       api:
         condition: service_healthy
     stdin_open: true
     tty: true
+    networks:
+      - prm-net
+
+networks:
+  prm-net:
+    driver: bridge
 
 volumes:
   postgres_data:

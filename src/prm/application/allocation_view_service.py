@@ -2,8 +2,8 @@
 
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     ProjectRepository,
+    UserRepository,
 )
 from prm.domain.dtos import AllocationListResult, AllocationSummary
 from prm.domain.entities.allocation import Allocation
@@ -15,21 +15,21 @@ class AllocationViewService:
     def __init__(
         self,
         allocation_repository: AllocationRepository,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         project_repository: ProjectRepository,
     ) -> None:
         self._allocations = allocation_repository
-        self._employees = employee_repository
+        self._users = user_repository
         self._projects = project_repository
 
     def list_allocations(
         self,
         *,
-        employee_id: int | None = None,
+        user_id: int | None = None,
         project_id: int | None = None,
     ) -> AllocationListResult:
         allocations = self._allocations.list_active(
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
         )
         summaries = tuple(self._to_summary(allocation) for allocation in allocations)
@@ -38,8 +38,8 @@ class AllocationViewService:
     def _to_summary(self, allocation: Allocation) -> AllocationSummary:
         return AllocationSummary(
             allocation_id=allocation.id,
-            employee_id=allocation.employee_id,
-            employee_full_name=self._employee_name(allocation.employee_id),
+            user_id=allocation.user_id,
+            user_full_name=self._user_name(allocation.user_id),
             project_id=allocation.project_id,
             project_name=self._project_name(allocation.project_id),
             utilisation_percent=allocation.utilisation_percent,
@@ -47,11 +47,11 @@ class AllocationViewService:
             to_date=allocation.to_date,
         )
 
-    def _employee_name(self, employee_id: int) -> str:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
+    def _user_name(self, user_id: int) -> str:
+        user = self._users.find_by_id(user_id)
+        if user is None:
             return "Unknown"
-        return employee.full_name
+        return user.full_name
 
     def _project_name(self, project_id: int) -> str:
         project = self._projects.find_by_id(project_id)

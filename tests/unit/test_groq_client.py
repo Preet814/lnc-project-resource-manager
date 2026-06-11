@@ -16,7 +16,7 @@ from prm.infrastructure.llm.groq_client import GroqClient
 
 def _candidate() -> SkillMatchCandidate:
     return SkillMatchCandidate(
-        employee_id=14,
+        user_id=14,
         full_name="Dev Patel",
         skill_names=("Java", "Spring Boot"),
         utilisation_percent=50,
@@ -57,8 +57,8 @@ def test_groq_client_rank_candidates_parses_response() -> None:
                     {
                         "message": {
                             "content": (
-                                '{"matches":[{"employee_id":14,'
-                                '"employee_name":"Dev Patel",'
+                                '{"matches":[{"user_id":14,'
+                                '"user_name":"Dev Patel",'
                                 '"reason":"Java skills with partial availability.",'
                                 '"suggested_allocation_percent":25,'
                                 '"free_hours_per_week":20}]}'
@@ -79,7 +79,7 @@ def test_groq_client_rank_candidates_parses_response() -> None:
     results = client.rank_candidates(_context(), (_candidate(),))
 
     assert len(results) == 1
-    assert results[0].employee_id == 14
+    assert results[0].user_id == 14
 
 
 def test_groq_client_summarize_risk_returns_text() -> None:

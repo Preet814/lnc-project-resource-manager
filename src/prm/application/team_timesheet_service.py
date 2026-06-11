@@ -4,13 +4,13 @@ from datetime import date, timedelta
 
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     ProjectRepository,
     TimesheetRepository,
+    UserRepository,
 )
 from prm.domain.dtos import (
-    EmployeeTimesheetEntryDetail,
-    EmployeeTimesheetWeekDetail,
+    EngineerTimesheetEntryDetail,
+    EngineerTimesheetWeekDetail,
     TeamTimesheetListResult,
     TeamTimesheetRow,
 )
@@ -24,12 +24,12 @@ class TeamTimesheetService:
     def __init__(
         self,
         allocation_repository: AllocationRepository,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         project_repository: ProjectRepository,
         timesheet_repository: TimesheetRepository,
     ) -> None:
         self._allocations = allocation_repository
-        self._employees = employee_repository
+        self._users = user_repository
         self._projects = project_repository
         self._timesheets = timesheet_repository
 
@@ -46,14 +46,14 @@ class TeamTimesheetService:
                 continue
 
             hours, status = self._hours_and_status_for_project(
-                allocation.employee_id,
+                allocation.user_id,
                 allocation.project_id,
                 week_start_date,
             )
             rows.append(
                 TeamTimesheetRow(
-                    employee_id=allocation.employee_id,
-                    employee_full_name=self._employee_name(allocation.employee_id),
+                    user_id=allocation.user_id,
+                    user_full_name=self._user_name(allocation.user_id),
                     project_id=allocation.project_id,
                     project_name=self._project_name(allocation.project_id),
                     hours=hours,
@@ -61,30 +61,30 @@ class TeamTimesheetService:
                 )
             )
 
-        rows.sort(key=lambda row: (row.employee_full_name.lower(), row.project_name.lower()))
+        rows.sort(key=lambda row: (row.user_full_name.lower(), row.project_name.lower()))
         return TeamTimesheetListResult(
             week_start_date=week_start_date,
             rows=tuple(rows),
             total=len(rows),
         )
 
-    def get_employee_timesheet_detail(
+    def get_engineer_timesheet_detail(
         self,
         manager_user_id: int,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
-    ) -> EmployeeTimesheetWeekDetail:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
-            raise NotFoundError(f"Employee {employee_id} not found.")
+    ) -> EngineerTimesheetWeekDetail:
+        user = self._users.find_by_id(user_id)
+        if user is None:
+            raise NotFoundError(f"Engineer {user_id} not found.")
 
-        self._assert_employee_on_team(manager_user_id, employee_id, week_start_date)
+        self._assert_user_on_team(manager_user_id, user_id, week_start_date)
 
-        week = self._timesheets.find_week_by_employee(employee_id, week_start_date)
+        week = self._timesheets.find_week_by_user(user_id, week_start_date)
         if week is None:
-            return EmployeeTimesheetWeekDetail(
-                employee_id=employee_id,
-                employee_full_name=employee.full_name,
+            return EngineerTimesheetWeekDetail(
+                user_id=user_id,
+                user_full_name=user.full_name,
                 week_start_date=week_start_date,
                 status=TimesheetWeekStatus.MISSED,
                 total_hours=0,
@@ -92,7 +92,7 @@ class TeamTimesheetService:
             )
 
         entries = tuple(
-            EmployeeTimesheetEntryDetail(
+            EngineerTimesheetEntryDetail(
                 project_id=entry.project_id,
                 project_name=self._project_name(entry.project_id),
                 hours_worked=entry.hours_worked,
@@ -102,9 +102,9 @@ class TeamTimesheetService:
             )
             for entry in self._timesheets.list_entries_for_week(week.id)
         )
-        return EmployeeTimesheetWeekDetail(
-            employee_id=employee_id,
-            employee_full_name=employee.full_name,
+        return EngineerTimesheetWeekDetail(
+            user_id=user_id,
+            user_full_name=user.full_name,
             week_start_date=week_start_date,
             status=week.status,
             total_hours=week.total_hours,
@@ -113,11 +113,11 @@ class TeamTimesheetService:
 
     def _hours_and_status_for_project(
         self,
-        employee_id: int,
+        user_id: int,
         project_id: int,
         week_start_date: date,
     ) -> tuple[int, TimesheetWeekStatus]:
-        week = self._timesheets.find_week_by_employee(employee_id, week_start_date)
+        week = self._timesheets.find_week_by_user(user_id, week_start_date)
         if week is None or week.status == TimesheetWeekStatus.MISSED:
             return 0, TimesheetWeekStatus.MISSED
 
@@ -126,27 +126,27 @@ class TeamTimesheetService:
                 return entry.hours_worked, TimesheetWeekStatus.SUBMITTED
         return 0, TimesheetWeekStatus.SUBMITTED
 
-    def _assert_employee_on_team(
+    def _assert_user_on_team(
         self,
         manager_user_id: int,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
     ) -> None:
         week_end = week_start_date + timedelta(days=6)
         for allocation in self._allocations.list_active_for_manager(manager_user_id):
-            if allocation.employee_id != employee_id:
+            if allocation.user_id != user_id:
                 continue
             if allocation.overlaps_period(week_start_date, week_end):
                 return
         raise UnauthorizedError(
-            "Employee is not on your project team for the selected week."
+            "Engineer is not on your project team for the selected week."
         )
 
-    def _employee_name(self, employee_id: int) -> str:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
+    def _user_name(self, user_id: int) -> str:
+        user = self._users.find_by_id(user_id)
+        if user is None:
             return "Unknown"
-        return employee.full_name
+        return user.full_name
 
     def _project_name(self, project_id: int) -> str:
         project = self._projects.find_by_id(project_id)

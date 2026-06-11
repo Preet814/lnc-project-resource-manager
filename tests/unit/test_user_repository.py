@@ -7,6 +7,13 @@ from sqlalchemy.orm import Session
 from prm.domain.enums import Role, UserAccountStatus
 from prm.domain.exceptions import NotFoundError
 from prm.infrastructure.db.models import UserModel
+from tests.unit.engineer_fixtures import create_rbac_tables
+from prm.infrastructure.db.rbac_seed import (
+    default_department_id,
+    default_designation_id,
+    role_id_for_code,
+    seed_rbac_lookups,
+)
 from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
@@ -15,7 +22,7 @@ from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TE
 
 def _session() -> Session:
     engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
+    create_rbac_tables(engine)
     return Session(engine)
 
 
@@ -123,7 +130,9 @@ def test_list_all_returns_users_ordered_by_id() -> None:
             username="second_user",
             email="second@example.test",
             password_hash=hasher.hash("TempPass1"),
-            role=Role.EMPLOYEE,
+            role_id=role_id_for_code(session, Role.ENGINEER.value),
+            department_id=default_department_id(session),
+            designation_id=default_designation_id(session),
         )
         session.commit()
 
@@ -142,6 +151,7 @@ def test_list_all_returns_empty_list_when_no_users() -> None:
 
 def test_create_persists_user_with_force_password_change() -> None:
     with _session() as session:
+        seed_rbac_lookups(session)
         repo = SqlAlchemyUserRepository(session)
         hasher = BcryptPasswordHasher()
 
@@ -150,7 +160,9 @@ def test_create_persists_user_with_force_password_change() -> None:
             username="new_mgr",
             email="new_mgr@example.test",
             password_hash=hasher.hash("TempPass1"),
-            role=Role.MANAGER,
+            role_id=role_id_for_code(session, Role.MANAGER.value),
+            department_id=default_department_id(session, name="Delivery"),
+            designation_id=default_designation_id(session, name="Project Manager"),
         )
         session.commit()
 

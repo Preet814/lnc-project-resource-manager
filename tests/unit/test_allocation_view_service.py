@@ -2,43 +2,39 @@
 
 from datetime import date
 
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.application.allocation_view_service import AllocationViewService
-from prm.application.employee_management_service import EmployeeManagementService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.user_management_service import UserManagementService
+from prm.application.user_profile_service import UserProfileService
 from prm.domain.enums import AllocationStatus, ProjectStatus, Role
-from prm.infrastructure.db.models import (
-    AllocationModel,
-    EmployeeModel,
-    ProjectModel,
-    UserModel,
-)
+from prm.infrastructure.db.models import AllocationModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
     SqlAlchemyMilestoneRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyUserRepository,
 )
 from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import (
+    create_allocation_tables,
+    create_memory_session,
+    create_user,
+    seed_rbac,
+)
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    session = create_memory_session(include_project=True)
+    create_allocation_tables(session)
+    return session
 
 
 def _service(session: Session) -> AllocationViewService:
     return AllocationViewService(
         allocation_repository=SqlAlchemyAllocationRepository(session),
-        employee_repository=SqlAlchemyEmployeeRepository(session),
+        user_repository=SqlAlchemyUserRepository(session),
         project_repository=SqlAlchemyProjectRepository(session),
     )
 
@@ -50,9 +46,8 @@ def _user_service(session: Session) -> UserManagementService:
     )
 
 
-def _employee_service(session: Session) -> EmployeeManagementService:
-    return EmployeeManagementService(
-        employee_repository=SqlAlchemyEmployeeRepository(session),
+def _profile_service(session: Session) -> UserProfileService:
+    return UserProfileService(
         user_repository=SqlAlchemyUserRepository(session),
         allocation_repository=SqlAlchemyAllocationRepository(session),
     )
@@ -85,7 +80,7 @@ def _create_user(
     return created.id
 
 
-def _create_employee(
+def _create_engineer(
     session: Session,
     *,
     username: str,
@@ -97,18 +92,18 @@ def _create_employee(
         session,
         username=username,
         email=email,
-        role=Role.EMPLOYEE,
+        role=Role.ENGINEER,
         full_name=full_name,
     )
-    employee = _employee_service(session).create_employee(
+    engineer = _profile_service(session).create_employee(
         user_id=user_id,
         full_name=full_name,
         email=email,
         department=department,
-        designation="Developer",
+        designation="SE",
     )
     session.flush()
-    return employee.id
+    return engineer.id
 
 
 def _create_project(session: Session, *, manager_user_id: int, name: str) -> int:
@@ -127,14 +122,14 @@ def _create_project(session: Session, *, manager_user_id: int, name: str) -> int
 def _create_allocation(
     session: Session,
     *,
-    employee_id: int,
+    user_id: int,
     project_id: int,
     created_by_user_id: int,
     utilisation_percent: int = 50,
     status: AllocationStatus = AllocationStatus.ACTIVE,
 ) -> int:
     allocation = AllocationModel(
-        employee_id=employee_id,
+        user_id=user_id,
         project_id=project_id,
         utilisation_percent=utilisation_percent,
         from_date=date(2026, 3, 1),
@@ -149,6 +144,7 @@ def _create_allocation(
 
 def test_list_allocations_returns_enriched_summaries() -> None:
     with _session() as session:
+        seed_rbac(session)
         manager_id = _create_user(
             session,
             username="ankit",
@@ -156,13 +152,13 @@ def test_list_allocations_returns_enriched_summaries() -> None:
             role=Role.MANAGER,
             full_name="Ankit Shah",
         )
-        ravi_id = _create_employee(
+        ravi_id = _create_engineer(
             session,
             username="ravi",
             email="ravi@example.test",
             full_name="Ravi Kumar",
         )
-        neha_id = _create_employee(
+        neha_id = _create_engineer(
             session,
             username="neha",
             email="neha@example.test",
@@ -173,19 +169,19 @@ def test_list_allocations_returns_enriched_summaries() -> None:
         beta_id = _create_project(session, manager_user_id=manager_id, name="Beta CRM")
         _create_allocation(
             session,
-            employee_id=ravi_id,
+            user_id=ravi_id,
             project_id=alpha_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=ravi_id,
+            user_id=ravi_id,
             project_id=beta_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=neha_id,
+            user_id=neha_id,
             project_id=alpha_id,
             created_by_user_id=manager_id,
             utilisation_percent=100,
@@ -197,15 +193,16 @@ def test_list_allocations_returns_enriched_summaries() -> None:
         assert result.total == 3
         assert len(result.allocations) == 3
         first = result.allocations[0]
-        assert first.employee_full_name == "Ravi Kumar"
+        assert first.user_full_name == "Ravi Kumar"
         assert first.project_name == "Alpha Portal"
         assert first.utilisation_percent == 50
         assert first.from_date == date(2026, 3, 1)
         assert first.to_date == date(2026, 6, 30)
 
 
-def test_list_allocations_filters_by_employee_id() -> None:
+def test_list_allocations_filters_by_user_id() -> None:
     with _session() as session:
+        seed_rbac(session)
         manager_id = _create_user(
             session,
             username="ankit",
@@ -213,13 +210,13 @@ def test_list_allocations_filters_by_employee_id() -> None:
             role=Role.MANAGER,
             full_name="Ankit Shah",
         )
-        ravi_id = _create_employee(
+        ravi_id = _create_engineer(
             session,
             username="ravi",
             email="ravi@example.test",
             full_name="Ravi Kumar",
         )
-        neha_id = _create_employee(
+        neha_id = _create_engineer(
             session,
             username="neha",
             email="neha@example.test",
@@ -228,27 +225,28 @@ def test_list_allocations_filters_by_employee_id() -> None:
         project_id = _create_project(session, manager_user_id=manager_id, name="Alpha Portal")
         _create_allocation(
             session,
-            employee_id=ravi_id,
+            user_id=ravi_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=neha_id,
+            user_id=neha_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
         session.commit()
 
-        result = _service(session).list_allocations(employee_id=ravi_id)
+        result = _service(session).list_allocations(user_id=ravi_id)
 
         assert result.total == 1
-        assert result.allocations[0].employee_full_name == "Ravi Kumar"
-        assert result.allocations[0].employee_id == ravi_id
+        assert result.allocations[0].user_full_name == "Ravi Kumar"
+        assert result.allocations[0].user_id == ravi_id
 
 
 def test_list_allocations_filters_by_project_id() -> None:
     with _session() as session:
+        seed_rbac(session)
         manager_id = _create_user(
             session,
             username="ankit",
@@ -256,7 +254,7 @@ def test_list_allocations_filters_by_project_id() -> None:
             role=Role.MANAGER,
             full_name="Ankit Shah",
         )
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="ravi",
             email="ravi@example.test",
@@ -266,13 +264,13 @@ def test_list_allocations_filters_by_project_id() -> None:
         beta_id = _create_project(session, manager_user_id=manager_id, name="Beta CRM")
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=alpha_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=beta_id,
             created_by_user_id=manager_id,
         )

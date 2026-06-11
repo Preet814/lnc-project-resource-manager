@@ -94,7 +94,7 @@ class HealthRuleEngine:
             return None, None
 
         flag = (
-            f"{timesheet.employee_full_name} logged only {timesheet.hours_logged} hrs "
+            f"{timesheet.user_full_name} logged only {timesheet.hours_logged} hrs "
             f"last week (expected {timesheet.expected_hours} hrs)"
         )
         if ratio < HEALTH_LOW_HOURS_AT_RISK_RATIO:

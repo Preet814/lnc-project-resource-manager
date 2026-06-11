@@ -3,56 +3,45 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.domain.enums import AllocationStatus, Role
 from prm.domain.exceptions import NotFoundError
-from prm.infrastructure.db.models import AllocationModel, EmployeeModel, ProjectModel, UserModel
-from prm.infrastructure.db.repositories import (
-    SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
-    SqlAlchemyUserRepository,
+from prm.infrastructure.db.models import AllocationModel, ProjectModel
+from prm.infrastructure.db.repositories import SqlAlchemyAllocationRepository
+from tests.unit.engineer_fixtures import (
+    create_allocation_tables,
+    create_memory_session,
+    create_user,
+    seed_rbac,
 )
-from prm.infrastructure.security.password import BcryptPasswordHasher
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    session = create_memory_session(include_project=True)
+    create_allocation_tables(session)
+    return session
 
 
-def _seed_manager_and_employee(session: Session) -> tuple[int, int]:
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
-        full_name="Manager User",
+def _seed_manager_and_user(session: Session) -> tuple[int, int]:
+    seed_rbac(session)
+    manager_id = create_user(
+        session,
         username="manager",
         email="manager@example.test",
-        password_hash=hasher.hash("TempPass1"),
+        full_name="Manager User",
         role=Role.MANAGER,
     )
-    employee_user = user_repo.create(
-        full_name="Employee User",
+    user_id = create_user(
+        session,
         username="employee",
         email="employee@example.test",
-        password_hash=hasher.hash("TempPass1"),
-        role=Role.EMPLOYEE,
-    )
-    employee_repo = SqlAlchemyEmployeeRepository(session)
-    employee = employee_repo.create(
-        user_id=employee_user.id,
         full_name="Ravi Kumar",
-        email="employee@example.test",
-        department="Backend",
-        designation="Developer",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
     session.flush()
-    return manager.id, employee.id
+    return manager_id, user_id
 
 
 def _create_project(session: Session, *, manager_user_id: int) -> int:
@@ -67,32 +56,21 @@ def _create_project(session: Session, *, manager_user_id: int) -> int:
     return project.id
 
 
-def _create_second_employee(session: Session) -> int:
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    employee_user = user_repo.create(
-        full_name="Second Employee",
+def _create_second_user(session: Session, *, manager_id: int) -> int:
+    return create_user(
+        session,
         username="employee2",
         email="employee2@example.test",
-        password_hash=hasher.hash("TempPass1"),
-        role=Role.EMPLOYEE,
-    )
-    employee_repo = SqlAlchemyEmployeeRepository(session)
-    employee = employee_repo.create(
-        user_id=employee_user.id,
         full_name="Neha Joshi",
-        email="employee2@example.test",
-        department="Frontend",
-        designation="Developer",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
-    session.flush()
-    return employee.id
 
 
 def _create_allocation(
     session: Session,
     *,
-    employee_id: int,
+    user_id: int,
     project_id: int,
     created_by_user_id: int,
     status: AllocationStatus = AllocationStatus.ACTIVE,
@@ -101,7 +79,7 @@ def _create_allocation(
     utilisation_percent: int = 50,
 ) -> int:
     allocation = AllocationModel(
-        employee_id=employee_id,
+        user_id=user_id,
         project_id=project_id,
         utilisation_percent=utilisation_percent,
         from_date=from_date or date(2026, 6, 1),
@@ -114,19 +92,19 @@ def _create_allocation(
     return allocation.id
 
 
-def test_find_active_by_employee_returns_only_active_allocations() -> None:
+def test_find_active_by_user_returns_only_active_allocations() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         active_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             status=AllocationStatus.ENDED,
@@ -135,25 +113,25 @@ def test_find_active_by_employee_returns_only_active_allocations() -> None:
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
-        active = repo.find_active_by_employee(employee_id)
+        active = repo.find_active_by_user(user_id)
 
         assert len(active) == 1
         assert active[0].id == active_id
         assert active[0].status == AllocationStatus.ACTIVE
 
 
-def test_find_active_by_employee_returns_empty_when_none() -> None:
+def test_find_active_by_user_returns_empty_when_none() -> None:
     with _session() as session:
-        _, employee_id = _seed_manager_and_employee(session)
+        _, user_id = _seed_manager_and_user(session)
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
-        assert repo.find_active_by_employee(employee_id) == []
+        assert repo.find_active_by_user(user_id) == []
 
 
-def test_end_active_for_employee_sets_to_date_and_status() -> None:
+def test_end_active_for_user_sets_to_date_and_status() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_a = _create_project(session, manager_user_id=manager_id)
         project_b = ProjectModel(
             name="Beta CRM",
@@ -165,13 +143,13 @@ def test_end_active_for_employee_sets_to_date_and_status() -> None:
         session.flush()
         first_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_a,
             created_by_user_id=manager_id,
         )
         second_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_b.id,
             created_by_user_id=manager_id,
         )
@@ -179,7 +157,7 @@ def test_end_active_for_employee_sets_to_date_and_status() -> None:
         repo = SqlAlchemyAllocationRepository(session)
         end_date = date(2026, 6, 7)
 
-        ended = repo.end_active_for_employee(employee_id, as_of=end_date)
+        ended = repo.end_active_for_user(user_id, as_of=end_date)
         session.commit()
 
         assert len(ended) == 2
@@ -188,22 +166,22 @@ def test_end_active_for_employee_sets_to_date_and_status() -> None:
             assert allocation.status == AllocationStatus.ENDED
             assert allocation.to_date == end_date
 
-        assert repo.find_active_by_employee(employee_id) == []
+        assert repo.find_active_by_user(user_id) == []
 
 
-def test_end_active_for_employee_returns_empty_when_none_active() -> None:
+def test_end_active_for_user_returns_empty_when_none_active() -> None:
     with _session() as session:
-        _, employee_id = _seed_manager_and_employee(session)
+        _, user_id = _seed_manager_and_user(session)
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
-        assert repo.end_active_for_employee(employee_id, as_of=date(2026, 6, 7)) == []
+        assert repo.end_active_for_user(user_id, as_of=date(2026, 6, 7)) == []
 
 
 def test_list_active_returns_all_active_allocations() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
-        second_employee_id = _create_second_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
+        second_user_id = _create_second_user(session, manager_id=manager_id)
         project_a = _create_project(session, manager_user_id=manager_id)
         project_b = ProjectModel(
             name="Beta CRM",
@@ -215,19 +193,19 @@ def test_list_active_returns_all_active_allocations() -> None:
         session.flush()
         first_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_a,
             created_by_user_id=manager_id,
         )
         second_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_b.id,
             created_by_user_id=manager_id,
         )
         third_id = _create_allocation(
             session,
-            employee_id=second_employee_id,
+            user_id=second_user_id,
             project_id=project_a,
             created_by_user_id=manager_id,
         )
@@ -240,36 +218,36 @@ def test_list_active_returns_all_active_allocations() -> None:
         assert [allocation.id for allocation in active] == [first_id, second_id, third_id]
 
 
-def test_list_active_filters_by_employee_id() -> None:
+def test_list_active_filters_by_user_id() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
-        second_employee_id = _create_second_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
+        second_user_id = _create_second_user(session, manager_id=manager_id)
         project_id = _create_project(session, manager_user_id=manager_id)
         first_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=second_employee_id,
+            user_id=second_user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
-        active = repo.list_active(employee_id=employee_id)
+        active = repo.list_active(user_id=user_id)
 
         assert len(active) == 1
         assert active[0].id == first_id
-        assert active[0].employee_id == employee_id
+        assert active[0].user_id == user_id
 
 
 def test_list_active_filters_by_project_id() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_a = _create_project(session, manager_user_id=manager_id)
         project_b = ProjectModel(
             name="Beta CRM",
@@ -281,13 +259,13 @@ def test_list_active_filters_by_project_id() -> None:
         session.flush()
         first_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_a,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_b.id,
             created_by_user_id=manager_id,
         )
@@ -303,17 +281,17 @@ def test_list_active_filters_by_project_id() -> None:
 
 def test_list_active_excludes_ended_allocations() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         active_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             status=AllocationStatus.ENDED,
@@ -330,7 +308,7 @@ def test_list_active_excludes_ended_allocations() -> None:
 
 def test_list_active_returns_empty_when_none() -> None:
     with _session() as session:
-        _seed_manager_and_employee(session)
+        _seed_manager_and_user(session)
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
@@ -339,11 +317,11 @@ def test_list_active_returns_empty_when_none() -> None:
 
 def test_find_by_id_returns_allocation() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         allocation_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
@@ -354,7 +332,7 @@ def test_find_by_id_returns_allocation() -> None:
 
         assert allocation is not None
         assert allocation.id == allocation_id
-        assert allocation.employee_id == employee_id
+        assert allocation.user_id == user_id
 
 
 def test_find_by_id_returns_none_when_missing() -> None:
@@ -365,11 +343,11 @@ def test_find_by_id_returns_none_when_missing() -> None:
 
 def test_find_overlapping_returns_active_allocations_in_range() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         overlapping_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             from_date=date(2026, 3, 1),
@@ -377,7 +355,7 @@ def test_find_overlapping_returns_active_allocations_in_range() -> None:
         )
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             from_date=date(2026, 8, 1),
@@ -387,7 +365,7 @@ def test_find_overlapping_returns_active_allocations_in_range() -> None:
         repo = SqlAlchemyAllocationRepository(session)
 
         overlapping = repo.find_overlapping(
-            employee_id,
+            user_id,
             date(2026, 5, 1),
             date(2026, 7, 31),
         )
@@ -398,11 +376,11 @@ def test_find_overlapping_returns_active_allocations_in_range() -> None:
 
 def test_find_overlapping_excludes_ended_allocations() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             from_date=date(2026, 3, 1),
@@ -412,16 +390,16 @@ def test_find_overlapping_excludes_ended_allocations() -> None:
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
-        assert repo.find_overlapping(employee_id, date(2026, 4, 1), date(2026, 4, 30)) == []
+        assert repo.find_overlapping(user_id, date(2026, 4, 1), date(2026, 4, 30)) == []
 
 
 def test_find_overlapping_respects_exclude_allocation_id() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         first_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             from_date=date(2026, 3, 1),
@@ -431,7 +409,7 @@ def test_find_overlapping_respects_exclude_allocation_id() -> None:
         repo = SqlAlchemyAllocationRepository(session)
 
         overlapping = repo.find_overlapping(
-            employee_id,
+            user_id,
             date(2026, 4, 1),
             date(2026, 5, 1),
             exclude_allocation_id=first_id,
@@ -442,13 +420,13 @@ def test_find_overlapping_respects_exclude_allocation_id() -> None:
 
 def test_create_persists_active_allocation() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)
 
         created = repo.create(
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             utilisation_percent=50,
             from_date=date(2026, 6, 1),
@@ -467,11 +445,11 @@ def test_create_persists_active_allocation() -> None:
 
 def test_end_by_id_sets_to_date_and_status() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         allocation_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
         )
@@ -485,7 +463,7 @@ def test_end_by_id_sets_to_date_and_status() -> None:
         assert ended.id == allocation_id
         assert ended.status == AllocationStatus.ENDED
         assert ended.to_date == end_date
-        assert repo.find_active_by_employee(employee_id) == []
+        assert repo.find_active_by_user(user_id) == []
 
 
 def test_end_by_id_raises_when_missing() -> None:
@@ -497,11 +475,11 @@ def test_end_by_id_raises_when_missing() -> None:
 
 def test_end_by_id_raises_when_already_ended() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
+        manager_id, user_id = _seed_manager_and_user(session)
         project_id = _create_project(session, manager_user_id=manager_id)
         allocation_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             created_by_user_id=manager_id,
             status=AllocationStatus.ENDED,
@@ -515,14 +493,13 @@ def test_end_by_id_raises_when_already_ended() -> None:
 
 def test_list_active_for_manager_returns_only_owned_project_allocations() -> None:
     with _session() as session:
-        manager_id, employee_id = _seed_manager_and_employee(session)
-        other_manager = SqlAlchemyUserRepository(session)
-        hasher = BcryptPasswordHasher()
-        other = other_manager.create(
+        manager_id, user_id = _seed_manager_and_user(session)
+        seed_rbac(session)
+        other_manager_id = create_user(
+            session,
             full_name="Other Manager",
             username="other",
             email="other@example.test",
-            password_hash=hasher.hash("TempPass1"),
             role=Role.MANAGER,
         )
         owned_project_id = _create_project(session, manager_user_id=manager_id)
@@ -530,21 +507,21 @@ def test_list_active_for_manager_returns_only_owned_project_allocations() -> Non
             name="Other Project",
             description="Other",
             start_date=date(2026, 1, 1),
-            manager_user_id=other.id,
+            manager_user_id=other_manager_id,
         )
         session.add(other_project)
         session.flush()
         owned_allocation_id = _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=owned_project_id,
             created_by_user_id=manager_id,
         )
         _create_allocation(
             session,
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=other_project.id,
-            created_by_user_id=other.id,
+            created_by_user_id=other_manager_id,
         )
         session.commit()
         repo = SqlAlchemyAllocationRepository(session)

@@ -5,10 +5,10 @@ from datetime import date
 from prm.application.authorization_service import AuthorizationService
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     MilestoneRepository,
     ProjectHealthSnapshotRepository,
     ProjectRepository,
+    UserRepository,
 )
 from prm.domain.dtos import (
     ManagerProjectDetail,
@@ -27,14 +27,14 @@ class ManagerProjectService:
         project_repository: ProjectRepository,
         milestone_repository: MilestoneRepository,
         allocation_repository: AllocationRepository,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         health_snapshot_repository: ProjectHealthSnapshotRepository,
         authorization: AuthorizationService,
     ) -> None:
         self._projects = project_repository
         self._milestones = milestone_repository
         self._allocations = allocation_repository
-        self._employees = employee_repository
+        self._users = user_repository
         self._health_snapshots = health_snapshot_repository
         self._authorization = authorization
 
@@ -79,8 +79,8 @@ class ManagerProjectService:
         allocations = self._allocations.list_active(project_id=project_id)
         resource_rows = tuple(
             ManagerProjectResourceRow(
-                employee_id=allocation.employee_id,
-                employee_full_name=self._employee_name(allocation.employee_id),
+                user_id=allocation.user_id,
+                user_full_name=self._user_name(allocation.user_id),
                 utilisation_percent=allocation.utilisation_percent,
                 from_date=allocation.from_date,
                 to_date=allocation.to_date,
@@ -98,8 +98,8 @@ class ManagerProjectService:
             allocated_resources=resource_rows,
         )
 
-    def _employee_name(self, employee_id: int) -> str:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
+    def _user_name(self, user_id: int) -> str:
+        user = self._users.find_by_id(user_id)
+        if user is None:
             return "Unknown"
-        return employee.full_name
+        return user.full_name

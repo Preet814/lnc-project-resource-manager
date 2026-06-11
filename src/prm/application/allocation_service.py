@@ -5,14 +5,14 @@ from datetime import date
 from prm.application.authorization_service import AuthorizationService
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     ProjectRepository,
+    UserRepository,
 )
 from prm.application.utilisation_calculator import UtilisationCalculator
 from prm.domain.dtos import AllocationSummary
 from prm.domain.entities.allocation import Allocation
-from prm.domain.entities.employee import Employee
-from prm.domain.enums import EmployeeWorkStatus
+from prm.domain.entities.user import User
+from prm.domain.enums import ResourceWorkStatus
 from prm.domain.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
 
 
@@ -22,13 +22,13 @@ class AllocationService:
     def __init__(
         self,
         allocation_repository: AllocationRepository,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         project_repository: ProjectRepository,
         authorization: AuthorizationService,
         utilisation: UtilisationCalculator,
     ) -> None:
         self._allocations = allocation_repository
-        self._employees = employee_repository
+        self._users = user_repository
         self._projects = project_repository
         self._authorization = authorization
         self._utilisation = utilisation
@@ -38,7 +38,7 @@ class AllocationService:
         manager_user_id: int,
         *,
         project_id: int,
-        employee_id: int,
+        user_id: int,
         utilisation_percent: int,
         from_date: date,
         to_date: date | None,
@@ -49,10 +49,10 @@ class AllocationService:
                 "Project must be ACTIVE or PLANNED to accept allocations."
             )
 
-        self._require_active_employee(employee_id, manager_user_id=manager_user_id)
+        self._require_active_engineer(user_id, manager_user_id=manager_user_id)
 
         validation = self._utilisation.validate_new_allocation(
-            employee_id,
+            user_id,
             utilisation_percent,
             from_date,
             to_date,
@@ -61,14 +61,14 @@ class AllocationService:
             raise ConflictError(validation.message)
 
         allocation = self._allocations.create(
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             utilisation_percent=utilisation_percent,
             from_date=from_date,
             to_date=to_date,
             created_by_user_id=manager_user_id,
         )
-        self._sync_employee_utilisation(employee_id, from_date)
+        self._sync_user_utilisation(user_id, from_date)
         return allocation
 
     def end_allocation(
@@ -83,7 +83,7 @@ class AllocationService:
 
         end_date = as_of or date.today()
         ended = self._allocations.end_by_id(allocation_id, as_of=end_date)
-        self._sync_employee_utilisation(ended.employee_id, end_date)
+        self._sync_user_utilisation(ended.user_id, end_date)
         return ended
 
     def list_project_allocations(
@@ -95,24 +95,24 @@ class AllocationService:
         allocations = self._allocations.list_active(project_id=project_id)
         return tuple(self._to_summary(allocation) for allocation in allocations)
 
-    def _sync_employee_utilisation(self, employee_id: int, as_of: date) -> None:
-        utilisation = self._utilisation.compute_utilisation_on(employee_id, as_of)
+    def _sync_user_utilisation(self, user_id: int, as_of: date) -> None:
+        utilisation = self._utilisation.compute_utilisation_on(user_id, as_of)
         work_status = (
-            EmployeeWorkStatus.BENCH
+            ResourceWorkStatus.BENCH
             if utilisation == 0
-            else EmployeeWorkStatus.ALLOCATED
+            else ResourceWorkStatus.ALLOCATED
         )
-        self._employees.update_utilisation_and_status(
-            employee_id,
-            current_utilisation_percent=utilisation,
+        self._users.update_resource_status(
+            user_id,
+            utilisation_percent=utilisation,
             work_status=work_status,
         )
 
     def _to_summary(self, allocation: Allocation) -> AllocationSummary:
         return AllocationSummary(
             allocation_id=allocation.id,
-            employee_id=allocation.employee_id,
-            employee_full_name=self._employee_name(allocation.employee_id),
+            user_id=allocation.user_id,
+            user_full_name=self._user_name(allocation.user_id),
             project_id=allocation.project_id,
             project_name=self._project_name(allocation.project_id),
             utilisation_percent=allocation.utilisation_percent,
@@ -120,11 +120,11 @@ class AllocationService:
             to_date=allocation.to_date,
         )
 
-    def _employee_name(self, employee_id: int) -> str:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
+    def _user_name(self, user_id: int) -> str:
+        user = self._users.find_by_id(user_id)
+        if user is None:
             return "Unknown"
-        return employee.full_name
+        return user.full_name
 
     def _project_name(self, project_id: int) -> str:
         project = self._projects.find_by_id(project_id)
@@ -132,18 +132,18 @@ class AllocationService:
             return "Unknown"
         return project.name
 
-    def _require_active_employee(
+    def _require_active_engineer(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         manager_user_id: int,
-    ) -> Employee:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None or not employee.is_active:
-            raise NotFoundError(f"Employee {employee_id} not found.")
-        if employee.manager_id != manager_user_id:
-            raise UnauthorizedError("Employee is not assigned to your team.")
-        return employee
+    ) -> User:
+        user = self._users.find_by_id(user_id)
+        if user is None or not user.is_active():
+            raise NotFoundError(f"Engineer {user_id} not found.")
+        if user.manager_id != manager_user_id:
+            raise UnauthorizedError("Engineer is not assigned to your team.")
+        return user
 
     def _require_active_allocation(self, allocation_id: int) -> Allocation:
         allocation = self._allocations.find_by_id(allocation_id)

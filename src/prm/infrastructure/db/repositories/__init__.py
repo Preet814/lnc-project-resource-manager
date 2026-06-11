@@ -3,11 +3,11 @@
 from prm.infrastructure.db.repositories.allocation_repository import (
     SqlAlchemyAllocationRepository,
 )
-from prm.infrastructure.db.repositories.employee_repository import SqlAlchemyEmployeeRepository
-from prm.infrastructure.db.repositories.employee_skill_repository import (
-    SqlAlchemyEmployeeSkillRepository,
-)
+from prm.infrastructure.db.repositories.lookup_repository import SqlAlchemyLookupRepository
 from prm.infrastructure.db.repositories.milestone_repository import SqlAlchemyMilestoneRepository
+from prm.infrastructure.db.repositories.permission_repository import (
+    SqlAlchemyPermissionRepository,
+)
 from prm.infrastructure.db.repositories.project_health_snapshot_repository import (
     SqlAlchemyProjectHealthSnapshotRepository,
 )
@@ -18,16 +18,18 @@ from prm.infrastructure.db.repositories.system_configuration_repository import (
 )
 from prm.infrastructure.db.repositories.timesheet_repository import SqlAlchemyTimesheetRepository
 from prm.infrastructure.db.repositories.user_repository import SqlAlchemyUserRepository
+from prm.infrastructure.db.repositories.user_skill_repository import SqlAlchemyUserSkillRepository
 
 __all__ = [
     "SqlAlchemyAllocationRepository",
-    "SqlAlchemyEmployeeRepository",
-    "SqlAlchemyEmployeeSkillRepository",
+    "SqlAlchemyLookupRepository",
     "SqlAlchemyMilestoneRepository",
+    "SqlAlchemyPermissionRepository",
     "SqlAlchemyProjectHealthSnapshotRepository",
     "SqlAlchemyProjectRepository",
     "SqlAlchemySkillRepository",
     "SqlAlchemySystemConfigurationRepository",
     "SqlAlchemyTimesheetRepository",
     "SqlAlchemyUserRepository",
+    "SqlAlchemyUserSkillRepository",
 ]

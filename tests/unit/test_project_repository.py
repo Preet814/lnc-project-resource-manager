@@ -9,29 +9,22 @@ from sqlalchemy.orm import Session
 from prm.domain.enums import ProjectHealthStatus, ProjectStatus, Role
 from prm.domain.exceptions import NotFoundError
 from prm.infrastructure.db.models import ProjectModel, UserModel
-from prm.infrastructure.db.repositories import SqlAlchemyProjectRepository, SqlAlchemyUserRepository
-from prm.infrastructure.security.password import BcryptPasswordHasher
+from prm.infrastructure.db.repositories import SqlAlchemyProjectRepository
+from tests.unit.engineer_fixtures import create_memory_session, create_user
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return create_memory_session(include_project=True)
 
 
 def _create_manager(session: Session, *, username: str, email: str) -> int:
-    repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    user = repo.create(
+    return create_user(
+        session,
         full_name=f"{username} Name",
         username=username,
         email=email,
-        password_hash=hasher.hash("TempPass1"),
         role=Role.MANAGER,
     )
-    session.flush()
-    return user.id
 
 
 def _create_project(

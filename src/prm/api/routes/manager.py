@@ -18,13 +18,13 @@ from prm.api.deps import (
 )
 from prm.api.schemas.admin_allocations import AllocationSummaryResponse
 from prm.api.schemas.manager import (
-    ActiveEmployeeResponse,
-    BenchEmployeeResponse,
+    ActiveEngineerResponse,
+    BenchEngineerResponse,
     CreateAllocationRequest,
-    EmployeeAllocationDetailResponse,
-    EmployeeResourceDetailResponse,
-    EmployeeTimesheetEntryResponse,
-    EmployeeTimesheetWeekDetailResponse,
+    EngineerAllocationDetailResponse,
+    EngineerResourceDetailResponse,
+    EngineerTimesheetEntryResponse,
+    EngineerTimesheetWeekDetailResponse,
     EndAllocationRequest,
     ManagerAllocationResponse,
     ManagerProjectDetailResponse,
@@ -49,8 +49,8 @@ from prm.application.skill_match_service import SkillMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.domain.dtos import (
     AllocationSummary,
-    EmployeeResourceDetail,
-    EmployeeTimesheetWeekDetail,
+    EngineerResourceDetail,
+    EngineerTimesheetWeekDetail,
     ManagerProjectDetail,
     ManagerProjectListResult,
     ResourceDashboardResult,
@@ -67,8 +67,8 @@ router = APIRouter(prefix="/manager", tags=["manager"])
 def _to_dashboard_response(result: ResourceDashboardResult) -> ResourceDashboardResponse:
     return ResourceDashboardResponse(
         on_bench=[
-            BenchEmployeeResponse(
-                employee_id=row.employee_id,
+            BenchEngineerResponse(
+                user_id=row.user_id,
                 full_name=row.full_name,
                 department=row.department,
                 skill_names=list(row.skill_names),
@@ -76,8 +76,8 @@ def _to_dashboard_response(result: ResourceDashboardResult) -> ResourceDashboard
             for row in result.on_bench
         ],
         active=[
-            ActiveEmployeeResponse(
-                employee_id=row.employee_id,
+            ActiveEngineerResponse(
+                user_id=row.user_id,
                 full_name=row.full_name,
                 utilisation_percent=row.utilisation_percent,
                 availability_percent=row.availability_percent,
@@ -89,16 +89,16 @@ def _to_dashboard_response(result: ResourceDashboardResult) -> ResourceDashboard
     )
 
 
-def _to_employee_detail_response(detail: EmployeeResourceDetail) -> EmployeeResourceDetailResponse:
-    return EmployeeResourceDetailResponse(
-        employee_id=detail.employee_id,
+def _to_engineer_detail_response(detail: EngineerResourceDetail) -> EngineerResourceDetailResponse:
+    return EngineerResourceDetailResponse(
+        user_id=detail.user_id,
         full_name=detail.full_name,
         department=detail.department,
         work_status=detail.work_status,
         current_utilisation_percent=detail.current_utilisation_percent,
         profile_skills=list(detail.profile_skills),
         active_allocations=[
-            EmployeeAllocationDetailResponse(
+            EngineerAllocationDetailResponse(
                 project_name=allocation.project_name,
                 utilisation_percent=allocation.utilisation_percent,
                 from_date=allocation.from_date,
@@ -113,7 +113,7 @@ def _to_employee_detail_response(detail: EmployeeResourceDetail) -> EmployeeReso
 def _to_allocation_response(allocation: Allocation) -> ManagerAllocationResponse:
     return ManagerAllocationResponse(
         allocation_id=allocation.id,
-        employee_id=allocation.employee_id,
+        user_id=allocation.user_id,
         project_id=allocation.project_id,
         utilisation_percent=allocation.utilisation_percent,
         from_date=allocation.from_date,
@@ -129,8 +129,8 @@ def _to_project_allocation_list_response(
         allocations=[
             AllocationSummaryResponse(
                 allocation_id=summary.allocation_id,
-                employee_id=summary.employee_id,
-                employee_full_name=summary.employee_full_name,
+                user_id=summary.user_id,
+                user_full_name=summary.user_full_name,
                 project_id=summary.project_id,
                 project_name=summary.project_name,
                 utilisation_percent=summary.utilisation_percent,
@@ -187,8 +187,8 @@ def _to_manager_project_detail_response(
         ],
         allocated_resources=[
             ManagerProjectResourceResponse(
-                employee_id=resource.employee_id,
-                employee_full_name=resource.employee_full_name,
+                user_id=resource.user_id,
+                user_full_name=resource.user_full_name,
                 utilisation_percent=resource.utilisation_percent,
                 from_date=resource.from_date,
                 to_date=resource.to_date,
@@ -205,8 +205,8 @@ def _to_team_timesheet_list_response(
         week_start_date=result.week_start_date,
         rows=[
             TeamTimesheetRowResponse(
-                employee_id=row.employee_id,
-                employee_full_name=row.employee_full_name,
+                user_id=row.user_id,
+                user_full_name=row.user_full_name,
                 project_id=row.project_id,
                 project_name=row.project_name,
                 hours=row.hours,
@@ -218,17 +218,17 @@ def _to_team_timesheet_list_response(
     )
 
 
-def _to_employee_timesheet_week_detail_response(
-    detail: EmployeeTimesheetWeekDetail,
-) -> EmployeeTimesheetWeekDetailResponse:
-    return EmployeeTimesheetWeekDetailResponse(
-        employee_id=detail.employee_id,
-        employee_full_name=detail.employee_full_name,
+def _to_engineer_timesheet_week_detail_response(
+    detail: EngineerTimesheetWeekDetail,
+) -> EngineerTimesheetWeekDetailResponse:
+    return EngineerTimesheetWeekDetailResponse(
+        user_id=detail.user_id,
+        user_full_name=detail.user_full_name,
         week_start_date=detail.week_start_date,
         status=detail.status,
         total_hours=detail.total_hours,
         entries=[
-            EmployeeTimesheetEntryResponse(
+            EngineerTimesheetEntryResponse(
                 project_id=entry.project_id,
                 project_name=entry.project_name,
                 hours_worked=entry.hours_worked,
@@ -245,8 +245,8 @@ def _to_skill_match_response(result: SkillMatchListResult) -> SkillMatchResponse
         requirement=result.requirement,
         matches=[
             SkillMatchResultResponse(
-                employee_id=match.employee_id,
-                employee_name=match.employee_name,
+                user_id=match.user_id,
+                user_name=match.user_name,
                 reason=match.reason,
                 suggested_allocation_percent=match.suggested_allocation_percent,
                 free_hours_per_week=match.free_hours_per_week,
@@ -296,18 +296,18 @@ def list_team_timesheets(
 
 
 @router.get(
-    "/timesheets/{employee_id}",
-    response_model=EmployeeTimesheetWeekDetailResponse,
+    "/timesheets/{user_id}",
+    response_model=EngineerTimesheetWeekDetailResponse,
 )
-def get_employee_timesheet_detail(
-    employee_id: int,
+def get_engineer_timesheet_detail(
+    user_id: int,
     manager: Annotated[JwtTokenPayload, Depends(require_manager)],
     service: Annotated[TeamTimesheetService, Depends(get_team_timesheet_service)],
     week_start_date: Annotated[date | None, Query()] = None,
-) -> EmployeeTimesheetWeekDetailResponse:
+) -> EngineerTimesheetWeekDetailResponse:
     week = week_start_date or _default_week_start()
-    detail = service.get_employee_timesheet_detail(manager.user_id, employee_id, week)
-    return _to_employee_timesheet_week_detail_response(detail)
+    detail = service.get_engineer_timesheet_detail(manager.user_id, user_id, week)
+    return _to_engineer_timesheet_week_detail_response(detail)
 
 
 @router.get("/resources", response_model=ResourceDashboardResponse)
@@ -318,14 +318,14 @@ def get_resource_dashboard(
     return _to_dashboard_response(service.get_dashboard(manager.user_id))
 
 
-@router.get("/resources/{employee_id}", response_model=EmployeeResourceDetailResponse)
-def get_employee_resource_detail(
-    employee_id: int,
+@router.get("/resources/{user_id}", response_model=EngineerResourceDetailResponse)
+def get_engineer_resource_detail(
+    user_id: int,
     manager: Annotated[JwtTokenPayload, Depends(require_manager)],
     service: Annotated[ResourceDashboardService, Depends(get_resource_dashboard_service)],
-) -> EmployeeResourceDetailResponse:
-    return _to_employee_detail_response(
-        service.get_employee_detail(manager.user_id, employee_id)
+) -> EngineerResourceDetailResponse:
+    return _to_engineer_detail_response(
+        service.get_engineer_detail(manager.user_id, user_id)
     )
 
 
@@ -356,7 +356,7 @@ def create_allocation(
     allocation = service.allocate_direct(
         manager.user_id,
         project_id=body.project_id,
-        employee_id=body.employee_id,
+        user_id=body.user_id,
         utilisation_percent=body.utilisation_percent,
         from_date=body.from_date,
         to_date=body.to_date,

@@ -15,7 +15,7 @@ def _allocation(
 ) -> Allocation:
     return Allocation(
         id=allocation_id,
-        employee_id=1,
+        user_id=1,
         project_id=1,
         utilisation_percent=50,
         from_date=from_date,

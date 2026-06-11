@@ -44,7 +44,16 @@ cp .env.example .env
 docker compose up --build
 ```
 
-On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin plus initial system configuration from `.env` (`BOOTSTRAP_ADMIN_*`, `BOOTSTRAP_LLM_*`, `JWT_SECRET_KEY` — see `.env.example`). Env values apply **only on first run** when no config row exists; later changes use the admin API (console in Phase 5).
+On startup the `api` service runs Alembic migrations and seeds the bootstrap Admin plus initial system configuration from `.env` (`BOOTSTRAP_ADMIN_*`, `BOOTSTRAP_LLM_*`, `JWT_SECRET_KEY` — see `.env.example`). Env values apply **only on first run** when no config row exists; later changes use the admin API.
+
+For a clean first run with the unified ERD schema:
+
+```bash
+docker compose down -v
+docker compose up --build
+```
+
+If the API logs `could not translate host name "postgres"`, wait a few seconds and run `docker compose up` again — the API startup script retries DB connectivity. Ensure `.env` uses `DATABASE_URL=...@postgres:5432/...` for Docker (not `localhost`).
 
 Verify the API:
 
@@ -99,7 +108,7 @@ curl -s http://localhost:8000/admin/users \
 curl -s -X POST http://localhost:8000/admin/users \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"full_name":"Ravi Kumar","email":"ravi@example.test","username":"ravi.kumar","temporary_password":"TempPass1","role":"EMPLOYEE"}'
+  -d '{"full_name":"Ravi Kumar","email":"ravi@example.test","username":"ravi.kumar","temporary_password":"TempPass1","role":"ENGINEER"}'
 
 # Deactivate / reactivate by user id
 curl -s -X POST http://localhost:8000/admin/users/2/deactivate -H "Authorization: Bearer $TOKEN"
@@ -124,7 +133,7 @@ curl -s -X POST http://localhost:8000/admin/users/reset-password \
 
 **Onboarding (V4):** Create the login with `POST /admin/users`, then create the work profile with `POST /admin/employees` (the console “Add Employee” menu is removed in V4; the API remains the profile-creation step). Assign the employee to a manager with `POST /admin/employees/assign-manager` so managers only see their team on the resource dashboard.
 
-Requires an **EMPLOYEE** or **MANAGER** user account first (`POST /admin/users`), then link the work profile with `user_id`. Admin accounts cannot have employee profiles.
+Requires an **ENGINEER** or **MANAGER** user account first (`POST /admin/users`), then link the work profile with `user_id`. Admin accounts cannot have engineer profiles.
 
 ```bash
 export TOKEN="YOUR_ACCESS_TOKEN"
@@ -143,28 +152,28 @@ curl -s -X POST http://localhost:8000/admin/employees \
 curl -s -X POST http://localhost:8000/admin/employees/assign-manager \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
-  -d '{"employee_user_id":2,"manager_user_id":3}'
+  -d '{"engineer_user_id":2,"manager_user_id":3}'
 
-# Get / update / deactivate by employee id (not user id)
-curl -s http://localhost:8000/admin/employees/1 -H "Authorization: Bearer $TOKEN"
-curl -s -X PATCH http://localhost:8000/admin/employees/1 \
+# Get / update / deactivate by user id
+curl -s http://localhost:8000/admin/employees/2 -H "Authorization: Bearer $TOKEN"
+curl -s -X PATCH http://localhost:8000/admin/employees/2 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"department":"DevOps","designation":"Lead Developer"}'
-curl -s -X POST http://localhost:8000/admin/employees/1/deactivate \
+curl -s -X POST http://localhost:8000/admin/employees/2/deactivate \
   -H "Authorization: Bearer $TOKEN"
 
-# Manage skills on employee id
-curl -s http://localhost:8000/admin/employees/1/skills -H "Authorization: Bearer $TOKEN"
-curl -s -X POST http://localhost:8000/admin/employees/1/skills \
+# Manage skills on user id (user_skill_id in PATCH/DELETE paths)
+curl -s http://localhost:8000/admin/employees/2/skills -H "Authorization: Bearer $TOKEN"
+curl -s -X POST http://localhost:8000/admin/employees/2/skills \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"skill_name":"Docker","category":"DEVOPS","proficiency":"BEGINNER"}'
-curl -s -X PATCH http://localhost:8000/admin/employees/1/skills/1 \
+curl -s -X PATCH http://localhost:8000/admin/employees/2/skills/1 \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"proficiency":"ADVANCED"}'
-curl -s -X DELETE http://localhost:8000/admin/employees/1/skills/1 \
+curl -s -X DELETE http://localhost:8000/admin/employees/2/skills/1 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
@@ -172,14 +181,14 @@ curl -s -X DELETE http://localhost:8000/admin/employees/1/skills/1 \
 |----------|------|---------|
 | `GET /admin/employees` | Admin JWT | List employees + bench/allocated counts |
 | `POST /admin/employees` | Admin JWT | Create employee work profile (link `user_id`; V4 profile step) |
-| `POST /admin/employees/assign-manager` | Admin JWT | Assign employee to manager (`employee_user_id`, `manager_user_id`) |
-| `GET /admin/employees/{id}` | Admin JWT | Get employee profile |
-| `PATCH /admin/employees/{id}` | Admin JWT | Update department, designation, etc. |
-| `POST /admin/employees/{id}/deactivate` | Admin JWT | Deactivate profile; end allocations; block login |
-| `GET /admin/employees/{id}/skills` | Admin JWT | List employee skills |
-| `POST /admin/employees/{id}/skills` | Admin JWT | Add skill with category + proficiency |
-| `PATCH /admin/employees/{id}/skills/{skill_id}` | Admin JWT | Update proficiency |
-| `DELETE /admin/employees/{id}/skills/{skill_id}` | Admin JWT | Remove skill assignment |
+| `POST /admin/employees/assign-manager` | Admin JWT | Assign engineer to manager (`engineer_user_id`, `manager_user_id`) |
+| `GET /admin/employees/{user_id}` | Admin JWT | Get engineer profile |
+| `PATCH /admin/employees/{user_id}` | Admin JWT | Update department, designation, etc. |
+| `POST /admin/employees/{user_id}/deactivate` | Admin JWT | Deactivate profile; end allocations; block login |
+| `GET /admin/employees/{user_id}/skills` | Admin JWT | List user skills |
+| `POST /admin/employees/{user_id}/skills` | Admin JWT | Add skill with category + proficiency |
+| `PATCH /admin/employees/{user_id}/skills/{user_skill_id}` | Admin JWT | Update proficiency |
+| `DELETE /admin/employees/{user_id}/skills/{user_skill_id}` | Admin JWT | Remove skill assignment |
 
 ### Admin projects and milestones (BRD §3.2)
 
@@ -361,33 +370,33 @@ Requires an **EMPLOYEE** user with a linked employee profile and at least one **
 export TOKEN="YOUR_EMPLOYEE_ACCESS_TOKEN"
 
 # Allocations for a week (expected max hours per project)
-curl -s "http://localhost:8000/employee/allocations/for-week?week_start_date=2026-06-01" \
+curl -s "http://localhost:8000/engineer/allocations/for-week?week_start_date=2026-06-01" \
   -H "Authorization: Bearer $TOKEN"
 
 # My active allocations + total utilisation
-curl -s http://localhost:8000/employee/allocations \
+curl -s http://localhost:8000/engineer/allocations \
   -H "Authorization: Bearer $TOKEN"
 
 # Submit weekly timesheet
-curl -s -X POST http://localhost:8000/employee/timesheets \
+curl -s -X POST http://localhost:8000/engineer/timesheets \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"week_start_date":"2026-06-01","entries":[{"project_id":1,"hours_worked":18,"activity_tags":["MICROSERVICES","WEBSOCKET"]}]}'
 
 # Timesheet history and week detail
-curl -s http://localhost:8000/employee/timesheets \
+curl -s http://localhost:8000/engineer/timesheets \
   -H "Authorization: Bearer $TOKEN"
-curl -s http://localhost:8000/employee/timesheets/2026-06-01 \
+curl -s http://localhost:8000/engineer/timesheets/2026-06-01 \
   -H "Authorization: Bearer $TOKEN"
 ```
 
 | Endpoint | Auth | Purpose |
 |----------|------|---------|
-| `GET /employee/allocations/for-week` | Employee JWT | Week allocations + expected max hrs |
-| `GET /employee/allocations` | Employee JWT | My active allocations |
-| `POST /employee/timesheets` | Employee JWT | Submit a week |
-| `GET /employee/timesheets` | Employee JWT | My timesheet history |
-| `GET /employee/timesheets/{week_start_date}` | Employee JWT | Week detail |
+| `GET /engineer/allocations/for-week` | Engineer JWT | Week allocations + expected max hrs |
+| `GET /engineer/allocations` | Engineer JWT | My active allocations |
+| `POST /engineer/timesheets` | Engineer JWT | Submit a week |
+| `GET /engineer/timesheets` | Engineer JWT | My timesheet history |
+| `GET /engineer/timesheets/{week_start_date}` | Engineer JWT | Week detail |
 
 ### Background scheduler (BRD §4.1)
 
@@ -562,7 +571,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Manager allocation API | Done — resource dashboard, direct allocate/end (`/manager/resources`, `/manager/allocations/*`) |
 | Manager projects & timesheets API | Done — My Projects, health detail, team timesheets read-only (`/manager/projects`, `/manager/timesheets/*`) |
 | Manager LLM API | Done — skill match + risk summary (`/manager/projects/{id}/skill-match`, `/manager/projects/{id}/risk-summary`) |
-| Employee timesheets API | Done — submit week, view history, my allocations (`/employee/timesheets/*`, `/employee/allocations/*`) |
+| Engineer timesheets API | Done — submit week, view history, my allocations (`/engineer/timesheets/*`, `/engineer/allocations/*`) |
 | Background scheduler | Done — utilisation, project health, MISSED timesheets (`src/prm/scheduler/`, `SchedulerService`) |
 | Domain features | Phase 4 complete — console client next (PR #13+) |
 

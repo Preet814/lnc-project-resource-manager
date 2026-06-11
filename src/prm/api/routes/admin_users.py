@@ -9,7 +9,9 @@ from prm.api.deps import (
     get_db_session,
     get_user_management_service,
     require_admin,
+    require_permission,
 )
+from prm.domain.permission_codes import USER_CREATE, USER_DEACTIVATE, USER_RESET_PASSWORD
 from prm.api.schemas.admin_users import (
     CreateUserRequest,
     ResetPasswordRequest,
@@ -58,7 +60,7 @@ def _to_user_list_response(result: UserListResult) -> UserListResponse:
 @router.post("", response_model=UserResponse, status_code=201)
 def create_user(
     body: CreateUserRequest,
-    _admin: Annotated[JwtTokenPayload, Depends(require_admin)],
+    _admin: Annotated[JwtTokenPayload, Depends(require_permission(USER_CREATE))],
     service: Annotated[UserManagementService, Depends(get_user_management_service)],
     db: Annotated[Session, Depends(get_db_session)],
 ) -> UserResponse:
@@ -84,7 +86,7 @@ def list_users(
 @router.post("/reset-password", response_model=UserResponse)
 def reset_password(
     body: ResetPasswordRequest,
-    _admin: Annotated[JwtTokenPayload, Depends(require_admin)],
+    _admin: Annotated[JwtTokenPayload, Depends(require_permission(USER_RESET_PASSWORD))],
     service: Annotated[UserManagementService, Depends(get_user_management_service)],
     db: Annotated[Session, Depends(get_db_session)],
 ) -> UserResponse:
@@ -111,7 +113,7 @@ def reactivate_user(
 @router.post("/{user_id}/deactivate", response_model=UserResponse)
 def deactivate_user(
     user_id: int,
-    admin: Annotated[JwtTokenPayload, Depends(require_admin)],
+    admin: Annotated[JwtTokenPayload, Depends(require_permission(USER_DEACTIVATE))],
     service: Annotated[UserManagementService, Depends(get_user_management_service)],
     db: Annotated[Session, Depends(get_db_session)],
 ) -> UserResponse:

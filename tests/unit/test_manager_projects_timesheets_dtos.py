@@ -3,8 +3,8 @@
 from datetime import UTC, date, datetime
 
 from prm.domain.dtos import (
-    EmployeeTimesheetEntryDetail,
-    EmployeeTimesheetWeekDetail,
+    EngineerTimesheetEntryDetail,
+    EngineerTimesheetWeekDetail,
     ManagerProjectDetail,
     ManagerProjectListResult,
     ManagerProjectMilestoneRow,
@@ -63,8 +63,8 @@ def test_manager_project_detail_fields() -> None:
         ),
         allocated_resources=(
             ManagerProjectResourceRow(
-                employee_id=10,
-                employee_full_name="Ravi Kumar",
+                user_id=10,
+                user_full_name="Ravi Kumar",
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
                 to_date=date(2026, 6, 30),
@@ -74,22 +74,22 @@ def test_manager_project_detail_fields() -> None:
 
     assert detail.risk_flags[0].startswith("Backend API")
     assert detail.milestones[0].is_overdue is True
-    assert detail.allocated_resources[0].employee_full_name == "Ravi Kumar"
+    assert detail.allocated_resources[0].user_full_name == "Ravi Kumar"
 
 
 def test_team_timesheet_list_result_includes_missed() -> None:
     rows = (
         TeamTimesheetRow(
-            employee_id=10,
-            employee_full_name="Ravi Kumar",
+            user_id=10,
+            user_full_name="Ravi Kumar",
             project_id=1,
             project_name="Alpha Portal",
             hours=18,
             status=TimesheetWeekStatus.SUBMITTED,
         ),
         TeamTimesheetRow(
-            employee_id=12,
-            employee_full_name="Anil Mehta",
+            user_id=12,
+            user_full_name="Anil Mehta",
             project_id=3,
             project_name="Gamma Rewrite",
             hours=0,
@@ -108,20 +108,20 @@ def test_team_timesheet_list_result_includes_missed() -> None:
 
 
 def test_employee_timesheet_week_detail_fields() -> None:
-    detail = EmployeeTimesheetWeekDetail(
-        employee_id=10,
-        employee_full_name="Ravi Kumar",
+    detail = EngineerTimesheetWeekDetail(
+        user_id=10,
+        user_full_name="Ravi Kumar",
         week_start_date=date(2026, 5, 12),
         status=TimesheetWeekStatus.SUBMITTED,
         total_hours=38,
         entries=(
-            EmployeeTimesheetEntryDetail(
+            EngineerTimesheetEntryDetail(
                 project_id=1,
                 project_name="Alpha Portal",
                 hours_worked=18,
                 activity_tags=("Backend Api", "Microservices"),
             ),
-            EmployeeTimesheetEntryDetail(
+            EngineerTimesheetEntryDetail(
                 project_id=2,
                 project_name="Beta CRM",
                 hours_worked=20,

@@ -2,52 +2,49 @@
 
 from datetime import date
 
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON
 from sqlalchemy.orm import Session, sessionmaker
 
 from prm.domain.enums import ProjectStatus, Role
 from prm.infrastructure.db.models import (
-    AllocationModel,
-    EmployeeModel,
     MilestoneModel,
     ProjectHealthSnapshotModel,
     ProjectModel,
-    SystemConfigurationModel,
-    TimesheetWeekModel,
-    UserModel,
 )
 from prm.infrastructure.db.repositories import (
-    SqlAlchemyEmployeeRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySystemConfigurationRepository,
-    SqlAlchemyUserRepository,
 )
-from prm.infrastructure.security.password import BcryptPasswordHasher
 from prm.scheduler.runner import SchedulerRunner
+from tests.unit.engineer_fixtures import (
+    create_allocation_tables,
+    create_config_table,
+    create_memory_session,
+    create_timesheet_tables,
+    create_user,
+    seed_rbac,
+)
 
 
 def _session_factory() -> sessionmaker[Session]:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
-    TimesheetWeekModel.__table__.create(engine, checkfirst=True)
+    session = create_memory_session(include_project=True)
+    engine = session.get_bind()
+    create_allocation_tables(session)
+    create_config_table(session)
+    create_timesheet_tables(session)
     ProjectHealthSnapshotModel.__table__.c.risk_flags.type = JSON()
     ProjectHealthSnapshotModel.__table__.create(engine, checkfirst=True)
+    session.close()
     return sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
 def _seed_active_project(session: Session) -> None:
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
+    seed_rbac(session)
+    manager_id = create_user(
+        session,
         full_name="Manager User",
         username="manager",
         email="manager@example.test",
-        password_hash=hasher.hash("TempPass1"),
         role=Role.MANAGER,
     )
     SqlAlchemyProjectRepository(session).create(
@@ -56,21 +53,15 @@ def _seed_active_project(session: Session) -> None:
         start_date=date(2026, 3, 1),
         end_date=date(2026, 6, 30),
         status=ProjectStatus.ACTIVE,
-        manager_user_id=manager.id,
+        manager_user_id=manager_id,
     )
-    employee_user = user_repo.create(
-        full_name="Employee User",
+    create_user(
+        session,
+        full_name="Bench User",
         username="employee",
         email="employee@example.test",
-        password_hash=hasher.hash("TempPass1"),
-        role=Role.EMPLOYEE,
-    )
-    SqlAlchemyEmployeeRepository(session).create(
-        user_id=employee_user.id,
-        full_name="Bench User",
-        email="employee@example.test",
-        department="Backend",
-        designation="Developer",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
     SqlAlchemySystemConfigurationRepository(session).create_with_defaults()
     session.commit()

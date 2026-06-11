@@ -24,7 +24,7 @@ def _coerce_activity_tag(tag: ActivityTag | str) -> ActivityTag:
 def _week_to_domain(model: TimesheetWeekModel) -> TimesheetWeek:
     return TimesheetWeek(
         id=model.id,
-        employee_id=model.employee_id,
+        user_id=model.user_id,
         week_start_date=model.week_start_date,
         status=model.status,
         total_hours=model.total_hours,
@@ -50,7 +50,7 @@ class SqlAlchemyTimesheetRepository:
 
     def list_recent_activity_tags(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         weeks: int = 4,
         as_of: date | None = None,
@@ -59,7 +59,7 @@ class SqlAlchemyTimesheetRepository:
         cutoff = reference - timedelta(weeks=weeks)
         weeks_models = self._session.scalars(
             select(TimesheetWeekModel)
-            .where(TimesheetWeekModel.employee_id == employee_id)
+            .where(TimesheetWeekModel.user_id == user_id)
             .where(TimesheetWeekModel.week_start_date >= cutoff)
             .order_by(TimesheetWeekModel.week_start_date.desc())
         ).all()
@@ -75,14 +75,14 @@ class SqlAlchemyTimesheetRepository:
                         tags.append(label)
         return tags
 
-    def find_week_by_employee(
+    def find_week_by_user(
         self,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
     ) -> TimesheetWeek | None:
         model = self._session.scalar(
             select(TimesheetWeekModel)
-            .where(TimesheetWeekModel.employee_id == employee_id)
+            .where(TimesheetWeekModel.user_id == user_id)
             .where(TimesheetWeekModel.week_start_date == week_start_date)
         )
         return _week_to_domain(model) if model is not None else None
@@ -95,15 +95,15 @@ class SqlAlchemyTimesheetRepository:
         ).all()
         return [_entry_to_domain(model) for model in models]
 
-    def list_weeks_for_employee(
+    def list_weeks_for_user(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         limit: int | None = None,
     ) -> list[TimesheetWeek]:
         stmt = (
             select(TimesheetWeekModel)
-            .where(TimesheetWeekModel.employee_id == employee_id)
+            .where(TimesheetWeekModel.user_id == user_id)
             .order_by(TimesheetWeekModel.week_start_date.desc())
         )
         if limit is not None:
@@ -114,14 +114,14 @@ class SqlAlchemyTimesheetRepository:
     def create_week_with_entries(
         self,
         *,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
         total_hours: int,
         submitted_at: datetime,
         entries: tuple[NewTimesheetEntry, ...],
     ) -> TimesheetWeek:
         week_model = TimesheetWeekModel(
-            employee_id=employee_id,
+            user_id=user_id,
             week_start_date=week_start_date,
             status=TimesheetWeekStatus.SUBMITTED,
             total_hours=total_hours,
@@ -147,11 +147,11 @@ class SqlAlchemyTimesheetRepository:
     def create_missed_week(
         self,
         *,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
     ) -> TimesheetWeek:
         week_model = TimesheetWeekModel(
-            employee_id=employee_id,
+            user_id=user_id,
             week_start_date=week_start_date,
             status=TimesheetWeekStatus.MISSED,
             total_hours=0,

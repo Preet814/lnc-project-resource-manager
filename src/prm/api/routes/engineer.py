@@ -1,4 +1,4 @@
-"""Employee timesheet and allocation endpoints (BRD Screen 5)."""
+"""Engineer timesheet and allocation endpoints (BRD Screen 5)."""
 
 from datetime import date
 from typing import Annotated
@@ -8,11 +8,11 @@ from sqlalchemy.orm import Session
 
 from prm.api.deps import (
     get_db_session,
-    get_employee_allocation_service,
-    get_employee_timesheet_service,
-    require_employee,
+    get_engineer_allocation_service,
+    get_engineer_timesheet_service,
+    require_engineer,
 )
-from prm.api.schemas.employee import (
+from prm.api.schemas.engineer import (
     MyAllocationRowResponse,
     MyAllocationsResponse,
     MyTimesheetEntryResponse,
@@ -24,8 +24,8 @@ from prm.api.schemas.employee import (
     WeekAllocationRowResponse,
     WeekAllocationsResponse,
 )
-from prm.application.employee_allocation_service import EmployeeAllocationService
-from prm.application.employee_timesheet_service import EmployeeTimesheetService
+from prm.application.engineer_allocation_service import EngineerAllocationService
+from prm.application.engineer_timesheet_service import EngineerTimesheetService
 from prm.domain.dtos import (
     MyAllocationsResult,
     MyTimesheetListResult,
@@ -38,7 +38,7 @@ from prm.domain.dtos import (
 from prm.domain.week_calendar import week_start_on_or_before
 from prm.infrastructure.security.jwt import JwtTokenPayload
 
-router = APIRouter(prefix="/employee", tags=["employee"])
+router = APIRouter(prefix="/engineer", tags=["engineer"])
 
 
 def _default_week_start() -> date:
@@ -122,21 +122,21 @@ def _to_my_timesheet_detail_response(
 
 @router.get("/allocations/for-week", response_model=WeekAllocationsResponse)
 def list_allocations_for_week(
-    employee: Annotated[JwtTokenPayload, Depends(require_employee)],
-    service: Annotated[EmployeeAllocationService, Depends(get_employee_allocation_service)],
+    engineer: Annotated[JwtTokenPayload, Depends(require_engineer)],
+    service: Annotated[EngineerAllocationService, Depends(get_engineer_allocation_service)],
     week_start_date: Annotated[date | None, Query()] = None,
 ) -> WeekAllocationsResponse:
     week = week_start_date or _default_week_start()
-    result = service.list_allocations_for_week(employee.user_id, week)
+    result = service.list_allocations_for_week(engineer.user_id, week)
     return _to_week_allocations_response(result)
 
 
 @router.get("/allocations", response_model=MyAllocationsResponse)
 def list_my_allocations(
-    employee: Annotated[JwtTokenPayload, Depends(require_employee)],
-    service: Annotated[EmployeeAllocationService, Depends(get_employee_allocation_service)],
+    engineer: Annotated[JwtTokenPayload, Depends(require_engineer)],
+    service: Annotated[EngineerAllocationService, Depends(get_engineer_allocation_service)],
 ) -> MyAllocationsResponse:
-    result = service.list_my_allocations(employee.user_id)
+    result = service.list_my_allocations(engineer.user_id)
     return _to_my_allocations_response(result)
 
 
@@ -147,8 +147,8 @@ def list_my_allocations(
 )
 def submit_timesheet(
     body: SubmitTimesheetRequest,
-    employee: Annotated[JwtTokenPayload, Depends(require_employee)],
-    service: Annotated[EmployeeTimesheetService, Depends(get_employee_timesheet_service)],
+    engineer: Annotated[JwtTokenPayload, Depends(require_engineer)],
+    service: Annotated[EngineerTimesheetService, Depends(get_engineer_timesheet_service)],
     db: Annotated[Session, Depends(get_db_session)],
 ) -> SubmittedTimesheetResponse:
     command = SubmitTimesheetCommand(
@@ -162,25 +162,25 @@ def submit_timesheet(
             for entry in body.entries
         ),
     )
-    result = service.submit_week(employee.user_id, command)
+    result = service.submit_week(engineer.user_id, command)
     db.commit()
     return _to_submitted_response(result)
 
 
 @router.get("/timesheets", response_model=MyTimesheetListResponse)
 def list_my_timesheets(
-    employee: Annotated[JwtTokenPayload, Depends(require_employee)],
-    service: Annotated[EmployeeTimesheetService, Depends(get_employee_timesheet_service)],
+    engineer: Annotated[JwtTokenPayload, Depends(require_engineer)],
+    service: Annotated[EngineerTimesheetService, Depends(get_engineer_timesheet_service)],
 ) -> MyTimesheetListResponse:
-    result = service.list_my_timesheets(employee.user_id)
+    result = service.list_my_timesheets(engineer.user_id)
     return _to_my_timesheet_list_response(result)
 
 
 @router.get("/timesheets/{week_start_date}", response_model=MyTimesheetWeekDetailResponse)
 def get_my_timesheet_detail(
     week_start_date: date,
-    employee: Annotated[JwtTokenPayload, Depends(require_employee)],
-    service: Annotated[EmployeeTimesheetService, Depends(get_employee_timesheet_service)],
+    engineer: Annotated[JwtTokenPayload, Depends(require_engineer)],
+    service: Annotated[EngineerTimesheetService, Depends(get_engineer_timesheet_service)],
 ) -> MyTimesheetWeekDetailResponse:
-    detail = service.get_my_timesheet_detail(employee.user_id, week_start_date)
+    detail = service.get_my_timesheet_detail(engineer.user_id, week_start_date)
     return _to_my_timesheet_detail_response(detail)

@@ -12,15 +12,14 @@ from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.jwt import JwtTokenService
 from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import create_memory_session
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 
 JWT_SECRET = "auth-service-test-secret"
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return create_memory_session()
 
 
 def _auth_service(session: Session) -> AuthService:

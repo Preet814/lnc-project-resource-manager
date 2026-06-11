@@ -1,12 +1,12 @@
-"""Employee allocation views for timesheet submit and history (BRD Screen 5.1, 5.3)."""
+"""Engineer allocation views for timesheet submit and history (BRD Screen 5.1, 5.3)."""
 
 from datetime import date
 
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     ProjectRepository,
     SystemConfigurationRepository,
+    UserRepository,
 )
 from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS
 from prm.domain.dtos import (
@@ -15,22 +15,22 @@ from prm.domain.dtos import (
     WeekAllocationRow,
     WeekAllocationsResult,
 )
-from prm.domain.entities.employee import Employee
+from prm.domain.entities.user import User
 from prm.domain.exceptions import NotFoundError
 from prm.domain.week_calendar import assert_monday_week_start, week_end
 
 
-class EmployeeAllocationService:
-    """Read-only allocation views for the logged-in employee."""
+class EngineerAllocationService:
+    """Read-only allocation views for the logged-in engineer."""
 
     def __init__(
         self,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         allocation_repository: AllocationRepository,
         project_repository: ProjectRepository,
         config_repository: SystemConfigurationRepository,
     ) -> None:
-        self._employees = employee_repository
+        self._users = user_repository
         self._allocations = allocation_repository
         self._projects = project_repository
         self._config = config_repository
@@ -40,14 +40,14 @@ class EmployeeAllocationService:
         user_id: int,
         week_start_date: date,
     ) -> WeekAllocationsResult:
-        employee = self._require_employee(user_id)
+        engineer = self._require_engineer(user_id)
         assert_monday_week_start(week_start_date)
 
         max_weekly_hours = self._max_weekly_hours()
         period_end = week_end(week_start_date)
         rows: list[WeekAllocationRow] = []
 
-        for allocation in self._allocations.find_active_by_employee(employee.id):
+        for allocation in self._allocations.find_active_by_user(engineer.id):
             if not allocation.overlaps_period(week_start_date, period_end):
                 continue
             rows.append(
@@ -69,11 +69,11 @@ class EmployeeAllocationService:
         )
 
     def list_my_allocations(self, user_id: int) -> MyAllocationsResult:
-        employee = self._require_employee(user_id)
+        engineer = self._require_engineer(user_id)
         rows: list[MyAllocationRow] = []
         total_utilisation = 0
 
-        for allocation in self._allocations.find_active_by_employee(employee.id):
+        for allocation in self._allocations.find_active_by_user(engineer.id):
             rows.append(
                 MyAllocationRow(
                     project_id=allocation.project_id,
@@ -92,11 +92,11 @@ class EmployeeAllocationService:
             total_utilisation_percent=total_utilisation,
         )
 
-    def _require_employee(self, user_id: int) -> Employee:
-        employee = self._employees.find_by_user_id(user_id)
-        if employee is None:
-            raise NotFoundError("Employee profile not found for this user.")
-        return employee
+    def _require_engineer(self, user_id: int) -> User:
+        user = self._users.find_by_id(user_id)
+        if user is None or not user.is_engineer():
+            raise NotFoundError("Engineer profile not found for this user.")
+        return user
 
     def _max_weekly_hours(self) -> int:
         config = self._config.find_singleton()

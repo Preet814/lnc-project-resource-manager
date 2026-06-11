@@ -7,8 +7,8 @@ from pydantic import BaseModel
 
 class AllocationSummaryResponse(BaseModel):
     allocation_id: int
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     project_id: int
     project_name: str
     utilisation_percent: int

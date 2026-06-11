@@ -5,12 +5,12 @@ from datetime import UTC, date, datetime, timedelta
 from prm.application.health_rule_engine import HealthRuleEngine
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
     MilestoneRepository,
     ProjectHealthSnapshotRepository,
     ProjectRepository,
     SystemConfigurationRepository,
     TimesheetRepository,
+    UserRepository,
 )
 from prm.application.utilisation_calculator import UtilisationCalculator
 from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, SCHEDULER_MISSED_LOOKBACK_WEEKS
@@ -21,7 +21,7 @@ from prm.domain.dtos import (
     SchedulerRunResult,
 )
 from prm.domain.entities.allocation import Allocation
-from prm.domain.enums import EmployeeWorkStatus, ProjectStatus, TimesheetWeekStatus
+from prm.domain.enums import ProjectStatus, ResourceWorkStatus, TimesheetWeekStatus
 from prm.domain.week_calendar import week_end, week_start_on_or_before
 
 
@@ -30,7 +30,7 @@ class SchedulerService:
 
     def __init__(
         self,
-        employee_repository: EmployeeRepository,
+        user_repository: UserRepository,
         allocation_repository: AllocationRepository,
         project_repository: ProjectRepository,
         milestone_repository: MilestoneRepository,
@@ -42,7 +42,7 @@ class SchedulerService:
         *,
         missed_lookback_weeks: int = SCHEDULER_MISSED_LOOKBACK_WEEKS,
     ) -> None:
-        self._employees = employee_repository
+        self._users = user_repository
         self._allocations = allocation_repository
         self._projects = project_repository
         self._milestones = milestone_repository
@@ -55,19 +55,19 @@ class SchedulerService:
 
     def run_all_jobs(self, as_of: date | None = None) -> SchedulerRunResult:
         reference = as_of or date.today()
-        employees_synced = self.recompute_utilisation_and_status(reference)
+        engineers_synced = self.recompute_utilisation_and_status(reference)
         projects_evaluated = self.recompute_project_health(reference)
         missed_weeks_created = self.flag_missed_timesheets(reference)
         return SchedulerRunResult(
-            employees_synced=employees_synced,
+            engineers_synced=engineers_synced,
             projects_evaluated=projects_evaluated,
             missed_weeks_created=missed_weeks_created,
         )
 
     def recompute_utilisation_and_status(self, as_of: date) -> int:
         synced = 0
-        for employee in self._employees.list_all(active_only=True):
-            self._sync_employee_utilisation(employee.id, as_of)
+        for engineer in self._users.list_engineers(active_only=True):
+            self._sync_user_utilisation(engineer.id, as_of)
             synced += 1
         return synced
 
@@ -99,8 +99,8 @@ class SchedulerService:
         if last_completed_week is None:
             return 0
 
-        for employee in self._employees.list_all(active_only=True):
-            allocations = self._allocations.list_by_employee(employee.id)
+        for engineer in self._users.list_engineers(active_only=True):
+            allocations = self._allocations.list_by_user(engineer.id)
             if not allocations:
                 continue
 
@@ -114,11 +114,11 @@ class SchedulerService:
                     for allocation in allocations
                 ):
                     continue
-                if self._timesheets.find_week_by_employee(employee.id, week_start) is not None:
+                if self._timesheets.find_week_by_user(engineer.id, week_start) is not None:
                     continue
 
                 self._timesheets.create_missed_week(
-                    employee_id=employee.id,
+                    user_id=engineer.id,
                     week_start_date=week_start,
                 )
                 created += 1
@@ -149,13 +149,13 @@ class SchedulerService:
                     allocation.utilisation_percent * max_weekly_hours
                 ) // 100
                 hours_logged = self._hours_logged_on_project(
-                    allocation.employee_id,
+                    allocation.user_id,
                     project_id,
                     last_week_start,
                 )
                 timesheet_facts.append(
                     HealthTimesheetFact(
-                        employee_full_name=self._employee_name(allocation.employee_id),
+                        user_full_name=self._user_name(allocation.user_id),
                         hours_logged=hours_logged,
                         expected_hours=expected_hours,
                     )
@@ -168,26 +168,26 @@ class SchedulerService:
             has_active_allocations=bool(allocations),
         )
 
-    def _sync_employee_utilisation(self, employee_id: int, as_of: date) -> None:
-        utilisation = self._utilisation.compute_utilisation_on(employee_id, as_of)
+    def _sync_user_utilisation(self, user_id: int, as_of: date) -> None:
+        utilisation = self._utilisation.compute_utilisation_on(user_id, as_of)
         work_status = (
-            EmployeeWorkStatus.BENCH
+            ResourceWorkStatus.BENCH
             if utilisation == 0
-            else EmployeeWorkStatus.ALLOCATED
+            else ResourceWorkStatus.ALLOCATED
         )
-        self._employees.update_utilisation_and_status(
-            employee_id,
-            current_utilisation_percent=utilisation,
+        self._users.update_resource_status(
+            user_id,
+            utilisation_percent=utilisation,
             work_status=work_status,
         )
 
     def _hours_logged_on_project(
         self,
-        employee_id: int,
+        user_id: int,
         project_id: int,
         week_start_date: date,
     ) -> int:
-        week = self._timesheets.find_week_by_employee(employee_id, week_start_date)
+        week = self._timesheets.find_week_by_user(user_id, week_start_date)
         if week is None or week.status == TimesheetWeekStatus.MISSED:
             return 0
 
@@ -196,11 +196,11 @@ class SchedulerService:
                 return entry.hours_worked
         return 0
 
-    def _employee_name(self, employee_id: int) -> str:
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None:
+    def _user_name(self, user_id: int) -> str:
+        user = self._users.find_by_id(user_id)
+        if user is None:
             return "Unknown"
-        return employee.full_name
+        return user.full_name
 
     def _max_weekly_hours(self) -> int:
         config = self._config.find_singleton()

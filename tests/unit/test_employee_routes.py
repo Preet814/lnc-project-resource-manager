@@ -1,11 +1,11 @@
-"""Unit tests for employee timesheet and allocation HTTP endpoints."""
+"""Unit tests for engineer timesheet and allocation HTTP endpoints."""
 
 from collections.abc import Generator
 from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON, create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -13,21 +13,21 @@ from prm.api.app import create_app
 from prm.domain.enums import AllocationStatus, Role
 from prm.infrastructure.db.models import (
     AllocationModel,
-    EmployeeModel,
+    DepartmentModel,
+    DesignationModel,
     ProjectModel,
+    ResourceStatusModel,
+    RoleModel,
     SystemConfigurationModel,
     TimesheetEntryModel,
     TimesheetWeekModel,
     UserModel,
 )
-from prm.infrastructure.db.repositories import (
-    SqlAlchemyEmployeeRepository,
-    SqlAlchemyUserRepository,
-)
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_user
 
 MANAGER_USERNAME = "employee_routes_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -38,6 +38,25 @@ EMPLOYEE_EMAIL = "employee_routes_user@example.test"
 WEEK_START = date(2026, 5, 11)
 
 
+def _create_route_tables(engine) -> None:
+    from tests.unit.engineer_fixtures import create_route_tables as _create_tables
+
+    _create_tables(
+        engine,
+        include_project=True,
+        include_allocation=True,
+        include_timesheet=True,
+        include_config=True,
+    )
+
+
+def _set_login_password(session: Session, *, username: str, password: str) -> None:
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    assert model is not None
+    model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     engine = create_engine(
@@ -45,14 +64,7 @@ def client() -> Generator[TestClient, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
-    TimesheetWeekModel.__table__.create(engine, checkfirst=True)
-    TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
-    TimesheetEntryModel.__table__.create(engine, checkfirst=True)
+    _create_route_tables(engine)
 
     with Session(engine) as setup:
         seed_bootstrap_admin(
@@ -63,48 +75,42 @@ def client() -> Generator[TestClient, None, None]:
             email=TEST_EMAIL,
         )
         seed_default_system_configuration(setup)
-        user_repo = SqlAlchemyUserRepository(setup)
-        hasher = BcryptPasswordHasher()
-        manager = user_repo.create(
+        manager_id = create_user(
+            setup,
             full_name="Test Manager",
             username=MANAGER_USERNAME,
             email=MANAGER_EMAIL,
-            password_hash=hasher.hash(MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
-        employee_user = user_repo.create(
+        user_id = create_user(
+            setup,
             full_name="Ravi Kumar",
             username=EMPLOYEE_USERNAME,
             email=EMPLOYEE_EMAIL,
-            password_hash=hasher.hash(EMPLOYEE_PASSWORD),
-            role=Role.EMPLOYEE,
-            force_password_change=False,
+            role=Role.ENGINEER,
+            manager_id=manager_id,
         )
-        employee = SqlAlchemyEmployeeRepository(setup).create(
-            user_id=employee_user.id,
-            full_name="Ravi Kumar",
-            email=EMPLOYEE_EMAIL,
-            department="Backend",
-            designation="Developer",
-        )
+        _set_login_password(setup, username=MANAGER_USERNAME, password=MANAGER_PASSWORD)
+        _set_login_password(setup, username=EMPLOYEE_USERNAME, password=EMPLOYEE_PASSWORD)
         project = ProjectModel(
             name="Alpha Portal",
             description="Test project",
             start_date=date(2026, 1, 1),
-            manager_user_id=manager.id,
+            manager_user_id=manager_id,
         )
         setup.add(project)
         setup.flush()
         setup.add(
             AllocationModel(
-                employee_id=employee.id,
+                user_id=user_id,
                 project_id=project.id,
                 utilisation_percent=50,
                 from_date=date(2026, 1, 1),
                 to_date=date(2026, 12, 31),
                 status=AllocationStatus.ACTIVE,
-                created_by_user_id=manager.id,
+                created_by_user_id=manager_id,
             )
         )
         setup.commit()
@@ -134,7 +140,7 @@ def _login_token(client: TestClient, *, username: str, password: str) -> str:
     return response.json()["access_token"]
 
 
-def _employee_headers(client: TestClient) -> dict[str, str]:
+def _engineer_headers(client: TestClient) -> dict[str, str]:
     token = _login_token(client, username=EMPLOYEE_USERNAME, password=EMPLOYEE_PASSWORD)
     return {"Authorization": f"Bearer {token}"}
 
@@ -146,7 +152,7 @@ def _manager_headers(client: TestClient) -> dict[str, str]:
 
 def test_submit_timesheet_requires_bearer_token(client: TestClient) -> None:
     response = client.post(
-        "/employee/timesheets",
+        "/engineer/timesheets",
         json={
             "week_start_date": WEEK_START.isoformat(),
             "entries": [],
@@ -157,7 +163,7 @@ def test_submit_timesheet_requires_bearer_token(client: TestClient) -> None:
 
 def test_submit_timesheet_returns_403_for_manager(client: TestClient) -> None:
     response = client.post(
-        "/employee/timesheets",
+        "/engineer/timesheets",
         headers=_manager_headers(client),
         json={
             "week_start_date": WEEK_START.isoformat(),
@@ -175,8 +181,8 @@ def test_submit_timesheet_returns_403_for_manager(client: TestClient) -> None:
 
 def test_list_allocations_for_week_returns_expected_max_hours(client: TestClient) -> None:
     response = client.get(
-        "/employee/allocations/for-week",
-        headers=_employee_headers(client),
+        "/engineer/allocations/for-week",
+        headers=_engineer_headers(client),
         params={"week_start_date": WEEK_START.isoformat()},
     )
 
@@ -190,7 +196,7 @@ def test_list_allocations_for_week_returns_expected_max_hours(client: TestClient
 
 
 def test_list_my_allocations_returns_active_rows(client: TestClient) -> None:
-    response = client.get("/employee/allocations", headers=_employee_headers(client))
+    response = client.get("/engineer/allocations", headers=_engineer_headers(client))
 
     assert response.status_code == 200
     body = response.json()
@@ -201,8 +207,8 @@ def test_list_my_allocations_returns_active_rows(client: TestClient) -> None:
 
 def test_submit_timesheet_creates_submitted_week(client: TestClient) -> None:
     response = client.post(
-        "/employee/timesheets",
-        headers=_employee_headers(client),
+        "/engineer/timesheets",
+        headers=_engineer_headers(client),
         json={
             "week_start_date": WEEK_START.isoformat(),
             "entries": [
@@ -223,7 +229,7 @@ def test_submit_timesheet_creates_submitted_week(client: TestClient) -> None:
 
 
 def test_submit_timesheet_returns_400_for_duplicate_week(client: TestClient) -> None:
-    headers = _employee_headers(client)
+    headers = _engineer_headers(client)
     payload = {
         "week_start_date": WEEK_START.isoformat(),
         "entries": [
@@ -234,18 +240,18 @@ def test_submit_timesheet_returns_400_for_duplicate_week(client: TestClient) -> 
             }
         ],
     }
-    first = client.post("/employee/timesheets", headers=headers, json=payload)
+    first = client.post("/engineer/timesheets", headers=headers, json=payload)
     assert first.status_code == 201
 
-    duplicate = client.post("/employee/timesheets", headers=headers, json=payload)
+    duplicate = client.post("/engineer/timesheets", headers=headers, json=payload)
     assert duplicate.status_code == 400
     assert "already exists" in duplicate.json()["detail"]
 
 
 def test_submit_timesheet_returns_400_for_non_monday(client: TestClient) -> None:
     response = client.post(
-        "/employee/timesheets",
-        headers=_employee_headers(client),
+        "/engineer/timesheets",
+        headers=_engineer_headers(client),
         json={
             "week_start_date": "2026-05-12",
             "entries": [
@@ -262,9 +268,9 @@ def test_submit_timesheet_returns_400_for_non_monday(client: TestClient) -> None
 
 
 def test_list_my_timesheets_returns_submitted_week(client: TestClient) -> None:
-    headers = _employee_headers(client)
+    headers = _engineer_headers(client)
     client.post(
-        "/employee/timesheets",
+        "/engineer/timesheets",
         headers=headers,
         json={
             "week_start_date": WEEK_START.isoformat(),
@@ -278,7 +284,7 @@ def test_list_my_timesheets_returns_submitted_week(client: TestClient) -> None:
         },
     )
 
-    response = client.get("/employee/timesheets", headers=headers)
+    response = client.get("/engineer/timesheets", headers=headers)
 
     assert response.status_code == 200
     body = response.json()
@@ -288,9 +294,9 @@ def test_list_my_timesheets_returns_submitted_week(client: TestClient) -> None:
 
 
 def test_get_my_timesheet_detail_returns_entries(client: TestClient) -> None:
-    headers = _employee_headers(client)
+    headers = _engineer_headers(client)
     client.post(
-        "/employee/timesheets",
+        "/engineer/timesheets",
         headers=headers,
         json={
             "week_start_date": WEEK_START.isoformat(),
@@ -305,7 +311,7 @@ def test_get_my_timesheet_detail_returns_entries(client: TestClient) -> None:
     )
 
     response = client.get(
-        f"/employee/timesheets/{WEEK_START.isoformat()}",
+        f"/engineer/timesheets/{WEEK_START.isoformat()}",
         headers=headers,
     )
 
@@ -319,7 +325,7 @@ def test_get_my_timesheet_detail_returns_entries(client: TestClient) -> None:
 
 def test_get_my_timesheet_detail_returns_404_when_missing(client: TestClient) -> None:
     response = client.get(
-        f"/employee/timesheets/{WEEK_START.isoformat()}",
-        headers=_employee_headers(client),
+        f"/engineer/timesheets/{WEEK_START.isoformat()}",
+        headers=_engineer_headers(client),
     )
     assert response.status_code == 404

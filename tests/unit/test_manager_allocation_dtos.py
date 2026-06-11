@@ -3,28 +3,28 @@
 from datetime import date
 
 from prm.domain.dtos import (
-    ActiveEmployeeSummary,
-    BenchEmployeeSummary,
-    EmployeeAllocationDetail,
-    EmployeeResourceDetail,
+    ActiveEngineerSummary,
+    BenchEngineerSummary,
+    EngineerAllocationDetail,
+    EngineerResourceDetail,
     ResourceDashboardResult,
 )
-from prm.domain.enums import EmployeeWorkStatus
+from prm.domain.enums import ResourceWorkStatus
 
 
 def test_resource_dashboard_result_counts() -> None:
     result = ResourceDashboardResult(
         on_bench=(
-            BenchEmployeeSummary(
-                employee_id=1,
+            BenchEngineerSummary(
+                user_id=1,
                 full_name="Priya Sharma",
                 department="Frontend",
                 skill_names=("React",),
             ),
         ),
         active=(
-            ActiveEmployeeSummary(
-                employee_id=2,
+            ActiveEngineerSummary(
+                user_id=2,
                 full_name="Neha Joshi",
                 utilisation_percent=75,
                 availability_percent=25,
@@ -40,15 +40,15 @@ def test_resource_dashboard_result_counts() -> None:
 
 
 def test_employee_resource_detail_fields() -> None:
-    detail = EmployeeResourceDetail(
-        employee_id=2,
+    detail = EngineerResourceDetail(
+        user_id=2,
         full_name="Ravi Kumar",
         department="Backend",
-        work_status=EmployeeWorkStatus.ALLOCATED,
+        work_status=ResourceWorkStatus.ALLOCATED,
         current_utilisation_percent=100,
         profile_skills=("Java", "Spring Boot"),
         active_allocations=(
-            EmployeeAllocationDetail(
+            EngineerAllocationDetail(
                 project_name="Alpha Portal",
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
@@ -58,5 +58,5 @@ def test_employee_resource_detail_fields() -> None:
         recent_activity_tags=("Microservices",),
     )
 
-    assert detail.work_status == EmployeeWorkStatus.ALLOCATED
+    assert detail.work_status == ResourceWorkStatus.ALLOCATED
     assert detail.active_allocations[0].project_name == "Alpha Portal"
