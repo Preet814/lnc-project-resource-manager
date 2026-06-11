@@ -15,5 +15,5 @@ def run_role_menu(client: PrmApiClient, session: UserSession) -> str:
     if session.role == Role.MANAGER:
         return manager_menu.run(client, session)
     if session.role == Role.ENGINEER:
-        return engineer_menu.run(session)
+        return engineer_menu.run(client, session)
     return "logout"

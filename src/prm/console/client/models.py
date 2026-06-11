@@ -306,3 +306,70 @@ class ManagerAllocation:
     from_date: date
     to_date: date | None
     status: AllocationStatus
+
+
+@dataclass(frozen=True)
+class WeekAllocationRow:
+    project_id: int
+    project_name: str
+    utilisation_percent: int
+    expected_max_hours: int
+
+
+@dataclass(frozen=True)
+class WeekAllocations:
+    week_start_date: date
+    max_weekly_hours: int
+    allocations: tuple[WeekAllocationRow, ...]
+
+
+@dataclass(frozen=True)
+class MyAllocationRow:
+    project_id: int
+    project_name: str
+    utilisation_percent: int
+    from_date: date
+    to_date: date | None
+    status: AllocationStatus
+
+
+@dataclass(frozen=True)
+class MyAllocations:
+    allocations: tuple[MyAllocationRow, ...]
+    total_utilisation_percent: int
+
+
+@dataclass(frozen=True)
+class MyTimesheetWeekSummary:
+    week_start_date: date
+    total_hours: int
+    status: TimesheetWeekStatus
+
+
+@dataclass(frozen=True)
+class MyTimesheetList:
+    weeks: tuple[MyTimesheetWeekSummary, ...]
+    total: int
+
+
+@dataclass(frozen=True)
+class MyTimesheetEntry:
+    project_id: int
+    project_name: str
+    hours_worked: int
+    activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class MyTimesheetWeekDetail:
+    week_start_date: date
+    status: TimesheetWeekStatus
+    total_hours: int
+    entries: tuple[MyTimesheetEntry, ...]
+
+
+@dataclass(frozen=True)
+class SubmittedTimesheet:
+    week_start_date: date
+    status: TimesheetWeekStatus
+    total_hours: int

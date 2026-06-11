@@ -5,7 +5,7 @@ from __future__ import annotations
 import getpass
 
 
-def read_line(prompt: str) -> str:
+def read_line(prompt: str = "") -> str:
     try:
         return input(prompt).strip()
     except (EOFError, KeyboardInterrupt):

@@ -29,6 +29,12 @@ from prm.console.client.models import (
     ManagerProjectSummary,
     Milestone,
     MilestoneList,
+    MyAllocationRow,
+    MyAllocations,
+    MyTimesheetEntry,
+    MyTimesheetList,
+    MyTimesheetWeekDetail,
+    MyTimesheetWeekSummary,
     ProjectDetail,
     ProjectList,
     ProjectSummary,
@@ -36,12 +42,15 @@ from prm.console.client.models import (
     RiskSummary,
     SkillMatchList,
     SkillMatchResult,
+    SubmittedTimesheet,
     SystemConfig,
     TeamTimesheetList,
     TeamTimesheetRow,
     UserList,
     UserSkill,
     UserSummary,
+    WeekAllocationRow,
+    WeekAllocations,
 )
 from prm.domain.enums import (
     AllocationStatus,
@@ -834,6 +843,123 @@ class PrmApiClient:
                 for item in body["rows"]
             ),
             total=body["total"],
+        )
+
+    def list_allocations_for_week(
+        self,
+        access_token: str,
+        *,
+        week_start_date: date | None = None,
+    ) -> WeekAllocations:
+        params = (
+            {"week_start_date": week_start_date.isoformat()}
+            if week_start_date is not None
+            else None
+        )
+        body = self._request(
+            "GET",
+            "/engineer/allocations/for-week",
+            params=params,
+            headers=self._auth_header(access_token),
+        )
+        return WeekAllocations(
+            week_start_date=date.fromisoformat(body["week_start_date"]),
+            max_weekly_hours=body["max_weekly_hours"],
+            allocations=tuple(
+                WeekAllocationRow(
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    expected_max_hours=item["expected_max_hours"],
+                )
+                for item in body["allocations"]
+            ),
+        )
+
+    def list_my_allocations(self, access_token: str) -> MyAllocations:
+        body = self._request(
+            "GET",
+            "/engineer/allocations",
+            headers=self._auth_header(access_token),
+        )
+        return MyAllocations(
+            allocations=tuple(
+                MyAllocationRow(
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    utilisation_percent=item["utilisation_percent"],
+                    from_date=date.fromisoformat(item["from_date"]),
+                    to_date=self._parse_optional_date(item.get("to_date")),
+                    status=AllocationStatus(item["status"]),
+                )
+                for item in body["allocations"]
+            ),
+            total_utilisation_percent=body["total_utilisation_percent"],
+        )
+
+    def submit_timesheet(
+        self,
+        access_token: str,
+        *,
+        week_start_date: date,
+        entries: list[dict[str, object]],
+    ) -> SubmittedTimesheet:
+        body = self._request(
+            "POST",
+            "/engineer/timesheets",
+            json={
+                "week_start_date": week_start_date.isoformat(),
+                "entries": entries,
+            },
+            headers=self._auth_header(access_token),
+        )
+        return SubmittedTimesheet(
+            week_start_date=date.fromisoformat(body["week_start_date"]),
+            status=TimesheetWeekStatus(body["status"]),
+            total_hours=body["total_hours"],
+        )
+
+    def list_my_timesheets(self, access_token: str) -> MyTimesheetList:
+        body = self._request(
+            "GET",
+            "/engineer/timesheets",
+            headers=self._auth_header(access_token),
+        )
+        return MyTimesheetList(
+            weeks=tuple(
+                MyTimesheetWeekSummary(
+                    week_start_date=date.fromisoformat(item["week_start_date"]),
+                    total_hours=item["total_hours"],
+                    status=TimesheetWeekStatus(item["status"]),
+                )
+                for item in body["weeks"]
+            ),
+            total=body["total"],
+        )
+
+    def get_my_timesheet_detail(
+        self,
+        access_token: str,
+        week_start_date: date,
+    ) -> MyTimesheetWeekDetail:
+        body = self._request(
+            "GET",
+            f"/engineer/timesheets/{week_start_date.isoformat()}",
+            headers=self._auth_header(access_token),
+        )
+        return MyTimesheetWeekDetail(
+            week_start_date=date.fromisoformat(body["week_start_date"]),
+            status=TimesheetWeekStatus(body["status"]),
+            total_hours=body["total_hours"],
+            entries=tuple(
+                MyTimesheetEntry(
+                    project_id=item["project_id"],
+                    project_name=item["project_name"],
+                    hours_worked=item["hours_worked"],
+                    activity_tags=tuple(item["activity_tags"]),
+                )
+                for item in body["entries"]
+            ),
         )
 
     def get_engineer_timesheet_detail(
