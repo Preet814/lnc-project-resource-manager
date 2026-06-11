@@ -3,7 +3,6 @@
 from datetime import UTC, date, datetime
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.application.authorization_service import AuthorizationService
@@ -19,22 +18,20 @@ from prm.domain.enums import (
     TimesheetWeekStatus,
 )
 from prm.domain.exceptions import UnauthorizedError
-from prm.infrastructure.db.models import (
-    AllocationModel,
-    EmployeeModel,
-    MilestoneModel,
-    ProjectModel,
-    UserModel,
-)
+from prm.infrastructure.db.models import AllocationModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
     SqlAlchemyMilestoneRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyUserRepository,
 )
 from prm.infrastructure.llm.fake_client import FakeLlmClient
-from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import (
+    create_allocation_tables,
+    create_memory_session,
+    create_user,
+    seed_rbac,
+)
 
 
 class _FakeHealthSnapshotRepository:
@@ -58,20 +55,20 @@ class _FakeTimesheetRepository:
 
     def list_recent_activity_tags(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         weeks: int = 4,
         as_of: date | None = None,
     ) -> list[str]:
-        _ = employee_id, weeks, as_of
+        _ = user_id, weeks, as_of
         return []
 
-    def find_week_by_employee(
+    def find_week_by_user(
         self,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
     ) -> TimesheetWeek | None:
-        _ = employee_id, week_start_date
+        _ = user_id, week_start_date
         return self._week
 
     def list_entries_for_week(self, timesheet_week_id: int) -> list[TimesheetEntry]:
@@ -80,13 +77,9 @@ class _FakeTimesheetRepository:
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    session = create_memory_session(include_project=True)
+    create_allocation_tables(session)
+    return session
 
 
 def _service(
@@ -102,7 +95,7 @@ def _service(
         project_repository=project_repo,
         milestone_repository=SqlAlchemyMilestoneRepository(session),
         allocation_repository=SqlAlchemyAllocationRepository(session),
-        employee_repository=SqlAlchemyEmployeeRepository(session),
+        user_repository=SqlAlchemyUserRepository(session),
         health_snapshot_repository=_FakeHealthSnapshotRepository(snapshot),
         timesheet_repository=timesheets or _FakeTimesheetRepository(),
         authorization=AuthorizationService(project_repo),
@@ -116,13 +109,12 @@ def _seed_manager_project(
     *,
     health_status: ProjectHealthStatus = ProjectHealthStatus.AT_RISK,
 ) -> tuple[int, int]:
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
+    seed_rbac(session)
+    manager_id = create_user(
+        session,
         full_name="Ankit Shah",
         username="ankit",
         email="ankit@example.test",
-        password_hash=hasher.hash("TempPass1"),
         role=Role.MANAGER,
     )
     project_repo = SqlAlchemyProjectRepository(session)
@@ -132,34 +124,28 @@ def _seed_manager_project(
         start_date=date(2026, 3, 1),
         end_date=date(2026, 6, 30),
         status=ProjectStatus.ACTIVE,
-        manager_user_id=manager.id,
+        manager_user_id=manager_id,
     )
+    from prm.infrastructure.db.models import ProjectModel
+
     project_model = session.get(ProjectModel, project.id)
     assert project_model is not None
     project_model.health_status = health_status
     project_model.health_computed_at = datetime(2026, 5, 12, 10, 0, tzinfo=UTC)
     session.flush()
-    return manager.id, project.id
+    return manager_id, project.id
 
 
 def test_summarize_risk_returns_llm_summary_with_project_context() -> None:
     session = _session()
     manager_id, project_id = _seed_manager_project(session)
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    employee_user = user_repo.create(
-        full_name="Employee User",
+    user_id = create_user(
+        session,
+        full_name="Ravi Kumar",
         username="employee",
         email="employee@example.test",
-        password_hash=hasher.hash("TempPass1"),
-        role=Role.EMPLOYEE,
-    )
-    employee = SqlAlchemyEmployeeRepository(session).create(
-        user_id=employee_user.id,
-        full_name="Ravi Kumar",
-        email="employee@example.test",
-        department="Backend",
-        designation="Developer",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
     milestone_repo = SqlAlchemyMilestoneRepository(session)
     milestone_repo.create(
@@ -171,7 +157,7 @@ def test_summarize_risk_returns_llm_summary_with_project_context() -> None:
     )
     session.add(
         AllocationModel(
-            employee_id=employee.id,
+            user_id=user_id,
             project_id=project_id,
             utilisation_percent=50,
             from_date=date(2026, 3, 1),
@@ -189,7 +175,7 @@ def test_summarize_risk_returns_llm_summary_with_project_context() -> None:
     )
     week = TimesheetWeek(
         id=1,
-        employee_id=employee.id,
+        user_id=user_id,
         week_start_date=date(2026, 5, 5),
         status=TimesheetWeekStatus.SUBMITTED,
         total_hours=4,
@@ -228,7 +214,7 @@ def test_summarize_risk_returns_llm_summary_with_project_context() -> None:
     assert context.project_name == "Alpha Portal"
     assert context.risk_flags[0].startswith("Backend API")
     assert context.milestones[0].title == "Backend API"
-    assert context.allocated_resources[0].employee_full_name == "Ravi Kumar"
+    assert context.allocated_resources[0].user_full_name == "Ravi Kumar"
     assert any(
         fact.hours_logged == 4 and fact.expected_hours == 20
         for fact in context.recent_timesheets
@@ -238,13 +224,12 @@ def test_summarize_risk_returns_llm_summary_with_project_context() -> None:
 def test_summarize_risk_requires_project_owner() -> None:
     session = _session()
     manager_id, project_id = _seed_manager_project(session)
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    other_manager = user_repo.create(
+    seed_rbac(session)
+    other_manager_id = create_user(
+        session,
         full_name="Other Manager",
         username="other.manager",
         email="other@example.test",
-        password_hash=hasher.hash("TempPass1"),
         role=Role.MANAGER,
     )
     project_repo = SqlAlchemyProjectRepository(session)
@@ -254,7 +239,7 @@ def test_summarize_risk_requires_project_owner() -> None:
         start_date=date(2026, 4, 1),
         end_date=date(2026, 8, 15),
         status=ProjectStatus.ACTIVE,
-        manager_user_id=other_manager.id,
+        manager_user_id=other_manager_id,
     )
     session.commit()
     llm = FakeLlmClient()

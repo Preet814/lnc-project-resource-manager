@@ -11,13 +11,13 @@ from prm.infrastructure.db.models._types import allocation_status_enum
 
 
 class AllocationModel(Base):
-    """Employee allocation to a project for a date range."""
+    """Engineer allocation to a project for a date range."""
 
     __tablename__ = "allocations"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    employee_id: Mapped[int] = mapped_column(
-        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     project_id: Mapped[int] = mapped_column(
         ForeignKey("projects.id", ondelete="CASCADE"), nullable=False, index=True
@@ -32,6 +32,14 @@ class AllocationModel(Base):
         ForeignKey("users.id", ondelete="RESTRICT"), nullable=False, index=True
     )
 
-    employee = relationship("EmployeeModel", back_populates="allocations")
+    user = relationship(
+        "UserModel",
+        back_populates="allocations",
+        foreign_keys=[user_id],
+    )
     project = relationship("ProjectModel", back_populates="allocations")
-    created_by = relationship("UserModel", back_populates="created_allocations")
+    created_by = relationship(
+        "UserModel",
+        back_populates="created_allocations",
+        foreign_keys=[created_by_user_id],
+    )

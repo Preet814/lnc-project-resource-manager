@@ -5,39 +5,39 @@ from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON, create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from prm.api.app import create_app
 from prm.domain.enums import (
     AllocationStatus,
-    EmployeeWorkStatus,
     MilestoneStatus,
     ProjectHealthStatus,
+    ResourceWorkStatus,
     Role,
     TimesheetWeekStatus,
 )
 from prm.infrastructure.db.models import (
     AllocationModel,
-    EmployeeModel,
+    DepartmentModel,
+    DesignationModel,
     MilestoneModel,
     ProjectHealthSnapshotModel,
     ProjectModel,
+    ResourceStatusModel,
+    RoleModel,
     SystemConfigurationModel,
     TimesheetEntryModel,
     TimesheetWeekModel,
     UserModel,
 )
-from prm.infrastructure.db.repositories import (
-    SqlAlchemyEmployeeRepository,
-    SqlAlchemyMilestoneRepository,
-    SqlAlchemyUserRepository,
-)
+from prm.infrastructure.db.repositories import SqlAlchemyMilestoneRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_user, set_engineer_status
 
 MANAGER_USERNAME = "projects_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -51,6 +51,27 @@ EMPLOYEE_EMAIL = "projects_employee@example.test"
 WEEK_START = date(2026, 5, 12)
 
 
+def _create_route_tables(engine) -> None:
+    from tests.unit.engineer_fixtures import create_route_tables as _create_tables
+
+    _create_tables(
+        engine,
+        include_project=True,
+        include_allocation=True,
+        include_timesheet=True,
+        include_config=True,
+    )
+    ProjectHealthSnapshotModel.__table__.c.risk_flags.type = JSON()
+    ProjectHealthSnapshotModel.__table__.create(engine, checkfirst=True)
+
+
+def _set_login_password(session: Session, *, username: str, password: str) -> None:
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    assert model is not None
+    model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
     engine = create_engine(
@@ -58,17 +79,7 @@ def client() -> Generator[TestClient, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    ProjectHealthSnapshotModel.__table__.c.risk_flags.type = JSON()
-    ProjectHealthSnapshotModel.__table__.create(engine, checkfirst=True)
-    TimesheetWeekModel.__table__.create(engine, checkfirst=True)
-    TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
-    TimesheetEntryModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
+    _create_route_tables(engine)
 
     with Session(engine) as setup:
         seed_bootstrap_admin(
@@ -79,51 +90,47 @@ def client() -> Generator[TestClient, None, None]:
             email=TEST_EMAIL,
         )
         seed_default_system_configuration(setup)
-        user_repo = SqlAlchemyUserRepository(setup)
-        hasher = BcryptPasswordHasher()
-        manager = user_repo.create(
+        manager_id = create_user(
+            setup,
             full_name="Test Manager",
             username=MANAGER_USERNAME,
             email=MANAGER_EMAIL,
-            password_hash=hasher.hash(MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
-        user_repo.create(
+        create_user(
+            setup,
             full_name="Other Manager",
             username=OTHER_MANAGER_USERNAME,
             email=OTHER_MANAGER_EMAIL,
-            password_hash=hasher.hash(OTHER_MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
-        employee_user = user_repo.create(
+        user_id = create_user(
+            setup,
             full_name="Ravi Kumar",
             username=EMPLOYEE_USERNAME,
             email=EMPLOYEE_EMAIL,
-            password_hash=hasher.hash(EMPLOYEE_PASSWORD),
-            role=Role.EMPLOYEE,
-            force_password_change=False,
+            role=Role.ENGINEER,
+            manager_id=manager_id,
         )
-        employee = SqlAlchemyEmployeeRepository(setup).create(
-            user_id=employee_user.id,
-            full_name="Ravi Kumar",
-            email=EMPLOYEE_EMAIL,
-            department="Backend",
-            designation="Developer",
+        set_engineer_status(
+            setup,
+            user_id,
+            utilisation_percent=50,
+            work_status=ResourceWorkStatus.ALLOCATED,
         )
-        employee_repo = SqlAlchemyEmployeeRepository(setup)
-        employee_repo.update_utilisation_and_status(
-            employee.id,
-            current_utilisation_percent=50,
-            work_status=EmployeeWorkStatus.ALLOCATED,
-        )
+        _set_login_password(setup, username=MANAGER_USERNAME, password=MANAGER_PASSWORD)
+        _set_login_password(setup, username=OTHER_MANAGER_USERNAME, password=OTHER_MANAGER_PASSWORD)
+        _set_login_password(setup, username=EMPLOYEE_USERNAME, password=EMPLOYEE_PASSWORD)
         project = ProjectModel(
             name="Alpha Portal",
             description="Test project",
             start_date=date(2026, 3, 1),
             end_date=date(2026, 6, 30),
-            manager_user_id=manager.id,
+            manager_user_id=manager_id,
             health_status=ProjectHealthStatus.AT_RISK,
             health_computed_at=datetime(2026, 5, 12, 10, 0, tzinfo=UTC),
         )
@@ -146,17 +153,17 @@ def client() -> Generator[TestClient, None, None]:
         )
         setup.add(
             AllocationModel(
-                employee_id=employee.id,
+                user_id=user_id,
                 project_id=project.id,
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
                 to_date=date(2026, 6, 30),
                 status=AllocationStatus.ACTIVE,
-                created_by_user_id=manager.id,
+                created_by_user_id=manager_id,
             )
         )
         submitted_week = TimesheetWeekModel(
-            employee_id=employee.id,
+            user_id=user_id,
             week_start_date=WEEK_START,
             status=TimesheetWeekStatus.SUBMITTED,
             total_hours=18,
@@ -235,7 +242,7 @@ def test_get_project_detail_returns_health_detail(client: TestClient) -> None:
     assert len(body["milestones"]) == 1
     assert body["milestones"][0]["title"] == "Backend API"
     assert len(body["allocated_resources"]) == 1
-    assert body["allocated_resources"][0]["employee_full_name"] == "Ravi Kumar"
+    assert body["allocated_resources"][0]["user_full_name"] == "Ravi Kumar"
 
 
 def test_get_project_detail_returns_403_for_non_owner(client: TestClient) -> None:
@@ -267,7 +274,7 @@ def test_list_team_timesheets_returns_submitted_row(client: TestClient) -> None:
     body = response.json()
     assert body["week_start_date"] == WEEK_START.isoformat()
     assert body["total"] == 1
-    assert body["rows"][0]["employee_full_name"] == "Ravi Kumar"
+    assert body["rows"][0]["user_full_name"] == "Ravi Kumar"
     assert body["rows"][0]["hours"] == 18
     assert body["rows"][0]["status"] == "SUBMITTED"
 
@@ -278,10 +285,10 @@ def test_get_employee_timesheet_detail_returns_entries(client: TestClient) -> No
         headers=_manager_headers(client),
         params={"week_start_date": WEEK_START.isoformat()},
     ).json()["rows"]
-    employee_id = rows[0]["employee_id"]
+    user_id = rows[0]["user_id"]
 
     response = client.get(
-        f"/manager/timesheets/{employee_id}",
+        f"/manager/timesheets/{user_id}",
         headers=_manager_headers(client),
         params={"week_start_date": WEEK_START.isoformat()},
     )

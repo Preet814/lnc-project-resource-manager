@@ -1,54 +1,17 @@
 """Smoke tests for admin user management against a running API."""
 
-import os
 import uuid
 
-import httpx
 import pytest
 
-API_BASE_URL = os.getenv("PRM_API_URL", "http://localhost:8000")
+from tests.integration.support import (
+    admin_headers as _admin_headers,
+    api_url as _api_url,
+    request_or_skip as _request_or_skip,
+)
+
 TEMP_PASSWORD = "TempPass1"
 RESET_PASSWORD = "ResetPass1"
-
-
-def _api_url(path: str) -> str:
-    return f"{API_BASE_URL.rstrip('/')}{path}"
-
-
-def _bootstrap_credentials() -> tuple[str, str]:
-    username = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "").strip()
-    password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip()
-    if not username or not password:
-        pytest.skip(
-            "BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD must be set "
-            "(e.g. set -a && source .env && set +a)"
-        )
-    return username, password
-
-
-def _request_or_skip(method: str, url: str, **kwargs: object) -> httpx.Response:
-    try:
-        request = getattr(httpx, method)
-        return request(url, timeout=10.0, **kwargs)
-    except httpx.ConnectError as exc:
-        pytest.skip(f"API not running at {API_BASE_URL}: {exc}")
-
-
-def _admin_token() -> str:
-    username, password = _bootstrap_credentials()
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": password},
-    )
-    assert login.status_code == 200
-    body = login.json()
-    assert body["role"] == "ADMIN"
-    return body["access_token"]
-
-
-def _admin_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {_admin_token()}"}
 
 
 def _unique_username(prefix: str) -> str:
@@ -71,7 +34,7 @@ def test_admin_create_and_list_users_smoke() -> None:
             "email": email,
             "username": username,
             "temporary_password": TEMP_PASSWORD,
-            "role": "EMPLOYEE",
+            "role": "ENGINEER",
         },
     )
     assert create.status_code == 201
@@ -143,7 +106,7 @@ def test_admin_reset_password_smoke() -> None:
             "email": email,
             "username": username,
             "temporary_password": TEMP_PASSWORD,
-            "role": "EMPLOYEE",
+            "role": "ENGINEER",
         },
     )
     assert create.status_code == 201

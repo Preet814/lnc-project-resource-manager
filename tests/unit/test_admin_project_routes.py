@@ -4,18 +4,20 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
-from prm.api.app import create_app
 from prm.domain.enums import Role
-from prm.infrastructure.db.models import MilestoneModel, ProjectModel, UserModel
-from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
+from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.seed import seed_bootstrap_admin
-from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import (
+    build_test_client,
+    create_route_tables,
+    create_sqlite_engine,
+    create_user,
+)
 
 MANAGER_USERNAME = "test_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -24,15 +26,8 @@ MANAGER_EMAIL = "test_manager@example.test"
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    UserModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-
+    engine = create_sqlite_engine()
+    create_route_tables(engine, include_project=True)
     with Session(engine) as setup:
         seed_bootstrap_admin(
             setup,
@@ -41,32 +36,21 @@ def client() -> Generator[TestClient, None, None]:
             full_name=TEST_FULL_NAME,
             email=TEST_EMAIL,
         )
-        repo = SqlAlchemyUserRepository(setup)
-        hasher = BcryptPasswordHasher()
-        repo.create(
+        create_user(
+            setup,
             full_name="Test Manager",
             username=MANAGER_USERNAME,
             email=MANAGER_EMAIL,
-            password_hash=hasher.hash(MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
+        manager = setup.scalar(select(UserModel).where(UserModel.username == MANAGER_USERNAME))
+        assert manager is not None
+        manager.password_hash = BcryptPasswordHasher().hash(MANAGER_PASSWORD)
+        manager.force_password_change = False
         setup.commit()
-
-    def override_get_db() -> Generator[Session, None, None]:
-        db = Session(engine)
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app = create_app()
-    app.dependency_overrides[get_db_session] = override_get_db
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
+    yield from build_test_client(engine)
 
 
 def _login_token(client: TestClient, *, username: str, password: str) -> str:
@@ -101,7 +85,7 @@ def _create_user(client: TestClient, *, username: str, email: str) -> dict:
             "email": email,
             "username": username,
             "temporary_password": "TempPass1",
-            "role": "EMPLOYEE",
+            "role": "ENGINEER",
         },
     )
     assert response.status_code == 201

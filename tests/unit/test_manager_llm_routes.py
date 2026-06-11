@@ -5,7 +5,7 @@ from datetime import UTC, date, datetime
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON, create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -15,35 +15,35 @@ from prm.domain.constants import AI_RISK_SUMMARY_DISCLAIMER
 from prm.domain.dtos import SkillMatchResult
 from prm.domain.enums import (
     AllocationStatus,
-    EmployeeWorkStatus,
     MilestoneStatus,
     ProjectHealthStatus,
+    ResourceWorkStatus,
     Role,
     TimesheetWeekStatus,
 )
 from prm.infrastructure.db.models import (
     AllocationModel,
-    EmployeeModel,
-    EmployeeSkillModel,
+    DepartmentModel,
+    DesignationModel,
     MilestoneModel,
     ProjectHealthSnapshotModel,
     ProjectModel,
+    ResourceStatusModel,
+    RoleModel,
     SkillModel,
     SystemConfigurationModel,
     TimesheetEntryModel,
     TimesheetWeekModel,
     UserModel,
+    UserSkillModel,
 )
-from prm.infrastructure.db.repositories import (
-    SqlAlchemyEmployeeRepository,
-    SqlAlchemyMilestoneRepository,
-    SqlAlchemyUserRepository,
-)
+from prm.infrastructure.db.repositories import SqlAlchemyMilestoneRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.llm.fake_client import FakeLlmClient
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_user, set_engineer_status
 
 MANAGER_USERNAME = "llm_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -60,6 +60,28 @@ BENCH_EMAIL = "llm_bench@example.test"
 WEEK_START = date(2026, 5, 12)
 
 
+def _create_route_tables(engine) -> None:
+    from tests.unit.engineer_fixtures import create_route_tables as _create_tables
+
+    _create_tables(
+        engine,
+        include_project=True,
+        include_allocation=True,
+        include_timesheet=True,
+        include_skill=True,
+        include_config=True,
+    )
+    ProjectHealthSnapshotModel.__table__.c.risk_flags.type = JSON()
+    ProjectHealthSnapshotModel.__table__.create(engine, checkfirst=True)
+
+
+def _set_login_password(session: Session, *, username: str, password: str) -> None:
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    assert model is not None
+    model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
+
+
 def _seed_database(setup: Session) -> tuple[int, int]:
     seed_bootstrap_admin(
         setup,
@@ -69,68 +91,56 @@ def _seed_database(setup: Session) -> tuple[int, int]:
         email=TEST_EMAIL,
     )
     seed_default_system_configuration(setup)
-    user_repo = SqlAlchemyUserRepository(setup)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
+    manager_id = create_user(
+        setup,
         full_name="Test Manager",
         username=MANAGER_USERNAME,
         email=MANAGER_EMAIL,
-        password_hash=hasher.hash(MANAGER_PASSWORD),
         role=Role.MANAGER,
-        force_password_change=False,
+        department_name="Delivery",
+        designation_name="Project Manager",
     )
-    user_repo.create(
+    create_user(
+        setup,
         full_name="Other Manager",
         username=OTHER_MANAGER_USERNAME,
         email=OTHER_MANAGER_EMAIL,
-        password_hash=hasher.hash(OTHER_MANAGER_PASSWORD),
         role=Role.MANAGER,
-        force_password_change=False,
+        department_name="Delivery",
+        designation_name="Project Manager",
     )
-    employee_user = user_repo.create(
+    engineer_id = create_user(
+        setup,
         full_name="Ravi Kumar",
         username=EMPLOYEE_USERNAME,
         email=EMPLOYEE_EMAIL,
-        password_hash=hasher.hash(EMPLOYEE_PASSWORD),
-        role=Role.EMPLOYEE,
-        force_password_change=False,
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
-    bench_user = user_repo.create(
+    bench_id = create_user(
+        setup,
         full_name="Priya Sharma",
         username=BENCH_USERNAME,
         email=BENCH_EMAIL,
-        password_hash=hasher.hash(BENCH_PASSWORD),
-        role=Role.EMPLOYEE,
-        force_password_change=False,
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
-    employee_repo = SqlAlchemyEmployeeRepository(setup)
-    employee = employee_repo.create(
-        user_id=employee_user.id,
-        full_name="Ravi Kumar",
-        email=EMPLOYEE_EMAIL,
-        department="Backend",
-        designation="Developer",
+    set_engineer_status(
+        setup,
+        engineer_id,
+        utilisation_percent=50,
+        work_status=ResourceWorkStatus.ALLOCATED,
     )
-    bench_employee = employee_repo.create(
-        user_id=bench_user.id,
-        full_name="Priya Sharma",
-        email=BENCH_EMAIL,
-        department="Frontend",
-        designation="Developer",
-    )
-    employee_repo.set_manager_id(employee.id, manager_id=manager.id)
-    employee_repo.set_manager_id(bench_employee.id, manager_id=manager.id)
-    employee_repo.update_utilisation_and_status(
-        employee.id,
-        current_utilisation_percent=50,
-        work_status=EmployeeWorkStatus.ALLOCATED,
-    )
+    _set_login_password(setup, username=MANAGER_USERNAME, password=MANAGER_PASSWORD)
+    _set_login_password(setup, username=OTHER_MANAGER_USERNAME, password=OTHER_MANAGER_PASSWORD)
+    _set_login_password(setup, username=EMPLOYEE_USERNAME, password=EMPLOYEE_PASSWORD)
+    _set_login_password(setup, username=BENCH_USERNAME, password=BENCH_PASSWORD)
     project = ProjectModel(
         name="Alpha Portal",
         description="Test project",
         start_date=date(2026, 3, 1),
         end_date=date(2026, 6, 30),
-        manager_user_id=manager.id,
+        manager_user_id=manager_id,
         health_status=ProjectHealthStatus.AT_RISK,
         health_computed_at=datetime(2026, 5, 12, 10, 0, tzinfo=UTC),
     )
@@ -153,17 +163,17 @@ def _seed_database(setup: Session) -> tuple[int, int]:
     )
     setup.add(
         AllocationModel(
-            employee_id=employee.id,
+            user_id=engineer_id,
             project_id=project.id,
             utilisation_percent=50,
             from_date=date(2026, 3, 1),
             to_date=date(2026, 6, 30),
             status=AllocationStatus.ACTIVE,
-            created_by_user_id=manager.id,
+            created_by_user_id=manager_id,
         )
     )
     submitted_week = TimesheetWeekModel(
-        employee_id=employee.id,
+        user_id=engineer_id,
         week_start_date=WEEK_START,
         status=TimesheetWeekStatus.SUBMITTED,
         total_hours=4,
@@ -179,7 +189,7 @@ def _seed_database(setup: Session) -> tuple[int, int]:
         )
     )
     setup.commit()
-    return project.id, bench_employee.id
+    return project.id, bench_id
 
 
 def _build_client(
@@ -190,19 +200,7 @@ def _build_client(
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    SkillModel.__table__.create(engine, checkfirst=True)
-    EmployeeSkillModel.__table__.create(engine, checkfirst=True)
-    ProjectHealthSnapshotModel.__table__.c.risk_flags.type = JSON()
-    ProjectHealthSnapshotModel.__table__.create(engine, checkfirst=True)
-    TimesheetWeekModel.__table__.create(engine, checkfirst=True)
-    TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
-    TimesheetEntryModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
+    _create_route_tables(engine)
 
     with Session(engine) as setup:
         _seed_database(setup)
@@ -235,8 +233,8 @@ def client_with_fake_llm() -> Generator[TestClient, None, None]:
     fake_llm = FakeLlmClient(
         rank_results=(
             SkillMatchResult(
-                employee_id=1,
-                employee_name="Priya Sharma",
+                user_id=1,
+                user_name="Priya Sharma",
                 reason="Strong frontend fit and fully available.",
                 suggested_allocation_percent=50,
                 free_hours_per_week=40,
@@ -282,7 +280,7 @@ def test_skill_match_returns_matches_with_fake_llm(client_with_fake_llm: TestCli
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
-    assert body["matches"][0]["employee_name"] == "Priya Sharma"
+    assert body["matches"][0]["user_name"] == "Priya Sharma"
     assert body["message"] is None
 
 

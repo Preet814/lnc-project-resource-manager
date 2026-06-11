@@ -11,13 +11,12 @@ from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import create_memory_session, seed_rbac
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return create_memory_session()
 
 
 def _service(session: Session) -> UserManagementService:
@@ -37,13 +36,14 @@ def _seed_admin(session: Session) -> None:
     )
 
 
-def _create_employee(session: Session, *, username: str, email: str) -> int:
+def _create_engineer(session: Session, *, username: str, email: str) -> int:
+    seed_rbac(session)
     created = _service(session).create_user(
         full_name="Test Employee",
         email=email,
         username=username,
         temporary_password="TempPass1",
-        role=Role.EMPLOYEE,
+        role=Role.ENGINEER,
     )
     session.commit()
     return created.id
@@ -51,6 +51,7 @@ def _create_employee(session: Session, *, username: str, email: str) -> int:
 
 def test_create_user_persists_with_force_password_change() -> None:
     with _session() as session:
+        seed_rbac(session)
         created = _service(session).create_user(
             full_name="New Manager",
             email="mgr@example.test",
@@ -75,7 +76,7 @@ def test_create_user_fails_when_username_exists() -> None:
                 email="other@example.test",
                 username=TEST_USERNAME,
                 temporary_password="TempPass1",
-                role=Role.EMPLOYEE,
+                role=Role.ENGINEER,
             )
 
 
@@ -88,31 +89,32 @@ def test_create_user_fails_when_email_exists() -> None:
                 email=TEST_EMAIL,
                 username="other_user",
                 temporary_password="TempPass1",
-                role=Role.EMPLOYEE,
+                role=Role.ENGINEER,
             )
 
 
 def test_create_user_fails_when_password_too_weak() -> None:
     with _session() as session:
+        seed_rbac(session)
         with pytest.raises(ValidationError):
             _service(session).create_user(
                 full_name="Weak Password User",
                 email="weak@example.test",
                 username="weak_user",
                 temporary_password="weak",
-                role=Role.EMPLOYEE,
+                role=Role.ENGINEER,
             )
 
 
 def test_list_users_returns_summaries_and_counts() -> None:
     with _session() as session:
         _seed_admin(session)
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="emp_one",
             email="emp_one@example.test",
         )
-        _service(session).deactivate_user(employee_id, actor_user_id=1)
+        _service(session).deactivate_user(user_id, actor_user_id=1)
         session.commit()
 
         result = _service(session).list_users()
@@ -128,15 +130,15 @@ def test_list_users_returns_summaries_and_counts() -> None:
 def test_reactivate_user_sets_account_active() -> None:
     with _session() as session:
         _seed_admin(session)
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="emp_two",
             email="emp_two@example.test",
         )
-        _service(session).deactivate_user(employee_id, actor_user_id=1)
+        _service(session).deactivate_user(user_id, actor_user_id=1)
         session.commit()
 
-        reactivated = _service(session).reactivate_user(employee_id)
+        reactivated = _service(session).reactivate_user(user_id)
         session.commit()
 
         assert reactivated.account_status == UserAccountStatus.ACTIVE
@@ -158,13 +160,13 @@ def test_reactivate_user_fails_when_user_missing() -> None:
 def test_deactivate_user_sets_account_inactive() -> None:
     with _session() as session:
         _seed_admin(session)
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="emp_three",
             email="emp_three@example.test",
         )
 
-        deactivated = _service(session).deactivate_user(employee_id, actor_user_id=1)
+        deactivated = _service(session).deactivate_user(user_id, actor_user_id=1)
         session.commit()
 
         assert deactivated.account_status == UserAccountStatus.INACTIVE
@@ -180,22 +182,22 @@ def test_deactivate_user_fails_when_deactivating_self() -> None:
 def test_deactivate_user_fails_when_already_inactive() -> None:
     with _session() as session:
         _seed_admin(session)
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="emp_four",
             email="emp_four@example.test",
         )
-        _service(session).deactivate_user(employee_id, actor_user_id=1)
+        _service(session).deactivate_user(user_id, actor_user_id=1)
         session.commit()
 
         with pytest.raises(ValidationError, match="already inactive"):
-            _service(session).deactivate_user(employee_id, actor_user_id=1)
+            _service(session).deactivate_user(user_id, actor_user_id=1)
 
 
 def test_reset_password_by_username_sets_force_flag() -> None:
     with _session() as session:
         _seed_admin(session)
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="emp_five",
             email="emp_five@example.test",
@@ -203,7 +205,7 @@ def test_reset_password_by_username_sets_force_flag() -> None:
         _service(session).reset_password("emp_five", temporary_password="ResetPass1")
         session.commit()
 
-        updated = SqlAlchemyUserRepository(session).find_by_id(employee_id)
+        updated = SqlAlchemyUserRepository(session).find_by_id(user_id)
         assert updated is not None
         assert updated.force_password_change is True
         assert BcryptPasswordHasher().verify("ResetPass1", updated.password_hash)
@@ -212,15 +214,15 @@ def test_reset_password_by_username_sets_force_flag() -> None:
 def test_reset_password_by_id_sets_force_flag() -> None:
     with _session() as session:
         _seed_admin(session)
-        employee_id = _create_employee(
+        user_id = _create_engineer(
             session,
             username="emp_six",
             email="emp_six@example.test",
         )
-        _service(session).reset_password(str(employee_id), temporary_password="ResetPass2")
+        _service(session).reset_password(str(user_id), temporary_password="ResetPass2")
         session.commit()
 
-        updated = SqlAlchemyUserRepository(session).find_by_id(employee_id)
+        updated = SqlAlchemyUserRepository(session).find_by_id(user_id)
         assert updated is not None
         assert updated.force_password_change is True
         assert BcryptPasswordHasher().verify("ResetPass2", updated.password_hash)

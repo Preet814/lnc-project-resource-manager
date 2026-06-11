@@ -8,10 +8,10 @@ from prm.domain.enums import ActivityTag, TimesheetWeekStatus
 
 @dataclass(frozen=True, slots=True)
 class TimesheetWeek:
-    """Weekly timesheet aggregate for an employee."""
+    """Weekly timesheet aggregate for a user."""
 
     id: int
-    employee_id: int
+    user_id: int
     week_start_date: date
     status: TimesheetWeekStatus
     total_hours: int

@@ -16,7 +16,7 @@ def test_extract_json_text_strips_markdown_fence() -> None:
 def test_parse_skill_match_response_maps_valid_payload() -> None:
     candidates = (
         SkillMatchCandidate(
-            employee_id=12,
+            user_id=12,
             full_name="Anil Mehta",
             skill_names=("Microservices",),
             utilisation_percent=0,
@@ -28,8 +28,8 @@ def test_parse_skill_match_response_maps_valid_payload() -> None:
     {
       "matches": [
         {
-          "employee_id": 12,
-          "employee_name": "Anil Mehta",
+          "user_id": 12,
+          "user_name": "Anil Mehta",
           "reason": "Strong microservices fit and fully available.",
           "suggested_allocation_percent": 50,
           "free_hours_per_week": 40
@@ -41,14 +41,14 @@ def test_parse_skill_match_response_maps_valid_payload() -> None:
     results = parse_skill_match_response(raw, candidates)
 
     assert len(results) == 1
-    assert results[0].employee_id == 12
+    assert results[0].user_id == 12
     assert results[0].suggested_allocation_percent == 50
 
 
-def test_parse_skill_match_response_ignores_unknown_employee_ids() -> None:
+def test_parse_skill_match_response_ignores_unknown_user_ids() -> None:
     candidates = (
         SkillMatchCandidate(
-            employee_id=12,
+            user_id=12,
             full_name="Anil Mehta",
             skill_names=("Microservices",),
             utilisation_percent=0,
@@ -60,8 +60,8 @@ def test_parse_skill_match_response_ignores_unknown_employee_ids() -> None:
     {
       "matches": [
         {
-          "employee_id": 99,
-          "employee_name": "Unknown",
+          "user_id": 99,
+          "user_name": "Unknown",
           "reason": "Should be ignored",
           "suggested_allocation_percent": 25,
           "free_hours_per_week": 10

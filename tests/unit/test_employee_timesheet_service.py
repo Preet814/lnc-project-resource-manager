@@ -1,54 +1,48 @@
-"""Unit tests for EmployeeTimesheetService."""
+"""Unit tests for EngineerTimesheetService."""
 
 from datetime import date, timedelta
 
 import pytest
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON
 from sqlalchemy.orm import Session
 
-from prm.application.employee_timesheet_service import EmployeeTimesheetService
+from prm.application.engineer_timesheet_service import EngineerTimesheetService
 from prm.domain.dtos import SubmitTimesheetCommand, SubmitTimesheetEntry
 from prm.domain.enums import ActivityTag, AllocationStatus, Role, TimesheetWeekStatus
 from prm.domain.exceptions import NotFoundError, ValidationError
 from prm.domain.week_calendar import week_start_on_or_before
-from prm.infrastructure.db.models import (
-    AllocationModel,
-    EmployeeModel,
-    ProjectModel,
-    SystemConfigurationModel,
-    TimesheetEntryModel,
-    TimesheetWeekModel,
-    UserModel,
-)
+from prm.infrastructure.db.models import AllocationModel, ProjectModel, TimesheetEntryModel, TimesheetWeekModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySystemConfigurationRepository,
     SqlAlchemyTimesheetRepository,
     SqlAlchemyUserRepository,
 )
-from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import (
+    create_allocation_tables,
+    create_config_table,
+    create_memory_session,
+    create_timesheet_tables,
+    create_user,
+    seed_rbac,
+)
 
 PAST_MONDAY = date(2026, 5, 11)
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
-    TimesheetWeekModel.__table__.create(engine, checkfirst=True)
+    session = create_memory_session(include_project=True)
+    create_allocation_tables(session)
+    create_config_table(session)
+    create_timesheet_tables(session)
     TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
-    TimesheetEntryModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return session
 
 
-def _service(session: Session) -> EmployeeTimesheetService:
-    return EmployeeTimesheetService(
-        employee_repository=SqlAlchemyEmployeeRepository(session),
+def _service(session: Session) -> EngineerTimesheetService:
+    return EngineerTimesheetService(
+        user_repository=SqlAlchemyUserRepository(session),
         allocation_repository=SqlAlchemyAllocationRepository(session),
         project_repository=SqlAlchemyProjectRepository(session),
         timesheet_repository=SqlAlchemyTimesheetRepository(session),
@@ -56,58 +50,50 @@ def _service(session: Session) -> EmployeeTimesheetService:
     )
 
 
-def _seed_employee_with_allocation(
+def _seed_user_with_allocation(
     session: Session,
     *,
     utilisation_percent: int = 50,
-) -> tuple[int, int, int]:
-    """Return (user_id, employee_id, project_id)."""
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
+) -> tuple[int, int]:
+    """Return (user_id, project_id)."""
+    seed_rbac(session)
+    manager_id = create_user(
+        session,
         full_name="Manager User",
         username="manager",
         email="manager@example.test",
-        password_hash=hasher.hash("TempPass1"),
         role=Role.MANAGER,
     )
-    employee_user = user_repo.create(
-        full_name="Employee User",
+    user_id = create_user(
+        session,
+        full_name="Ravi Kumar",
         username="employee",
         email="employee@example.test",
-        password_hash=hasher.hash("TempPass1"),
-        role=Role.EMPLOYEE,
-    )
-    employee_repo = SqlAlchemyEmployeeRepository(session)
-    employee = employee_repo.create(
-        user_id=employee_user.id,
-        full_name="Ravi Kumar",
-        email="employee@example.test",
-        department="Backend",
-        designation="Developer",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
     )
     project = ProjectModel(
         name="Alpha Portal",
         description="Test project",
         start_date=date(2026, 1, 1),
-        manager_user_id=manager.id,
+        manager_user_id=manager_id,
     )
     session.add(project)
     session.flush()
     session.add(
         AllocationModel(
-            employee_id=employee.id,
+            user_id=user_id,
             project_id=project.id,
             utilisation_percent=utilisation_percent,
             from_date=date(2026, 1, 1),
             to_date=date(2026, 12, 31),
             status=AllocationStatus.ACTIVE,
-            created_by_user_id=manager.id,
+            created_by_user_id=manager_id,
         )
     )
     SqlAlchemySystemConfigurationRepository(session).create_with_defaults()
     session.flush()
-    return employee_user.id, employee.id, project.id
+    return user_id, project.id
 
 
 def _submit_command(
@@ -130,7 +116,7 @@ def _submit_command(
 
 def test_submit_week_persists_submitted_timesheet() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
 
@@ -146,13 +132,13 @@ def test_submit_week_rejects_missing_employee_profile() -> None:
         session.commit()
         service = _service(session)
 
-        with pytest.raises(NotFoundError, match="Employee profile"):
+        with pytest.raises(NotFoundError, match="Engineer profile"):
             service.submit_week(999, _submit_command(1))
 
 
 def test_submit_week_rejects_non_monday() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
 
@@ -165,7 +151,7 @@ def test_submit_week_rejects_non_monday() -> None:
 
 def test_submit_week_rejects_future_week() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
         future_monday = week_start_on_or_before(date.today()) + timedelta(days=7)
@@ -179,10 +165,10 @@ def test_submit_week_rejects_future_week() -> None:
 
 def test_submit_week_rejects_duplicate_week() -> None:
     with _session() as session:
-        user_id, employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.add(
             TimesheetWeekModel(
-                employee_id=employee_id,
+                user_id=user_id,
                 week_start_date=PAST_MONDAY,
                 status=TimesheetWeekStatus.SUBMITTED,
                 total_hours=10,
@@ -197,7 +183,7 @@ def test_submit_week_rejects_duplicate_week() -> None:
 
 def test_submit_week_rejects_unallocated_project() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
 
@@ -207,7 +193,7 @@ def test_submit_week_rejects_unallocated_project() -> None:
 
 def test_submit_week_rejects_hours_above_allocation_cap() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(
+        user_id, project_id = _seed_user_with_allocation(
             session, utilisation_percent=50
         )
         session.commit()
@@ -219,7 +205,7 @@ def test_submit_week_rejects_hours_above_allocation_cap() -> None:
 
 def test_submit_week_rejects_total_above_max_weekly_hours() -> None:
     with _session() as session:
-        user_id, employee_id, project_a = _seed_employee_with_allocation(
+        user_id, project_a = _seed_user_with_allocation(
             session, utilisation_percent=50
         )
         extra_projects = []
@@ -235,7 +221,7 @@ def test_submit_week_rejects_total_above_max_weekly_hours() -> None:
             extra_projects.append(project)
             session.add(
                 AllocationModel(
-                    employee_id=employee_id,
+                    user_id=user_id,
                     project_id=project.id,
                     utilisation_percent=50,
                     from_date=date(2026, 1, 1),
@@ -250,7 +236,6 @@ def test_submit_week_rejects_total_above_max_weekly_hours() -> None:
         config_repo.update(config.id, max_weekly_hours=30)
         session.commit()
         service = _service(session)
-        # 50% of 30 = 15 hrs cap per project; 10+10+11=31 exceeds weekly max of 30.
         command = SubmitTimesheetCommand(
             week_start_date=PAST_MONDAY,
             entries=(
@@ -278,7 +263,7 @@ def test_submit_week_rejects_total_above_max_weekly_hours() -> None:
 
 def test_submit_week_requires_tags_when_hours_positive() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
         command = SubmitTimesheetCommand(
@@ -298,7 +283,7 @@ def test_submit_week_requires_tags_when_hours_positive() -> None:
 
 def test_list_my_timesheets_returns_submitted_weeks() -> None:
     with _session() as session:
-        user_id, employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
         service.submit_week(user_id, _submit_command(project_id))
@@ -312,7 +297,7 @@ def test_list_my_timesheets_returns_submitted_weeks() -> None:
 
 def test_get_my_timesheet_detail_returns_entries() -> None:
     with _session() as session:
-        user_id, _employee_id, project_id = _seed_employee_with_allocation(session)
+        user_id, project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
         service.submit_week(user_id, _submit_command(project_id))
@@ -328,7 +313,7 @@ def test_get_my_timesheet_detail_returns_entries() -> None:
 
 def test_get_my_timesheet_detail_raises_when_week_missing() -> None:
     with _session() as session:
-        user_id, _employee_id, _project_id = _seed_employee_with_allocation(session)
+        user_id, _project_id = _seed_user_with_allocation(session)
         session.commit()
         service = _service(session)
 

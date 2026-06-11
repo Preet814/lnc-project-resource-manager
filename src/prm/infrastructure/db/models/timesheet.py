@@ -11,13 +11,13 @@ from prm.infrastructure.db.models._types import activity_tag_enum, timesheet_wee
 
 
 class TimesheetWeekModel(Base):
-    """Weekly timesheet aggregate for an employee."""
+    """Weekly timesheet aggregate for an engineer."""
 
     __tablename__ = "timesheet_weeks"
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
-    employee_id: Mapped[int] = mapped_column(
-        ForeignKey("employees.id", ondelete="CASCADE"), nullable=False, index=True
+    user_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
     )
     week_start_date: Mapped[date] = mapped_column(Date, nullable=False)
     status: Mapped[TimesheetWeekStatus] = mapped_column(
@@ -26,7 +26,7 @@ class TimesheetWeekModel(Base):
     total_hours: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     submitted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
 
-    employee = relationship("EmployeeModel", back_populates="timesheet_weeks")
+    user = relationship("UserModel", back_populates="timesheet_weeks")
     entries = relationship(
         "TimesheetEntryModel", back_populates="timesheet_week", cascade="all, delete-orphan"
     )

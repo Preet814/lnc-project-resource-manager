@@ -1,53 +1,16 @@
 """Integration smoke tests for BRD V4 alignment flows against a running API."""
 
-import os
 import uuid
 
-import httpx
 import pytest
 
-API_BASE_URL = os.getenv("PRM_API_URL", "http://localhost:8000")
+from tests.integration.support import (
+    admin_headers as _admin_headers,
+    api_url as _api_url,
+    request_or_skip as _request_or_skip,
+)
+
 TEMP_PASSWORD = "TempPass1"
-
-
-def _api_url(path: str) -> str:
-    return f"{API_BASE_URL.rstrip('/')}{path}"
-
-
-def _bootstrap_credentials() -> tuple[str, str]:
-    username = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "").strip()
-    password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip()
-    if not username or not password:
-        pytest.skip(
-            "BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD must be set "
-            "(e.g. set -a && source .env && set +a)"
-        )
-    return username, password
-
-
-def _request_or_skip(method: str, url: str, **kwargs: object) -> httpx.Response:
-    try:
-        request = getattr(httpx, method)
-        return request(url, timeout=10.0, **kwargs)
-    except httpx.ConnectError as exc:
-        pytest.skip(f"API not running at {API_BASE_URL}: {exc}")
-
-
-def _admin_token() -> str:
-    username, password = _bootstrap_credentials()
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": password},
-    )
-    assert login.status_code == 200
-    body = login.json()
-    assert body["role"] == "ADMIN"
-    return body["access_token"]
-
-
-def _admin_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {_admin_token()}"}
 
 
 def _unique_username(prefix: str) -> str:
@@ -87,7 +50,7 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> dict:
             "email": email,
             "username": username,
             "temporary_password": TEMP_PASSWORD,
-            "role": "EMPLOYEE",
+            "role": "ENGINEER",
         },
     )
     assert create_user.status_code == 201
@@ -102,7 +65,7 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> dict:
             "full_name": "V4 Smoke Employee",
             "email": email,
             "department": "Backend",
-            "designation": "Developer",
+            "designation": "SE",
         },
     )
     assert create_employee.status_code == 201
@@ -112,7 +75,7 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> dict:
 def _assign_manager(
     headers: dict[str, str],
     *,
-    employee_user_id: int,
+    engineer_user_id: int,
     manager_user_id: int,
 ) -> dict:
     assign = _request_or_skip(
@@ -120,7 +83,7 @@ def _assign_manager(
         _api_url("/admin/employees/assign-manager"),
         headers=headers,
         json={
-            "employee_user_id": employee_user_id,
+            "engineer_user_id": engineer_user_id,
             "manager_user_id": manager_user_id,
         },
     )
@@ -176,7 +139,7 @@ def test_v4_admin_onboarding_and_assign_manager_smoke() -> None:
 
     assigned = _assign_manager(
         headers,
-        employee_user_id=employee["user_id"],
+        engineer_user_id=employee["id"],
         manager_user_id=manager["id"],
     )
     assert assigned["manager_id"] == manager["id"]
@@ -283,7 +246,7 @@ def test_v4_manager_team_scoping_smoke() -> None:
     employee = _create_employee(headers, prefix=f"v4_team_{prefix}")
     _assign_manager(
         headers,
-        employee_user_id=employee["user_id"],
+        engineer_user_id=employee["id"],
         manager_user_id=manager_a["id"],
     )
     project_b = _create_project(
@@ -300,8 +263,8 @@ def test_v4_manager_team_scoping_smoke() -> None:
     )
     assert dashboard.status_code == 200
     visible_ids = {
-        row["employee_id"] for row in dashboard.json()["on_bench"]
-    } | {row["employee_id"] for row in dashboard.json()["active"]}
+        row["user_id"] for row in dashboard.json()["on_bench"]
+    } | {row["user_id"] for row in dashboard.json()["active"]}
     assert employee["id"] not in visible_ids
 
     detail = _request_or_skip(
@@ -317,7 +280,7 @@ def test_v4_manager_team_scoping_smoke() -> None:
         headers=headers_b,
         json={
             "project_id": project_b["id"],
-            "employee_id": employee["id"],
+            "user_id": employee["id"],
             "utilisation_percent": 50,
             "from_date": "2026-06-01",
             "to_date": "2026-09-30",
@@ -335,7 +298,7 @@ def test_v4_completed_project_blocks_allocation_smoke() -> None:
     employee = _create_employee(headers, prefix=f"v4_cmp_emp_{prefix}")
     _assign_manager(
         headers,
-        employee_user_id=employee["user_id"],
+        engineer_user_id=employee["id"],
         manager_user_id=manager["id"],
     )
     project = _create_project(
@@ -358,7 +321,7 @@ def test_v4_completed_project_blocks_allocation_smoke() -> None:
         headers=manager_headers,
         json={
             "project_id": project["id"],
-            "employee_id": employee["id"],
+            "user_id": employee["id"],
             "utilisation_percent": 50,
             "from_date": "2026-06-01",
             "to_date": "2026-09-30",

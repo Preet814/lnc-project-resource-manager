@@ -1,10 +1,10 @@
-"""Admin employee-management API request and response schemas."""
+"""Admin engineer-profile API request and response schemas."""
 
 from datetime import datetime
 
 from pydantic import BaseModel, Field
 
-from prm.domain.enums import EmployeeWorkStatus, ProficiencyLevel, SkillCategory
+from prm.domain.enums import ProficiencyLevel, ResourceWorkStatus, SkillCategory
 
 
 class CreateEmployeeRequest(BaseModel):
@@ -23,51 +23,50 @@ class UpdateEmployeeRequest(BaseModel):
 
 
 class AssignManagerRequest(BaseModel):
-    employee_user_id: int
+    engineer_user_id: int
     manager_user_id: int
 
 
 class EmployeeResponse(BaseModel):
     id: int
-    user_id: int | None
     manager_id: int | None
     full_name: str
     email: str
     department: str
     designation: str
-    work_status: EmployeeWorkStatus
+    work_status: ResourceWorkStatus
     is_active: bool
     current_utilisation_percent: int
     created_at: datetime
 
 
-class EmployeeSummaryResponse(BaseModel):
+class EngineerSummaryResponse(BaseModel):
     id: int
     full_name: str
     department: str
-    work_status: EmployeeWorkStatus
+    work_status: ResourceWorkStatus
     is_active: bool
 
 
-class EmployeeListResponse(BaseModel):
-    employees: list[EmployeeSummaryResponse]
+class EngineerListResponse(BaseModel):
+    engineers: list[EngineerSummaryResponse]
     total: int
     allocated_count: int
     bench_count: int
 
 
-class AddEmployeeSkillRequest(BaseModel):
+class AddUserSkillRequest(BaseModel):
     skill_name: str = Field(min_length=1)
     category: SkillCategory
     proficiency: ProficiencyLevel
 
 
-class UpdateEmployeeSkillRequest(BaseModel):
+class UpdateUserSkillRequest(BaseModel):
     proficiency: ProficiencyLevel
 
 
-class EmployeeSkillResponse(BaseModel):
-    employee_skill_id: int
+class UserSkillResponse(BaseModel):
+    user_skill_id: int
     skill_id: int
     skill_name: str
     category: SkillCategory
@@ -75,5 +74,5 @@ class EmployeeSkillResponse(BaseModel):
     assigned_at: datetime
 
 
-class EmployeeSkillListResponse(BaseModel):
-    skills: list[EmployeeSkillResponse]
+class UserSkillListResponse(BaseModel):
+    skills: list[UserSkillResponse]

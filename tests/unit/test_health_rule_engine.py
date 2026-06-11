@@ -23,7 +23,7 @@ def test_evaluate_on_track_with_allocations_adds_positive_flag() -> None:
             milestones=(),
             last_week_timesheets=(
                 HealthTimesheetFact(
-                    employee_full_name="Ravi Kumar",
+                    user_full_name="Ravi Kumar",
                     hours_logged=20,
                     expected_hours=20,
                 ),
@@ -98,7 +98,7 @@ def test_evaluate_at_risk_for_severely_low_hours() -> None:
             milestones=(),
             last_week_timesheets=(
                 HealthTimesheetFact(
-                    employee_full_name="Ravi Kumar",
+                    user_full_name="Ravi Kumar",
                     hours_logged=4,
                     expected_hours=20,
                 ),
@@ -120,7 +120,7 @@ def test_evaluate_attention_for_moderately_low_hours() -> None:
             milestones=(),
             last_week_timesheets=(
                 HealthTimesheetFact(
-                    employee_full_name="Neha Joshi",
+                    user_full_name="Neha Joshi",
                     hours_logged=12,
                     expected_hours=20,
                 ),
@@ -148,7 +148,7 @@ def test_evaluate_at_risk_when_overdue_and_low_hours() -> None:
             ),
             last_week_timesheets=(
                 HealthTimesheetFact(
-                    employee_full_name="Ravi Kumar",
+                    user_full_name="Ravi Kumar",
                     hours_logged=4,
                     expected_hours=20,
                 ),
@@ -172,7 +172,7 @@ def test_evaluate_skips_low_hours_check_when_expected_hours_is_zero() -> None:
             milestones=(),
             last_week_timesheets=(
                 HealthTimesheetFact(
-                    employee_full_name="Bench User",
+                    user_full_name="Bench User",
                     hours_logged=0,
                     expected_hours=0,
                 ),

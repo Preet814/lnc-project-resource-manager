@@ -16,7 +16,7 @@ from prm.infrastructure.llm.gemini_client import GeminiClient
 
 def _candidate() -> SkillMatchCandidate:
     return SkillMatchCandidate(
-        employee_id=12,
+        user_id=12,
         full_name="Anil Mehta",
         skill_names=("Microservices",),
         utilisation_percent=0,
@@ -59,8 +59,8 @@ def test_gemini_client_rank_candidates_parses_response() -> None:
                             "parts": [
                                 {
                                     "text": (
-                                        '{"matches":[{"employee_id":12,'
-                                        '"employee_name":"Anil Mehta",'
+                                        '{"matches":[{"user_id":12,'
+                                        '"user_name":"Anil Mehta",'
                                         '"reason":"Strong microservices fit.",'
                                         '"suggested_allocation_percent":50,'
                                         '"free_hours_per_week":40}]}'
@@ -83,7 +83,7 @@ def test_gemini_client_rank_candidates_parses_response() -> None:
     results = client.rank_candidates(_context(), (_candidate(),))
 
     assert len(results) == 1
-    assert results[0].employee_name == "Anil Mehta"
+    assert results[0].user_name == "Anil Mehta"
 
 
 def test_gemini_client_summarize_risk_returns_text() -> None:

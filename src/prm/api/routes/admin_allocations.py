@@ -18,8 +18,8 @@ def _to_allocation_list_response(result: AllocationListResult) -> AllocationList
         allocations=[
             AllocationSummaryResponse(
                 allocation_id=summary.allocation_id,
-                employee_id=summary.employee_id,
-                employee_full_name=summary.employee_full_name,
+                user_id=summary.user_id,
+                user_full_name=summary.user_full_name,
                 project_id=summary.project_id,
                 project_name=summary.project_name,
                 utilisation_percent=summary.utilisation_percent,
@@ -36,12 +36,12 @@ def _to_allocation_list_response(result: AllocationListResult) -> AllocationList
 def list_allocations(
     _admin: Annotated[JwtTokenPayload, Depends(require_admin)],
     service: Annotated[AllocationViewService, Depends(get_allocation_view_service)],
-    employee_id: Annotated[int | None, Query()] = None,
+    user_id: Annotated[int | None, Query()] = None,
     project_id: Annotated[int | None, Query()] = None,
 ) -> AllocationListResponse:
     return _to_allocation_list_response(
         service.list_allocations(
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
         ),
     )

@@ -6,12 +6,12 @@ from datetime import UTC, date, datetime
 from prm.domain.enums import (
     ActivityTag,
     AllocationStatus,
-    EmployeeWorkStatus,
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectHealthStatus,
     ProjectStatus,
+    ResourceWorkStatus,
     Role,
     SkillCategory,
     TimesheetWeekStatus,
@@ -76,37 +76,37 @@ class UserListResult:
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeSummary:
-    """Compact employee row for admin list screens (BRD §3.1.2)."""
+class EngineerSummary:
+    """Compact engineer row for admin list screens (BRD §3.1.2)."""
 
     id: int
     full_name: str
     department: str
-    work_status: EmployeeWorkStatus
+    work_status: ResourceWorkStatus
     is_active: bool
 
     def is_on_bench(self) -> bool:
-        return self.work_status == EmployeeWorkStatus.BENCH
+        return self.work_status == ResourceWorkStatus.BENCH
 
     def is_allocated(self) -> bool:
-        return self.work_status == EmployeeWorkStatus.ALLOCATED
+        return self.work_status == ResourceWorkStatus.ALLOCATED
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeListResult:
-    """All employees plus bench/allocated counts for the admin dashboard."""
+class EngineerListResult:
+    """All engineers plus bench/allocated counts for the admin dashboard."""
 
-    employees: tuple[EmployeeSummary, ...]
+    engineers: tuple[EngineerSummary, ...]
     total: int
     allocated_count: int
     bench_count: int
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeSkillDetail:
+class UserSkillDetail:
     """Skill row for admin manage-skills screen (BRD §3.1.4)."""
 
-    employee_skill_id: int
+    user_skill_id: int
     skill_id: int
     skill_name: str
     category: SkillCategory
@@ -166,8 +166,8 @@ class AllocationSummary:
     """Active allocation row for admin view-all screen (BRD §3.3)."""
 
     allocation_id: int
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     project_id: int
     project_name: str
     utilisation_percent: int
@@ -203,20 +203,20 @@ class ValidationResult:
 
 
 @dataclass(frozen=True, slots=True)
-class BenchEmployeeSummary:
+class BenchEngineerSummary:
     """Bench row for manager resource dashboard (BRD §4.1)."""
 
-    employee_id: int
+    user_id: int
     full_name: str
     department: str
     skill_names: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
-class ActiveEmployeeSummary:
+class ActiveEngineerSummary:
     """Allocated employee row for manager resource dashboard (BRD §4.1)."""
 
-    employee_id: int
+    user_id: int
     full_name: str
     utilisation_percent: int
     availability_percent: int
@@ -226,15 +226,15 @@ class ActiveEmployeeSummary:
 class ResourceDashboardResult:
     """Manager resource dashboard aggregates (BRD §4.1)."""
 
-    on_bench: tuple[BenchEmployeeSummary, ...]
-    active: tuple[ActiveEmployeeSummary, ...]
+    on_bench: tuple[BenchEngineerSummary, ...]
+    active: tuple[ActiveEngineerSummary, ...]
     bench_count: int
     partial_count: int
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeAllocationDetail:
-    """Active allocation row in employee drill-down (BRD §4.1)."""
+class EngineerAllocationDetail:
+    """Active allocation row in engineer drill-down (BRD §4.1)."""
 
     project_name: str
     utilisation_percent: int
@@ -243,16 +243,16 @@ class EmployeeAllocationDetail:
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeResourceDetail:
-    """Employee drill-down for manager resource dashboard (BRD §4.1)."""
+class EngineerResourceDetail:
+    """Engineer drill-down for manager resource dashboard (BRD §4.1)."""
 
-    employee_id: int
+    user_id: int
     full_name: str
     department: str
-    work_status: EmployeeWorkStatus
+    work_status: ResourceWorkStatus
     current_utilisation_percent: int
     profile_skills: tuple[str, ...]
-    active_allocations: tuple[EmployeeAllocationDetail, ...]
+    active_allocations: tuple[EngineerAllocationDetail, ...]
     recent_activity_tags: tuple[str, ...]
 
 
@@ -290,8 +290,8 @@ class ManagerProjectMilestoneRow:
 class ManagerProjectResourceRow:
     """Allocated resource row in manager project detail (BRD §4.3)."""
 
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     utilisation_percent: int
     from_date: date
     to_date: date | None
@@ -314,8 +314,8 @@ class ManagerProjectDetail:
 class TeamTimesheetRow:
     """One employee/project line on manager team timesheets (BRD §4.4)."""
 
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     project_id: int
     project_name: str
     hours: int
@@ -332,8 +332,8 @@ class TeamTimesheetListResult:
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeTimesheetEntryDetail:
-    """Project line within an employee's weekly timesheet detail."""
+class EngineerTimesheetEntryDetail:
+    """Project line within an engineer's weekly timesheet detail."""
 
     project_id: int
     project_name: str
@@ -342,15 +342,15 @@ class EmployeeTimesheetEntryDetail:
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeTimesheetWeekDetail:
-    """Employee timesheet drill-down for manager (BRD §4.4)."""
+class EngineerTimesheetWeekDetail:
+    """Engineer timesheet drill-down for manager (BRD §4.4)."""
 
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     week_start_date: date
     status: TimesheetWeekStatus
     total_hours: int
-    entries: tuple[EmployeeTimesheetEntryDetail, ...]
+    entries: tuple[EngineerTimesheetEntryDetail, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -460,7 +460,7 @@ class MyTimesheetWeekDetail:
 class SkillMatchCandidate:
     """Pre-filtered employee facts sent to the LLM for ranking (BRD §4.2 AI, §4.5)."""
 
-    employee_id: int
+    user_id: int
     full_name: str
     skill_names: tuple[str, ...]
     utilisation_percent: int
@@ -482,8 +482,8 @@ class SkillMatchContext:
 class SkillMatchResult:
     """Ranked AI suggestion for one employee (class diagram «DTO»)."""
 
-    employee_id: int
-    employee_name: str
+    user_id: int
+    user_name: str
     reason: str
     suggested_allocation_percent: int
     free_hours_per_week: int
@@ -514,7 +514,7 @@ class RiskSummaryMilestoneFact:
 class RiskSummaryResourceFact:
     """Allocation fact included in risk summary LLM context."""
 
-    employee_full_name: str
+    user_full_name: str
     utilisation_percent: int
 
 
@@ -522,7 +522,7 @@ class RiskSummaryResourceFact:
 class RiskSummaryTimesheetFact:
     """Recent hours fact included in risk summary LLM context."""
 
-    employee_full_name: str
+    user_full_name: str
     week_start_date: date
     hours_logged: int
     expected_hours: int
@@ -564,7 +564,7 @@ class HealthMilestoneFact:
 class HealthTimesheetFact:
     """Last-week hours input for scheduler health evaluation."""
 
-    employee_full_name: str
+    user_full_name: str
     hours_logged: int
     expected_hours: int
 
@@ -591,6 +591,6 @@ class HealthEvaluationResult:
 class SchedulerRunResult:
     """Outcome counters for one scheduler tick."""
 
-    employees_synced: int
+    engineers_synced: int
     projects_evaluated: int
     missed_weeks_created: int

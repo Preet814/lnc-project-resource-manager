@@ -5,24 +5,23 @@ from sqlalchemy import Enum
 from prm.domain.enums import (
     ActivityTag,
     AllocationStatus,
-    EmployeeWorkStatus,
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectHealthStatus,
     ProjectStatus,
+    ResourceWorkStatus,
     Role,
     SkillCategory,
     TimesheetWeekStatus,
     UserAccountStatus,
 )
 
-role_enum = Enum(Role, name="role", native_enum=False, length=20)
 user_account_status_enum = Enum(
     UserAccountStatus, name="user_account_status", native_enum=False, length=20
 )
-employee_work_status_enum = Enum(
-    EmployeeWorkStatus, name="employee_work_status", native_enum=False, length=20
+resource_work_status_enum = Enum(
+    ResourceWorkStatus, name="resource_work_status", native_enum=False, length=20
 )
 skill_category_enum = Enum(SkillCategory, name="skill_category", native_enum=False, length=20)
 proficiency_level_enum = Enum(
@@ -43,3 +42,6 @@ timesheet_week_status_enum = Enum(
 )
 llm_provider_enum = Enum(LLMProvider, name="llm_provider", native_enum=False, length=20)
 activity_tag_enum = Enum(ActivityTag, name="activity_tag", native_enum=False, length=30)
+
+# Legacy — removed from users table; Role enum used in application layer only
+role_enum = Enum(Role, name="role", native_enum=False, length=20)

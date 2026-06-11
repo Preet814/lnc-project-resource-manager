@@ -7,12 +7,12 @@ from prm.application.scheduler_service import SchedulerService
 from prm.application.utilisation_calculator import UtilisationCalculator
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
     SqlAlchemyMilestoneRepository,
     SqlAlchemyProjectHealthSnapshotRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySystemConfigurationRepository,
     SqlAlchemyTimesheetRepository,
+    SqlAlchemyUserRepository,
 )
 
 
@@ -20,7 +20,7 @@ def create_scheduler_service(session: Session) -> SchedulerService:
     """Build a scheduler service bound to one database session."""
     allocation_repository = SqlAlchemyAllocationRepository(session)
     return SchedulerService(
-        employee_repository=SqlAlchemyEmployeeRepository(session),
+        user_repository=SqlAlchemyUserRepository(session),
         allocation_repository=allocation_repository,
         project_repository=SqlAlchemyProjectRepository(session),
         milestone_repository=SqlAlchemyMilestoneRepository(session),

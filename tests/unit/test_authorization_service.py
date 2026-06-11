@@ -11,6 +11,13 @@ from prm.domain.enums import ProjectHealthStatus, ProjectStatus, Role, UserAccou
 from prm.domain.exceptions import NotFoundError, UnauthorizedError
 
 
+_ROLE_IDS = {
+    Role.ENGINEER: 1,
+    Role.MANAGER: 2,
+    Role.ADMIN: 3,
+}
+
+
 def _user(*, role: Role = Role.ADMIN, active: bool = True, user_id: int = 1) -> User:
     now = datetime.now(UTC)
     return User(
@@ -19,7 +26,11 @@ def _user(*, role: Role = Role.ADMIN, active: bool = True, user_id: int = 1) -> 
         username="testuser",
         email="test@local",
         password_hash="hash",
+        role_id=_ROLE_IDS[role],
         role=role,
+        department_id=1,
+        designation_id=1,
+        manager_id=None,
         account_status=UserAccountStatus.ACTIVE if active else UserAccountStatus.INACTIVE,
         force_password_change=False,
         created_at=now,
@@ -65,7 +76,7 @@ def test_assert_role_passes_when_role_allowed() -> None:
 
 def test_assert_role_raises_when_role_not_allowed() -> None:
     with pytest.raises(UnauthorizedError, match="not permitted"):
-        AuthorizationService().assert_role(_user(role=Role.EMPLOYEE), Role.ADMIN)
+        AuthorizationService().assert_role(_user(role=Role.ENGINEER), Role.ADMIN)
 
 
 def test_assert_project_owner_passes_for_owner() -> None:

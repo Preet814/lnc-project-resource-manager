@@ -1,11 +1,11 @@
 """Unit tests for bootstrap admin seed."""
 
 from sqlalchemy import create_engine, select
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from prm.api.settings import Settings
 from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, DEFAULT_SCHEDULER_INTERVAL_HOURS
-from prm.domain.enums import LLMProvider, Role, UserAccountStatus
+from prm.domain.enums import LLMProvider, UserAccountStatus
 from prm.infrastructure.db.models import SystemConfigurationModel, UserModel
 from prm.infrastructure.db.seed import (
     seed_bootstrap_admin,
@@ -15,11 +15,12 @@ from prm.infrastructure.db.seed import (
 from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_rbac_tables
 
 
 def _session() -> Session:
     engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
+    create_rbac_tables(engine)
     SystemConfigurationModel.__table__.create(engine, checkfirst=True)
     return Session(engine)
 
@@ -40,10 +41,12 @@ def test_seed_creates_admin_with_force_password_change() -> None:
         assert created is True
 
         admin = session.scalar(
-            select(UserModel).where(UserModel.username == TEST_USERNAME)
+            select(UserModel)
+            .options(joinedload(UserModel.role))
+            .where(UserModel.username == TEST_USERNAME)
         )
         assert admin is not None
-        assert admin.role == Role.ADMIN
+        assert admin.role.code == "ADMIN"
         assert admin.account_status == UserAccountStatus.ACTIVE
         assert admin.force_password_change is True
 

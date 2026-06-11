@@ -4,26 +4,21 @@ from collections.abc import Generator
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
-from prm.api.app import create_app
-from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.seed import seed_bootstrap_admin
-from prm.infrastructure.db.session import get_db_session
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import (
+    build_test_client,
+    create_route_tables,
+    create_sqlite_engine,
+)
 
 
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    # StaticPool + check_same_thread=False: TestClient runs handlers in worker threads.
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    UserModel.__table__.create(engine, checkfirst=True)
+    engine = create_sqlite_engine()
+    create_route_tables(engine)
     with Session(engine) as setup:
         seed_bootstrap_admin(
             setup,
@@ -33,21 +28,7 @@ def client() -> Generator[TestClient, None, None]:
             email=TEST_EMAIL,
         )
         setup.commit()
-
-    def override_get_db() -> Generator[Session, None, None]:
-        db = Session(engine)
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app = create_app()
-    app.dependency_overrides[get_db_session] = override_get_db
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
+    yield from build_test_client(engine)
 
 
 def test_login_returns_token_and_force_password_change(client: TestClient) -> None:

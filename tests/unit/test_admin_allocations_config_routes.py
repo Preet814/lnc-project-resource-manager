@@ -5,27 +5,20 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import select
 from sqlalchemy.orm import Session
-from sqlalchemy.pool import StaticPool
 
-from prm.api.app import create_app
 from prm.domain.enums import AllocationStatus, Role
-from prm.infrastructure.db.models import (
-    AllocationModel,
-    EmployeeModel,
-    ProjectModel,
-    SystemConfigurationModel,
-    UserModel,
-)
-from prm.infrastructure.db.repositories import (
-    SqlAlchemyEmployeeRepository,
-    SqlAlchemyUserRepository,
-)
+from prm.infrastructure.db.models import AllocationModel, ProjectModel, UserModel
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration
-from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import (
+    build_test_client,
+    create_route_tables,
+    create_sqlite_engine,
+    create_user,
+)
 
 MANAGER_USERNAME = "test_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -35,18 +28,28 @@ EMPLOYEE_PASSWORD = "TestPass9"
 EMPLOYEE_EMAIL = "test_employee@example.test"
 
 
+def _create_route_tables(engine) -> None:
+    from tests.unit.engineer_fixtures import create_route_tables as _create_tables
+
+    _create_tables(
+        engine,
+        include_project=True,
+        include_allocation=True,
+        include_config=True,
+    )
+
+
+def _set_login_password(session: Session, *, username: str, password: str) -> None:
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    assert model is not None
+    model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
+
+
 @pytest.fixture
 def client() -> Generator[TestClient, None, None]:
-    engine = create_engine(
-        "sqlite://",
-        connect_args={"check_same_thread": False},
-        poolclass=StaticPool,
-    )
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
+    engine = create_sqlite_engine()
+    _create_route_tables(engine)
 
     with Session(engine) as setup:
         seed_bootstrap_admin(
@@ -57,68 +60,47 @@ def client() -> Generator[TestClient, None, None]:
             email=TEST_EMAIL,
         )
         seed_default_system_configuration(setup)
-        repo = SqlAlchemyUserRepository(setup)
-        hasher = BcryptPasswordHasher()
-        manager = repo.create(
+        manager_id = create_user(
+            setup,
             full_name="Test Manager",
             username=MANAGER_USERNAME,
             email=MANAGER_EMAIL,
-            password_hash=hasher.hash(MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
-        employee_user = repo.create(
+        user_id = create_user(
+            setup,
             full_name="Ravi Kumar",
             username=EMPLOYEE_USERNAME,
             email=EMPLOYEE_EMAIL,
-            password_hash=hasher.hash(EMPLOYEE_PASSWORD),
-            role=Role.EMPLOYEE,
-            force_password_change=False,
+            role=Role.ENGINEER,
+            manager_id=manager_id,
         )
-        employee_repo = SqlAlchemyEmployeeRepository(setup)
-        employee = employee_repo.create(
-            user_id=employee_user.id,
-            full_name="Ravi Kumar",
-            email=EMPLOYEE_EMAIL,
-            department="Backend",
-            designation="Developer",
-        )
+        _set_login_password(setup, username=MANAGER_USERNAME, password=MANAGER_PASSWORD)
         project = ProjectModel(
             name="Alpha Portal",
             description="Test project",
             start_date=date(2026, 3, 1),
             end_date=date(2026, 6, 30),
-            manager_user_id=manager.id,
+            manager_user_id=manager_id,
         )
         setup.add(project)
         setup.flush()
         setup.add(
             AllocationModel(
-                employee_id=employee.id,
+                user_id=user_id,
                 project_id=project.id,
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
                 to_date=date(2026, 6, 30),
                 status=AllocationStatus.ACTIVE,
-                created_by_user_id=manager.id,
+                created_by_user_id=manager_id,
             )
         )
         setup.commit()
 
-    def override_get_db() -> Generator[Session, None, None]:
-        db = Session(engine)
-        try:
-            yield db
-        finally:
-            db.close()
-
-    app = create_app()
-    app.dependency_overrides[get_db_session] = override_get_db
-
-    with TestClient(app) as test_client:
-        yield test_client
-
-    app.dependency_overrides.clear()
+    yield from build_test_client(engine)
 
 
 def _login_token(client: TestClient, *, username: str, password: str) -> str:
@@ -156,17 +138,17 @@ def test_list_allocations_returns_enriched_rows(client: TestClient) -> None:
     body = response.json()
     assert body["total"] == 1
     row = body["allocations"][0]
-    assert row["employee_full_name"] == "Ravi Kumar"
+    assert row["user_full_name"] == "Ravi Kumar"
     assert row["project_name"] == "Alpha Portal"
     assert row["utilisation_percent"] == 50
 
 
-def test_list_allocations_filters_by_employee_id(client: TestClient) -> None:
+def test_list_allocations_filters_by_user_id(client: TestClient) -> None:
     listing = client.get("/admin/allocations", headers=_admin_headers(client)).json()
-    employee_id = listing["allocations"][0]["employee_id"]
+    user_id = listing["allocations"][0]["user_id"]
 
     response = client.get(
-        f"/admin/allocations?employee_id={employee_id}",
+        f"/admin/allocations?user_id={user_id}",
         headers=_admin_headers(client),
     )
 

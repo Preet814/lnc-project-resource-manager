@@ -6,7 +6,7 @@ from enum import StrEnum
 class Role(StrEnum):
     ADMIN = "ADMIN"
     MANAGER = "MANAGER"
-    EMPLOYEE = "EMPLOYEE"
+    ENGINEER = "ENGINEER"
 
 
 class UserAccountStatus(StrEnum):
@@ -14,9 +14,10 @@ class UserAccountStatus(StrEnum):
     INACTIVE = "INACTIVE"
 
 
-class EmployeeWorkStatus(StrEnum):
+class ResourceWorkStatus(StrEnum):
     BENCH = "BENCH"
     ALLOCATED = "ALLOCATED"
+
 
 
 class SkillCategory(StrEnum):

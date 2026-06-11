@@ -35,12 +35,25 @@ class UserManagementService:
         if self._users.find_by_email(email) is not None:
             raise ValidationError(f"Email '{email}' is already in use.")
 
+        department_name = "IT" if role == Role.ADMIN else "Engineering"
+        designation_by_role = {
+            Role.ADMIN: "System Administrator",
+            Role.MANAGER: "Project Manager",
+            Role.ENGINEER: "SE",
+        }
+        department_id = self._users.resolve_department_id(department_name)
+        designation_id = self._users.resolve_designation_id(designation_by_role[role])
+        if department_id is None or designation_id is None:
+            raise ValidationError("Default department or designation is not configured.")
+
         return self._users.create(
             full_name=full_name,
             username=username,
             email=email,
             password_hash=self._hasher.hash(temporary_password),
-            role=role,
+            role_id=self._users.resolve_role_id(role),
+            department_id=department_id,
+            designation_id=designation_id,
             force_password_change=True,
             account_status=UserAccountStatus.ACTIVE,
         )

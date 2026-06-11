@@ -15,7 +15,7 @@ from prm.infrastructure.llm.fake_client import FakeLlmClient
 
 def _candidate() -> SkillMatchCandidate:
     return SkillMatchCandidate(
-        employee_id=12,
+        user_id=12,
         full_name="Anil Mehta",
         skill_names=("Microservices",),
         utilisation_percent=0,
@@ -37,8 +37,8 @@ def test_fake_llm_client_returns_preset_rank_results() -> None:
     fake = FakeLlmClient(
         rank_results=(
             SkillMatchResult(
-                employee_id=12,
-                employee_name="Anil Mehta",
+                user_id=12,
+                user_name="Anil Mehta",
                 reason="Best fit",
                 suggested_allocation_percent=50,
                 free_hours_per_week=40,

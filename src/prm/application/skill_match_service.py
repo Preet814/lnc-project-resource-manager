@@ -4,11 +4,11 @@ from datetime import date
 
 from prm.application.authorization_service import AuthorizationService
 from prm.application.protocols import (
-    EmployeeRepository,
-    EmployeeSkillRepository,
     LLMClient,
     SkillRepository,
     TimesheetRepository,
+    UserRepository,
+    UserSkillRepository,
 )
 from prm.application.requirement_parser import parse_requested_hours_per_week
 from prm.domain.constants import MAX_UTILISATION_PERCENT
@@ -25,8 +25,8 @@ class SkillMatchService:
 
     def __init__(
         self,
-        employee_repository: EmployeeRepository,
-        employee_skill_repository: EmployeeSkillRepository,
+        user_repository: UserRepository,
+        user_skill_repository: UserSkillRepository,
         skill_repository: SkillRepository,
         timesheet_repository: TimesheetRepository,
         authorization: AuthorizationService,
@@ -34,8 +34,8 @@ class SkillMatchService:
         *,
         max_weekly_hours: int,
     ) -> None:
-        self._employees = employee_repository
-        self._employee_skills = employee_skill_repository
+        self._users = user_repository
+        self._user_skills = user_skill_repository
         self._skills = skill_repository
         self._timesheets = timesheet_repository
         self._authorization = authorization
@@ -99,11 +99,12 @@ class SkillMatchService:
         reference = as_of or date.today()
         qualified: list[SkillMatchCandidate] = []
 
-        for employee in self._employees.list_by_manager_user_id(
+        for engineer in self._users.list_by_manager_id(
             manager_user_id,
             active_only=True,
         ):
-            free_hours = self._free_hours_per_week(employee.current_utilisation_percent)
+            utilisation = engineer.utilisation_percent or 0
+            free_hours = self._free_hours_per_week(utilisation)
             if requested_hours is not None:
                 if free_hours < requested_hours:
                     continue
@@ -112,14 +113,14 @@ class SkillMatchService:
 
             qualified.append(
                 SkillMatchCandidate(
-                    employee_id=employee.id,
-                    full_name=employee.full_name,
-                    skill_names=self._skill_names(employee.id),
-                    utilisation_percent=employee.current_utilisation_percent,
+                    user_id=engineer.id,
+                    full_name=engineer.full_name,
+                    skill_names=self._skill_names(engineer.id),
+                    utilisation_percent=utilisation,
                     free_hours_per_week=free_hours,
                     recent_activity_tags=tuple(
                         self._timesheets.list_recent_activity_tags(
-                            employee.id,
+                            engineer.id,
                             weeks=4,
                             as_of=reference,
                         )
@@ -133,8 +134,8 @@ class SkillMatchService:
         availability_percent = max(0, MAX_UTILISATION_PERCENT - utilisation_percent)
         return (availability_percent * self._max_weekly_hours) // MAX_UTILISATION_PERCENT
 
-    def _skill_names(self, employee_id: int) -> tuple[str, ...]:
-        assignments = self._employee_skills.list_for_employee(employee_id)
+    def _skill_names(self, user_id: int) -> tuple[str, ...]:
+        assignments = self._user_skills.list_for_user(user_id)
         names: list[str] = []
         for assignment in assignments:
             skill = self._skills.find_by_id(assignment.skill_id)
@@ -145,5 +146,5 @@ class SkillMatchService:
     @staticmethod
     def _no_candidates_message(requested_hours: int | None) -> str:
         if requested_hours is not None:
-            return f"No employees have at least {requested_hours} free hours per week."
-        return "No employees with available capacity were found."
+            return f"No engineers have at least {requested_hours} free hours per week."
+        return "No engineers with available capacity were found."

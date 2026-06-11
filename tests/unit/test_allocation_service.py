@@ -3,43 +3,39 @@
 from datetime import date
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.application.allocation_service import AllocationService
 from prm.application.authorization_service import AuthorizationService
 from prm.application.utilisation_calculator import UtilisationCalculator
-from prm.domain.enums import AllocationStatus, EmployeeWorkStatus, ProjectStatus, Role
+from prm.domain.enums import AllocationStatus, ProjectStatus, ResourceWorkStatus, Role
 from prm.domain.exceptions import ConflictError, NotFoundError, UnauthorizedError, ValidationError
-from prm.infrastructure.db.models import (
-    AllocationModel,
-    EmployeeModel,
-    ProjectModel,
-    UserModel,
-)
+from prm.infrastructure.db.models import AllocationModel, ProjectModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyUserRepository,
 )
-from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import (
+    create_allocation_tables,
+    create_memory_session,
+    create_user,
+    seed_rbac,
+    set_engineer_status,
+)
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    session = create_memory_session(include_project=True)
+    create_allocation_tables(session)
+    return session
 
 
 def _service(session: Session) -> AllocationService:
     project_repo = SqlAlchemyProjectRepository(session)
     return AllocationService(
         allocation_repository=SqlAlchemyAllocationRepository(session),
-        employee_repository=SqlAlchemyEmployeeRepository(session),
+        user_repository=SqlAlchemyUserRepository(session),
         project_repository=project_repo,
         authorization=AuthorizationService(project_repo),
         utilisation=UtilisationCalculator(SqlAlchemyAllocationRepository(session)),
@@ -52,32 +48,25 @@ def _seed(
     project_status: ProjectStatus = ProjectStatus.ACTIVE,
     manager_user_id: int | None = None,
 ) -> tuple[int, int, int]:
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
-        full_name="Manager User",
+    seed_rbac(session)
+    manager_id = create_user(
+        session,
         username="manager",
         email="manager@example.test",
-        password_hash=hasher.hash("TempPass1"),
+        full_name="Manager User",
         role=Role.MANAGER,
+        department_name="Delivery",
+        designation_name="Project Manager",
     )
-    employee_user = user_repo.create(
-        full_name="Employee User",
+    owner_id = manager_user_id or manager_id
+    engineer_id = create_user(
+        session,
         username="employee",
         email="employee@example.test",
-        password_hash=hasher.hash("TempPass1"),
-        role=Role.EMPLOYEE,
-    )
-    employee_repo = SqlAlchemyEmployeeRepository(session)
-    employee = employee_repo.create(
-        user_id=employee_user.id,
         full_name="Ravi Kumar",
-        email="employee@example.test",
-        department="Backend",
-        designation="Developer",
+        role=Role.ENGINEER,
+        manager_id=owner_id,
     )
-    owner_id = manager_user_id or manager.id
-    employee_repo.set_manager_id(employee.id, manager_id=owner_id)
     project = ProjectModel(
         name="Alpha Portal",
         description="Test project",
@@ -87,19 +76,19 @@ def _seed(
     )
     session.add(project)
     session.flush()
-    return owner_id, employee.id, project.id
+    return owner_id, engineer_id, project.id
 
 
 def test_allocate_direct_creates_allocation_and_updates_employee() -> None:
     with _session() as session:
-        manager_id, employee_id, project_id = _seed(session)
+        manager_id, user_id, project_id = _seed(session)
         session.commit()
         service = _service(session)
 
         allocation = service.allocate_direct(
             manager_id,
             project_id=project_id,
-            employee_id=employee_id,
+            user_id=user_id,
             utilisation_percent=50,
             from_date=date(2026, 6, 1),
             to_date=date(2026, 9, 30),
@@ -108,18 +97,18 @@ def test_allocate_direct_creates_allocation_and_updates_employee() -> None:
 
         assert allocation.status == AllocationStatus.ACTIVE
         assert allocation.utilisation_percent == 50
-        employee = SqlAlchemyEmployeeRepository(session).find_by_id(employee_id)
-        assert employee is not None
-        assert employee.current_utilisation_percent == 50
-        assert employee.work_status == EmployeeWorkStatus.ALLOCATED
+        engineer = SqlAlchemyUserRepository(session).find_by_id(user_id)
+        assert engineer is not None
+        assert engineer.utilisation_percent == 50
+        assert engineer.work_status == ResourceWorkStatus.ALLOCATED
 
 
 def test_allocate_direct_raises_conflict_when_over_cap() -> None:
     with _session() as session:
-        manager_id, employee_id, project_id = _seed(session)
+        manager_id, user_id, project_id = _seed(session)
         session.add(
             AllocationModel(
-                employee_id=employee_id,
+                user_id=user_id,
                 project_id=project_id,
                 utilisation_percent=75,
                 from_date=date(2026, 3, 1),
@@ -135,7 +124,7 @@ def test_allocate_direct_raises_conflict_when_over_cap() -> None:
             service.allocate_direct(
                 manager_id,
                 project_id=project_id,
-                employee_id=employee_id,
+                user_id=user_id,
                 utilisation_percent=50,
                 from_date=date(2026, 6, 1),
                 to_date=date(2026, 9, 30),
@@ -150,7 +139,7 @@ def test_allocate_direct_raises_when_project_not_allocatable(
     project_status: ProjectStatus,
 ) -> None:
     with _session() as session:
-        manager_id, employee_id, project_id = _seed(
+        manager_id, user_id, project_id = _seed(
             session,
             project_status=project_status,
         )
@@ -161,7 +150,7 @@ def test_allocate_direct_raises_when_project_not_allocatable(
             service.allocate_direct(
                 manager_id,
                 project_id=project_id,
-                employee_id=employee_id,
+                user_id=user_id,
                 utilisation_percent=50,
                 from_date=date(2026, 6, 1),
                 to_date=date(2026, 9, 30),
@@ -170,24 +159,24 @@ def test_allocate_direct_raises_when_project_not_allocatable(
 
 def test_allocate_direct_raises_when_not_project_owner() -> None:
     with _session() as session:
-        manager_id, employee_id, project_id = _seed(session)
-        user_repo = SqlAlchemyUserRepository(session)
-        hasher = BcryptPasswordHasher()
-        outsider = user_repo.create(
-            full_name="Outsider",
+        manager_id, user_id, project_id = _seed(session)
+        outsider = create_user(
+            session,
             username="outsider",
             email="outsider@example.test",
-            password_hash=hasher.hash("TempPass1"),
+            full_name="Outsider",
             role=Role.MANAGER,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
         session.commit()
         service = _service(session)
 
         with pytest.raises(UnauthorizedError, match="project owner"):
             service.allocate_direct(
-                outsider.id,
+                outsider,
                 project_id=project_id,
-                employee_id=employee_id,
+                user_id=user_id,
                 utilisation_percent=50,
                 from_date=date(2026, 6, 1),
                 to_date=date(2026, 9, 30),
@@ -196,9 +185,9 @@ def test_allocate_direct_raises_when_not_project_owner() -> None:
 
 def test_end_allocation_sets_ended_and_returns_employee_to_bench() -> None:
     with _session() as session:
-        manager_id, employee_id, project_id = _seed(session)
+        manager_id, user_id, project_id = _seed(session)
         allocation = AllocationModel(
-            employee_id=employee_id,
+            user_id=user_id,
             project_id=project_id,
             utilisation_percent=50,
             from_date=date(2026, 3, 1),
@@ -208,11 +197,11 @@ def test_end_allocation_sets_ended_and_returns_employee_to_bench() -> None:
         )
         session.add(allocation)
         session.flush()
-        employee_repo = SqlAlchemyEmployeeRepository(session)
-        employee_repo.update_utilisation_and_status(
-            employee_id,
-            current_utilisation_percent=50,
-            work_status=EmployeeWorkStatus.ALLOCATED,
+        set_engineer_status(
+            session,
+            user_id,
+            utilisation_percent=50,
+            work_status=ResourceWorkStatus.ALLOCATED,
         )
         session.commit()
         service = _service(session)
@@ -227,18 +216,18 @@ def test_end_allocation_sets_ended_and_returns_employee_to_bench() -> None:
 
         assert ended.status == AllocationStatus.ENDED
         assert ended.to_date == end_date
-        employee = employee_repo.find_by_id(employee_id)
-        assert employee is not None
-        assert employee.work_status == EmployeeWorkStatus.BENCH
-        assert employee.current_utilisation_percent == 0
+        engineer = SqlAlchemyUserRepository(session).find_by_id(user_id)
+        assert engineer is not None
+        assert engineer.work_status == ResourceWorkStatus.BENCH
+        assert engineer.utilisation_percent == 0
 
 
 def test_list_project_allocations_returns_active_rows_for_owner() -> None:
     with _session() as session:
-        manager_id, employee_id, project_id = _seed(session)
+        manager_id, user_id, project_id = _seed(session)
         session.add(
             AllocationModel(
-                employee_id=employee_id,
+                user_id=user_id,
                 project_id=project_id,
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
@@ -253,7 +242,7 @@ def test_list_project_allocations_returns_active_rows_for_owner() -> None:
         allocations = service.list_project_allocations(manager_id, project_id)
 
         assert len(allocations) == 1
-        assert allocations[0].employee_full_name == "Ravi Kumar"
+        assert allocations[0].user_full_name == "Ravi Kumar"
         assert allocations[0].project_name == "Alpha Portal"
 
 
@@ -269,22 +258,22 @@ def test_end_allocation_raises_when_allocation_missing() -> None:
 
 def test_allocate_direct_rejects_employee_not_on_manager_team() -> None:
     with _session() as session:
-        manager_id, employee_id, _project_id = _seed(session)
-        user_repo = SqlAlchemyUserRepository(session)
-        hasher = BcryptPasswordHasher()
-        other_manager = user_repo.create(
-            full_name="Other Manager",
+        _manager_id, user_id, _project_id = _seed(session)
+        other_manager = create_user(
+            session,
             username="other.manager",
             email="other@example.test",
-            password_hash=hasher.hash("TempPass1"),
+            full_name="Other Manager",
             role=Role.MANAGER,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
         other_project = ProjectModel(
             name="Beta CRM",
             description="Other manager project",
             start_date=date(2026, 3, 1),
             status=ProjectStatus.ACTIVE,
-            manager_user_id=other_manager.id,
+            manager_user_id=other_manager,
         )
         session.add(other_project)
         session.commit()
@@ -292,9 +281,9 @@ def test_allocate_direct_rejects_employee_not_on_manager_team() -> None:
 
         with pytest.raises(UnauthorizedError, match="assigned to your team"):
             service.allocate_direct(
-                other_manager.id,
+                other_manager,
                 project_id=other_project.id,
-                employee_id=employee_id,
+                user_id=user_id,
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
                 to_date=date(2026, 6, 30),

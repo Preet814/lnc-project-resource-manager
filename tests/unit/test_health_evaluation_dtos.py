@@ -23,7 +23,7 @@ def test_health_evaluation_input() -> None:
         ),
         last_week_timesheets=(
             HealthTimesheetFact(
-                employee_full_name="Ravi Kumar",
+                user_full_name="Ravi Kumar",
                 hours_logged=4,
                 expected_hours=20,
             ),

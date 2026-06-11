@@ -8,10 +8,10 @@ from prm.domain.enums import AllocationStatus
 
 @dataclass(frozen=True, slots=True)
 class Allocation:
-    """Employee allocation to a project for a date range."""
+    """User allocation to a project for a date range."""
 
     id: int
-    employee_id: int
+    user_id: int
     project_id: int
     utilisation_percent: int
     from_date: date

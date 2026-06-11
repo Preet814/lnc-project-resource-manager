@@ -7,55 +7,55 @@ from pydantic import BaseModel, Field
 from prm.api.schemas.admin_allocations import AllocationSummaryResponse
 from prm.domain.enums import (
     AllocationStatus,
-    EmployeeWorkStatus,
     MilestoneStatus,
+    ResourceWorkStatus,
     ProjectHealthStatus,
     TimesheetWeekStatus,
 )
 
 
-class BenchEmployeeResponse(BaseModel):
-    employee_id: int
+class BenchEngineerResponse(BaseModel):
+    user_id: int
     full_name: str
     department: str
     skill_names: list[str]
 
 
-class ActiveEmployeeResponse(BaseModel):
-    employee_id: int
+class ActiveEngineerResponse(BaseModel):
+    user_id: int
     full_name: str
     utilisation_percent: int
     availability_percent: int
 
 
 class ResourceDashboardResponse(BaseModel):
-    on_bench: list[BenchEmployeeResponse]
-    active: list[ActiveEmployeeResponse]
+    on_bench: list[BenchEngineerResponse]
+    active: list[ActiveEngineerResponse]
     bench_count: int
     partial_count: int
 
 
-class EmployeeAllocationDetailResponse(BaseModel):
+class EngineerAllocationDetailResponse(BaseModel):
     project_name: str
     utilisation_percent: int
     from_date: date
     to_date: date | None
 
 
-class EmployeeResourceDetailResponse(BaseModel):
-    employee_id: int
+class EngineerResourceDetailResponse(BaseModel):
+    user_id: int
     full_name: str
     department: str
-    work_status: EmployeeWorkStatus
+    work_status: ResourceWorkStatus
     current_utilisation_percent: int
     profile_skills: list[str]
-    active_allocations: list[EmployeeAllocationDetailResponse]
+    active_allocations: list[EngineerAllocationDetailResponse]
     recent_activity_tags: list[str]
 
 
 class CreateAllocationRequest(BaseModel):
     project_id: int
-    employee_id: int
+    user_id: int
     utilisation_percent: int = Field(ge=1, le=100)
     from_date: date
     to_date: date | None = None
@@ -67,7 +67,7 @@ class EndAllocationRequest(BaseModel):
 
 class ManagerAllocationResponse(BaseModel):
     allocation_id: int
-    employee_id: int
+    user_id: int
     project_id: int
     utilisation_percent: int
     from_date: date
@@ -102,8 +102,8 @@ class ManagerProjectMilestoneResponse(BaseModel):
 
 
 class ManagerProjectResourceResponse(BaseModel):
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     utilisation_percent: int
     from_date: date
     to_date: date | None
@@ -120,8 +120,8 @@ class ManagerProjectDetailResponse(BaseModel):
 
 
 class TeamTimesheetRowResponse(BaseModel):
-    employee_id: int
-    employee_full_name: str
+    user_id: int
+    user_full_name: str
     project_id: int
     project_name: str
     hours: int
@@ -134,20 +134,20 @@ class TeamTimesheetListResponse(BaseModel):
     total: int
 
 
-class EmployeeTimesheetEntryResponse(BaseModel):
+class EngineerTimesheetEntryResponse(BaseModel):
     project_id: int
     project_name: str
     hours_worked: int
     activity_tags: list[str]
 
 
-class EmployeeTimesheetWeekDetailResponse(BaseModel):
-    employee_id: int
-    employee_full_name: str
+class EngineerTimesheetWeekDetailResponse(BaseModel):
+    user_id: int
+    user_full_name: str
     week_start_date: date
     status: TimesheetWeekStatus
     total_hours: int
-    entries: list[EmployeeTimesheetEntryResponse]
+    entries: list[EngineerTimesheetEntryResponse]
 
 
 class SkillMatchRequest(BaseModel):
@@ -155,8 +155,8 @@ class SkillMatchRequest(BaseModel):
 
 
 class SkillMatchResultResponse(BaseModel):
-    employee_id: int
-    employee_name: str
+    user_id: int
+    user_name: str
     reason: str
     suggested_allocation_percent: int
     free_hours_per_week: int

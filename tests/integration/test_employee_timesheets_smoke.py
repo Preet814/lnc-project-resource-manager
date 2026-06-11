@@ -1,13 +1,16 @@
 """Smoke tests for employee timesheet and allocation API against a running API."""
 
-import os
 import uuid
 from datetime import date, timedelta
 
-import httpx
 import pytest
 
-API_BASE_URL = os.getenv("PRM_API_URL", "http://localhost:8000")
+from tests.integration.support import (
+    admin_headers as _admin_headers,
+    api_url as _api_url,
+    request_or_skip as _request_or_skip,
+)
+
 TEMP_PASSWORD = "TempPass1"
 
 
@@ -16,46 +19,6 @@ def _completed_week_start() -> str:
     today = date.today()
     this_monday = today - timedelta(days=today.weekday())
     return (this_monday - timedelta(days=7)).isoformat()
-
-
-def _api_url(path: str) -> str:
-    return f"{API_BASE_URL.rstrip('/')}{path}"
-
-
-def _bootstrap_credentials() -> tuple[str, str]:
-    username = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "").strip()
-    password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip()
-    if not username or not password:
-        pytest.skip(
-            "BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD must be set "
-            "(e.g. set -a && source .env && set +a)"
-        )
-    return username, password
-
-
-def _request_or_skip(method: str, url: str, **kwargs: object) -> httpx.Response:
-    try:
-        request = getattr(httpx, method)
-        return request(url, timeout=10.0, **kwargs)
-    except httpx.ConnectError as exc:
-        pytest.skip(f"API not running at {API_BASE_URL}: {exc}")
-
-
-def _admin_token() -> str:
-    username, password = _bootstrap_credentials()
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": password},
-    )
-    assert login.status_code == 200
-    body = login.json()
-    assert body["role"] == "ADMIN"
-    return body["access_token"]
-
-
-def _admin_headers() -> dict[str, str]:
-    return {"Authorization": f"Bearer {_admin_token()}"}
 
 
 def _unique_username(prefix: str) -> str:
@@ -95,7 +58,7 @@ def _create_employee_user(headers: dict[str, str], *, prefix: str) -> dict:
             "email": email,
             "username": username,
             "temporary_password": TEMP_PASSWORD,
-            "role": "EMPLOYEE",
+            "role": "ENGINEER",
         },
     )
     assert create_user.status_code == 201
@@ -119,7 +82,7 @@ def _create_employee_profile(
             "full_name": "Smoke Test Employee",
             "email": email,
             "department": "Backend",
-            "designation": "Developer",
+            "designation": "SE",
         },
     )
     assert create_employee.status_code == 201
@@ -129,7 +92,7 @@ def _create_employee_profile(
 def _assign_manager(
     headers: dict[str, str],
     *,
-    employee_user_id: int,
+    engineer_user_id: int,
     manager_user_id: int,
 ) -> None:
     assign = _request_or_skip(
@@ -137,7 +100,7 @@ def _assign_manager(
         _api_url("/admin/employees/assign-manager"),
         headers=headers,
         json={
-            "employee_user_id": employee_user_id,
+            "engineer_user_id": engineer_user_id,
             "manager_user_id": manager_user_id,
         },
     )
@@ -162,14 +125,14 @@ def _create_project(headers: dict[str, str], *, manager_user_id: int, prefix: st
     return create_project.json()
 
 
-def _employee_headers(*, username: str) -> dict[str, str]:
+def _engineer_headers(*, username: str) -> dict[str, str]:
     login = _request_or_skip(
         "post",
         _api_url("/auth/login"),
         json={"username": username, "password": TEMP_PASSWORD},
     )
     assert login.status_code == 200
-    assert login.json()["role"] == "EMPLOYEE"
+    assert login.json()["role"] == "ENGINEER"
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
@@ -198,7 +161,7 @@ def test_employee_timesheets_smoke() -> None:
     )
     _assign_manager(
         admin_headers,
-        employee_user_id=employee_user["id"],
+        engineer_user_id=employee_user["id"],
         manager_user_id=manager["id"],
     )
     project = _create_project(
@@ -207,7 +170,7 @@ def test_employee_timesheets_smoke() -> None:
         prefix=prefix,
     )
     manager_headers = _manager_headers(username=manager["username"])
-    employee_headers = _employee_headers(username=employee_user["username"])
+    employee_headers = _engineer_headers(username=employee_user["username"])
     week_start = _completed_week_start()
 
     allocated = _request_or_skip(
@@ -216,7 +179,7 @@ def test_employee_timesheets_smoke() -> None:
         headers=manager_headers,
         json={
             "project_id": project["id"],
-            "employee_id": employee["id"],
+            "user_id": employee["id"],
             "utilisation_percent": 50,
             "from_date": "2020-01-01",
             "to_date": "2030-12-31",
@@ -226,7 +189,7 @@ def test_employee_timesheets_smoke() -> None:
 
     for_week = _request_or_skip(
         "get",
-        _api_url("/employee/allocations/for-week"),
+        _api_url("/engineer/allocations/for-week"),
         headers=employee_headers,
         params={"week_start_date": week_start},
     )
@@ -243,7 +206,7 @@ def test_employee_timesheets_smoke() -> None:
 
     submitted = _request_or_skip(
         "post",
-        _api_url("/employee/timesheets"),
+        _api_url("/engineer/timesheets"),
         headers=employee_headers,
         json={
             "week_start_date": week_start,
@@ -263,7 +226,7 @@ def test_employee_timesheets_smoke() -> None:
 
     history = _request_or_skip(
         "get",
-        _api_url("/employee/timesheets"),
+        _api_url("/engineer/timesheets"),
         headers=employee_headers,
     )
     assert history.status_code == 200
@@ -273,7 +236,7 @@ def test_employee_timesheets_smoke() -> None:
 
     detail = _request_or_skip(
         "get",
-        _api_url(f"/employee/timesheets/{week_start}"),
+        _api_url(f"/engineer/timesheets/{week_start}"),
         headers=employee_headers,
     )
     assert detail.status_code == 200
@@ -284,7 +247,7 @@ def test_employee_timesheets_smoke() -> None:
 
     my_allocations = _request_or_skip(
         "get",
-        _api_url("/employee/allocations"),
+        _api_url("/engineer/allocations"),
         headers=employee_headers,
     )
     assert my_allocations.status_code == 200
@@ -301,7 +264,7 @@ def test_employee_timesheets_smoke() -> None:
     assert team_timesheets.status_code == 200
     team_body = team_timesheets.json()
     row = next(
-        item for item in team_body["rows"] if item["employee_id"] == employee["id"]
+        item for item in team_body["rows"] if item["user_id"] == employee["id"]
     )
     assert row["status"] == "SUBMITTED"
     assert row["hours"] == hours_logged

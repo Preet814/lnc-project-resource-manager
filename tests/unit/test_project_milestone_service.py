@@ -18,14 +18,11 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyUserRepository,
 )
 from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import create_memory_session, seed_rbac
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return create_memory_session(include_project=True)
 
 
 def _milestone_service(session: Session) -> ProjectMilestoneService:
@@ -44,6 +41,7 @@ def _project_service(session: Session) -> ProjectManagementService:
 
 
 def _create_project(session: Session) -> int:
+    seed_rbac(session)
     manager = UserManagementService(
         user_repository=SqlAlchemyUserRepository(session),
         password_hasher=BcryptPasswordHasher(),
@@ -176,6 +174,7 @@ def test_update_milestone_fails_when_title_blank() -> None:
 def test_update_milestone_fails_when_milestone_not_for_project() -> None:
     with _session() as session:
         first_project_id = _create_project(session)
+        seed_rbac(session)
         manager = UserManagementService(
             user_repository=SqlAlchemyUserRepository(session),
             password_hasher=BcryptPasswordHasher(),

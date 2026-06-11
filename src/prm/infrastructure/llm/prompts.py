@@ -11,7 +11,7 @@ def build_skill_match_prompt(
 ) -> str:
     candidate_payload = [
         {
-            "employee_id": candidate.employee_id,
+            "user_id": candidate.user_id,
             "full_name": candidate.full_name,
             "skill_names": list(candidate.skill_names),
             "utilisation_percent": candidate.utilisation_percent,
@@ -33,9 +33,9 @@ def build_skill_match_prompt(
         f"{hours_note}\n\n"
         f"Candidates JSON:\n{json.dumps(candidate_payload, indent=2)}\n\n"
         "Respond with JSON only in this shape:\n"
-        '{"matches":[{"employee_id":1,"employee_name":"Name","reason":"...",'
+        '{"matches":[{"user_id":1,"user_name":"Name","reason":"...",'
         '"suggested_allocation_percent":25,"free_hours_per_week":10}]}\n'
-        "Include only employee_id values from the candidate list. "
+        "Include only user_id values from the candidate list. "
         "Order matches from best to worst fit."
     )
 
@@ -57,14 +57,14 @@ def build_risk_summary_prompt(context: RiskSummaryContext) -> str:
         ],
         "allocated_resources": [
             {
-                "employee_full_name": resource.employee_full_name,
+                "user_full_name": resource.user_full_name,
                 "utilisation_percent": resource.utilisation_percent,
             }
             for resource in context.allocated_resources
         ],
         "recent_timesheets": [
             {
-                "employee_full_name": timesheet.employee_full_name,
+                "user_full_name": timesheet.user_full_name,
                 "week_start_date": timesheet.week_start_date.isoformat(),
                 "hours_logged": timesheet.hours_logged,
                 "expected_hours": timesheet.expected_hours,

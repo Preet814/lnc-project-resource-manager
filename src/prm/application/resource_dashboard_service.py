@@ -4,38 +4,39 @@ from datetime import date
 
 from prm.application.protocols import (
     AllocationRepository,
-    EmployeeRepository,
-    EmployeeSkillRepository,
     ProjectRepository,
     SkillRepository,
     TimesheetRepository,
+    UserRepository,
+    UserSkillRepository,
 )
 from prm.domain.constants import MAX_UTILISATION_PERCENT
 from prm.domain.dtos import (
-    ActiveEmployeeSummary,
-    BenchEmployeeSummary,
-    EmployeeAllocationDetail,
-    EmployeeResourceDetail,
+    ActiveEngineerSummary,
+    BenchEngineerSummary,
+    EngineerAllocationDetail,
+    EngineerResourceDetail,
     ResourceDashboardResult,
 )
-from prm.domain.entities.employee import Employee
+from prm.domain.entities.user import User
+from prm.domain.enums import ResourceWorkStatus
 from prm.domain.exceptions import NotFoundError, UnauthorizedError
 
 
 class ResourceDashboardService:
-    """Bench/active listings and employee drill-down for managers."""
+    """Bench/active listings and engineer drill-down for managers."""
 
     def __init__(
         self,
-        employee_repository: EmployeeRepository,
-        employee_skill_repository: EmployeeSkillRepository,
+        user_repository: UserRepository,
+        user_skill_repository: UserSkillRepository,
         skill_repository: SkillRepository,
         allocation_repository: AllocationRepository,
         project_repository: ProjectRepository,
         timesheet_repository: TimesheetRepository,
     ) -> None:
-        self._employees = employee_repository
-        self._employee_skills = employee_skill_repository
+        self._users = user_repository
+        self._user_skills = user_skill_repository
         self._skills = skill_repository
         self._allocations = allocation_repository
         self._projects = project_repository
@@ -48,33 +49,33 @@ class ResourceDashboardService:
         as_of: date | None = None,
     ) -> ResourceDashboardResult:
         _ = as_of  # reserved for future as-of dashboard snapshots
-        employees = self._employees.list_by_manager_user_id(
+        engineers = self._users.list_by_manager_id(
             manager_user_id,
             active_only=True,
         )
 
-        on_bench: list[BenchEmployeeSummary] = []
-        active: list[ActiveEmployeeSummary] = []
+        on_bench: list[BenchEngineerSummary] = []
+        active: list[ActiveEngineerSummary] = []
         partial_count = 0
 
-        for employee in employees:
-            utilisation = employee.current_utilisation_percent
-            if employee.is_on_bench() or utilisation == 0:
+        for engineer in engineers:
+            utilisation = engineer.utilisation_percent or 0
+            if engineer.is_on_bench() or utilisation == 0:
                 on_bench.append(
-                    BenchEmployeeSummary(
-                        employee_id=employee.id,
-                        full_name=employee.full_name,
-                        department=employee.department,
-                        skill_names=self._skill_names(employee.id),
+                    BenchEngineerSummary(
+                        user_id=engineer.id,
+                        full_name=engineer.full_name,
+                        department=engineer.department_name or "",
+                        skill_names=self._skill_names(engineer.id),
                     )
                 )
                 continue
 
             availability = max(0, MAX_UTILISATION_PERCENT - utilisation)
             active.append(
-                ActiveEmployeeSummary(
-                    employee_id=employee.id,
-                    full_name=employee.full_name,
+                ActiveEngineerSummary(
+                    user_id=engineer.id,
+                    full_name=engineer.full_name,
                     utilisation_percent=utilisation,
                     availability_percent=availability,
                 )
@@ -89,23 +90,23 @@ class ResourceDashboardService:
             partial_count=partial_count,
         )
 
-    def get_employee_detail(
+    def get_engineer_detail(
         self,
         manager_user_id: int,
-        employee_id: int,
+        user_id: int,
         *,
         as_of: date | None = None,
-    ) -> EmployeeResourceDetail:
+    ) -> EngineerResourceDetail:
         reference = as_of or date.today()
-        employee = self._employees.find_by_id(employee_id)
-        if employee is None or not employee.is_active:
-            raise NotFoundError(f"Employee {employee_id} not found.")
+        engineer = self._users.find_by_id(user_id)
+        if engineer is None or not engineer.is_active():
+            raise NotFoundError(f"Engineer {user_id} not found.")
 
-        self._assert_direct_team_member(manager_user_id, employee)
+        self._assert_direct_team_member(manager_user_id, engineer)
 
-        allocations = self._allocations.find_active_by_employee(employee_id)
+        allocations = self._allocations.find_active_by_user(user_id)
         active_allocations = tuple(
-            EmployeeAllocationDetail(
+            EngineerAllocationDetail(
                 project_name=self._project_name(allocation.project_id),
                 utilisation_percent=allocation.utilisation_percent,
                 from_date=allocation.from_date,
@@ -115,17 +116,17 @@ class ResourceDashboardService:
             if allocation.is_active_on(reference)
         )
 
-        return EmployeeResourceDetail(
-            employee_id=employee.id,
-            full_name=employee.full_name,
-            department=employee.department,
-            work_status=employee.work_status,
-            current_utilisation_percent=employee.current_utilisation_percent,
-            profile_skills=self._skill_names(employee.id),
+        return EngineerResourceDetail(
+            user_id=engineer.id,
+            full_name=engineer.full_name,
+            department=engineer.department_name or "",
+            work_status=engineer.work_status or ResourceWorkStatus.BENCH,
+            current_utilisation_percent=engineer.utilisation_percent or 0,
+            profile_skills=self._skill_names(engineer.id),
             active_allocations=active_allocations,
             recent_activity_tags=tuple(
                 self._timesheets.list_recent_activity_tags(
-                    employee_id,
+                    user_id,
                     weeks=4,
                     as_of=reference,
                 )
@@ -133,12 +134,12 @@ class ResourceDashboardService:
         )
 
     @staticmethod
-    def _assert_direct_team_member(manager_user_id: int, employee: Employee) -> None:
-        if employee.manager_id != manager_user_id:
-            raise UnauthorizedError("Employee is not assigned to your team.")
+    def _assert_direct_team_member(manager_user_id: int, engineer: User) -> None:
+        if engineer.manager_id != manager_user_id:
+            raise UnauthorizedError("Engineer is not assigned to your team.")
 
-    def _skill_names(self, employee_id: int) -> tuple[str, ...]:
-        assignments = self._employee_skills.list_for_employee(employee_id)
+    def _skill_names(self, user_id: int) -> tuple[str, ...]:
+        assignments = self._user_skills.list_for_user(user_id)
         names: list[str] = []
         for assignment in assignments:
             skill = self._skills.find_by_id(assignment.skill_id)

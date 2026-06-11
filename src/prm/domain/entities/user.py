@@ -3,26 +3,40 @@
 from dataclasses import dataclass
 from datetime import datetime
 
-from prm.domain.enums import Role, UserAccountStatus
+from prm.domain.enums import ResourceWorkStatus, Role, UserAccountStatus
 
 
 @dataclass(frozen=True, slots=True)
 class User:
-    """Login account — mirrors class diagram User entity."""
+    """Person account — unified admin, manager, or engineer."""
 
     id: int
     full_name: str
     username: str
     email: str
     password_hash: str
+    role_id: int
     role: Role
+    department_id: int
+    designation_id: int
+    manager_id: int | None
     account_status: UserAccountStatus
     force_password_change: bool
     created_at: datetime
     updated_at: datetime
+    department_name: str | None = None
+    designation_name: str | None = None
+    work_status: ResourceWorkStatus | None = None
+    utilisation_percent: int | None = None
 
     def requires_password_change(self) -> bool:
         return self.force_password_change
 
     def is_active(self) -> bool:
         return self.account_status == UserAccountStatus.ACTIVE
+
+    def is_engineer(self) -> bool:
+        return self.role == Role.ENGINEER
+
+    def is_on_bench(self) -> bool:
+        return self.work_status == ResourceWorkStatus.BENCH

@@ -20,7 +20,7 @@ def parse_skill_match_response(
     raw_text: str,
     candidates: tuple[SkillMatchCandidate, ...],
 ) -> tuple[SkillMatchResult, ...]:
-    allowed_ids = {candidate.employee_id for candidate in candidates}
+    allowed_ids = {candidate.user_id for candidate in candidates}
     try:
         payload = json.loads(extract_json_text(raw_text))
     except json.JSONDecodeError as exc:
@@ -34,24 +34,24 @@ def parse_skill_match_response(
     for item in raw_matches:
         if not isinstance(item, dict):
             continue
-        employee_id = item.get("employee_id")
-        if employee_id not in allowed_ids:
+        user_id = item.get("user_id")
+        if user_id not in allowed_ids:
             continue
         reason = item.get("reason")
-        employee_name = item.get("employee_name")
+        user_name = item.get("user_name")
         suggested_allocation_percent = item.get("suggested_allocation_percent")
         free_hours_per_week = item.get("free_hours_per_week")
         if (
             not isinstance(reason, str)
-            or not isinstance(employee_name, str)
+            or not isinstance(user_name, str)
             or not isinstance(suggested_allocation_percent, int)
             or not isinstance(free_hours_per_week, int)
         ):
             continue
         results.append(
             SkillMatchResult(
-                employee_id=employee_id,
-                employee_name=employee_name,
+                user_id=user_id,
+                user_name=user_name,
                 reason=reason,
                 suggested_allocation_percent=suggested_allocation_percent,
                 free_hours_per_week=free_hours_per_week,

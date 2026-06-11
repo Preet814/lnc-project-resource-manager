@@ -11,21 +11,20 @@ from prm.domain.dtos import (
     SkillMatchResult,
 )
 from prm.domain.entities.allocation import Allocation
-from prm.domain.entities.employee import Employee
 from prm.domain.entities.milestone import Milestone
 from prm.domain.entities.project import Project
 from prm.domain.entities.project_health_snapshot import ProjectHealthSnapshot
-from prm.domain.entities.skill import EmployeeSkill, Skill
+from prm.domain.entities.skill import Skill, UserSkill
 from prm.domain.entities.system_configuration import SystemConfiguration
 from prm.domain.entities.timesheet import NewTimesheetEntry, TimesheetEntry, TimesheetWeek
 from prm.domain.entities.user import User
 from prm.domain.enums import (
-    EmployeeWorkStatus,
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectHealthStatus,
     ProjectStatus,
+    ResourceWorkStatus,
     Role,
     SkillCategory,
     UserAccountStatus,
@@ -74,6 +73,22 @@ class UserRepository(Protocol):
 
     def list_all(self) -> list[User]: ...
 
+    def list_engineers(
+        self,
+        *,
+        work_status: ResourceWorkStatus | None = None,
+        department_id: int | None = None,
+        active_only: bool = True,
+    ) -> list[User]: ...
+
+    def list_by_manager_id(
+        self,
+        manager_id: int,
+        *,
+        active_only: bool = True,
+        engineers_only: bool = True,
+    ) -> list[User]: ...
+
     def create(
         self,
         *,
@@ -81,10 +96,26 @@ class UserRepository(Protocol):
         username: str,
         email: str,
         password_hash: str,
-        role: Role,
+        role_id: int,
+        department_id: int,
+        designation_id: int,
+        manager_id: int | None = None,
         force_password_change: bool = True,
         account_status: UserAccountStatus = UserAccountStatus.ACTIVE,
     ) -> User: ...
+
+    def update_profile(
+        self,
+        user_id: int,
+        *,
+        full_name: str | None = None,
+        email: str | None = None,
+        department_id: int | None = None,
+        designation_id: int | None = None,
+        manager_id: int | None = None,
+    ) -> User: ...
+
+    def set_manager_id(self, user_id: int, *, manager_id: int | None) -> User: ...
 
     def update_password(
         self,
@@ -101,61 +132,19 @@ class UserRepository(Protocol):
         account_status: UserAccountStatus,
     ) -> User: ...
 
-
-class EmployeeRepository(Protocol):
-    def find_by_id(self, employee_id: int) -> Employee | None: ...
-
-    def find_by_user_id(self, user_id: int) -> Employee | None: ...
-
-    def find_by_email(self, email: str) -> Employee | None: ...
-
-    def list_all(
+    def update_resource_status(
         self,
-        *,
-        work_status: EmployeeWorkStatus | None = None,
-        department: str | None = None,
-        active_only: bool = True,
-    ) -> list[Employee]: ...
-
-    def create(
-        self,
-        *,
         user_id: int,
-        full_name: str,
-        email: str,
-        department: str,
-        designation: str,
-    ) -> Employee: ...
-
-    def update(
-        self,
-        employee_id: int,
         *,
-        full_name: str | None = None,
-        email: str | None = None,
-        department: str | None = None,
-        designation: str | None = None,
-        manager_id: int | None = None,
-    ) -> Employee: ...
+        utilisation_percent: int,
+        work_status: ResourceWorkStatus,
+    ) -> User: ...
 
-    def set_manager_id(self, employee_id: int, *, manager_id: int | None) -> Employee: ...
+    def resolve_role_id(self, role: Role) -> int: ...
 
-    def list_by_manager_user_id(
-        self,
-        manager_user_id: int,
-        *,
-        active_only: bool = True,
-    ) -> list[Employee]: ...
+    def resolve_department_id(self, name: str) -> int | None: ...
 
-    def set_active(self, employee_id: int, *, is_active: bool) -> Employee: ...
-
-    def update_utilisation_and_status(
-        self,
-        employee_id: int,
-        *,
-        current_utilisation_percent: int,
-        work_status: EmployeeWorkStatus,
-    ) -> Employee: ...
+    def resolve_designation_id(self, name: str) -> int | None: ...
 
 
 class SkillRepository(Protocol):
@@ -174,41 +163,39 @@ class SkillRepository(Protocol):
     def get_or_create(self, *, name: str, category: SkillCategory) -> Skill: ...
 
 
-class EmployeeSkillRepository(Protocol):
-    def list_for_employee(self, employee_id: int) -> list[EmployeeSkill]: ...
+class UserSkillRepository(Protocol):
+    def list_for_user(self, user_id: int) -> list[UserSkill]: ...
 
-    def find_by_employee_and_skill(
-        self, employee_id: int, skill_id: int
-    ) -> EmployeeSkill | None: ...
+    def find_by_user_and_skill(self, user_id: int, skill_id: int) -> UserSkill | None: ...
 
     def assign(
         self,
         *,
-        employee_id: int,
+        user_id: int,
         skill_id: int,
         proficiency: ProficiencyLevel,
-    ) -> EmployeeSkill: ...
+    ) -> UserSkill: ...
 
     def update_proficiency(
         self,
-        employee_skill_id: int,
+        user_skill_id: int,
         *,
         proficiency: ProficiencyLevel,
-    ) -> EmployeeSkill: ...
+    ) -> UserSkill: ...
 
-    def remove(self, employee_skill_id: int) -> None: ...
+    def remove(self, user_skill_id: int) -> None: ...
 
 
 class AllocationRepository(Protocol):
     def find_by_id(self, allocation_id: int) -> Allocation | None: ...
 
-    def find_active_by_employee(self, employee_id: int) -> list[Allocation]: ...
+    def find_active_by_user(self, user_id: int) -> list[Allocation]: ...
 
-    def list_by_employee(self, employee_id: int) -> list[Allocation]: ...
+    def list_by_user(self, user_id: int) -> list[Allocation]: ...
 
     def find_overlapping(
         self,
-        employee_id: int,
+        user_id: int,
         date_from: date,
         date_to: date | None,
         *,
@@ -218,7 +205,7 @@ class AllocationRepository(Protocol):
     def list_active(
         self,
         *,
-        employee_id: int | None = None,
+        user_id: int | None = None,
         project_id: int | None = None,
     ) -> list[Allocation]: ...
 
@@ -227,7 +214,7 @@ class AllocationRepository(Protocol):
     def create(
         self,
         *,
-        employee_id: int,
+        user_id: int,
         project_id: int,
         utilisation_percent: int,
         from_date: date,
@@ -237,7 +224,7 @@ class AllocationRepository(Protocol):
 
     def end_by_id(self, allocation_id: int, *, as_of: date) -> Allocation: ...
 
-    def end_active_for_employee(self, employee_id: int, *, as_of: date) -> list[Allocation]: ...
+    def end_active_for_user(self, user_id: int, *, as_of: date) -> list[Allocation]: ...
 
 
 class ProjectRepository(Protocol):
@@ -335,23 +322,23 @@ class MilestoneRepository(Protocol):
 class TimesheetRepository(Protocol):
     def list_recent_activity_tags(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         weeks: int = 4,
         as_of: date | None = None,
     ) -> list[str]: ...
 
-    def find_week_by_employee(
+    def find_week_by_user(
         self,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
     ) -> TimesheetWeek | None: ...
 
     def list_entries_for_week(self, timesheet_week_id: int) -> list[TimesheetEntry]: ...
 
-    def list_weeks_for_employee(
+    def list_weeks_for_user(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         limit: int | None = None,
     ) -> list[TimesheetWeek]: ...
@@ -359,7 +346,7 @@ class TimesheetRepository(Protocol):
     def create_week_with_entries(
         self,
         *,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
         total_hours: int,
         submitted_at: datetime,
@@ -369,9 +356,13 @@ class TimesheetRepository(Protocol):
     def create_missed_week(
         self,
         *,
-        employee_id: int,
+        user_id: int,
         week_start_date: date,
     ) -> TimesheetWeek: ...
+
+
+class PermissionRepository(Protocol):
+    def list_codes_for_role(self, role_id: int) -> frozenset[str]: ...
 
 
 class SystemConfigurationRepository(Protocol):

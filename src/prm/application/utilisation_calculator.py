@@ -15,7 +15,7 @@ class UtilisationCalculator:
 
     def validate_new_allocation(
         self,
-        employee_id: int,
+        user_id: int,
         utilisation_percent: int,
         date_from: date,
         date_to: date | None,
@@ -37,7 +37,7 @@ class UtilisationCalculator:
             )
 
         overlapping = self._allocations.find_overlapping(
-            employee_id,
+            user_id,
             date_from,
             date_to,
             exclude_allocation_id=exclude_allocation_id,
@@ -61,9 +61,9 @@ class UtilisationCalculator:
             total_percent=total_percent,
         )
 
-    def compute_utilisation_on(self, employee_id: int, as_of: date) -> int:
+    def compute_utilisation_on(self, user_id: int, as_of: date) -> int:
         """Sum utilisation % from active allocations covering a single date."""
-        active = self._allocations.find_active_by_employee(employee_id)
+        active = self._allocations.find_active_by_user(user_id)
         return sum(
             allocation.utilisation_percent
             for allocation in active

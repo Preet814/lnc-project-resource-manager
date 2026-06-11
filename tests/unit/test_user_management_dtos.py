@@ -9,7 +9,7 @@ def test_user_summary_is_active() -> None:
         id=1,
         username="alice",
         full_name="Alice",
-        role=Role.EMPLOYEE,
+        role=Role.ENGINEER,
         account_status=UserAccountStatus.ACTIVE,
     )
     inactive = UserSummary(

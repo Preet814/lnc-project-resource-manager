@@ -8,8 +8,8 @@ from prm.domain.dtos import AllocationListResult, AllocationSummary
 def test_allocation_summary_fields() -> None:
     summary = AllocationSummary(
         allocation_id=1,
-        employee_id=102,
-        employee_full_name="Ravi Kumar",
+        user_id=102,
+        user_full_name="Ravi Kumar",
         project_id=201,
         project_name="Alpha Portal",
         utilisation_percent=50,
@@ -17,7 +17,7 @@ def test_allocation_summary_fields() -> None:
         to_date=datetime(2026, 6, 30).date(),
     )
 
-    assert summary.employee_full_name == "Ravi Kumar"
+    assert summary.user_full_name == "Ravi Kumar"
     assert summary.project_name == "Alpha Portal"
     assert summary.utilisation_percent == 50
     assert summary.to_date == datetime(2026, 6, 30).date()

@@ -64,8 +64,8 @@ class SchedulerRunner:
             result = service.run_all_jobs()
             session.commit()
             logger.info(
-                "Scheduler tick complete (employees=%s projects=%s missed=%s)",
-                result.employees_synced,
+                "Scheduler tick complete (engineers=%s projects=%s missed=%s)",
+                result.engineers_synced,
                 result.projects_evaluated,
                 result.missed_weeks_created,
             )

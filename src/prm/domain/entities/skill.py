@@ -1,4 +1,4 @@
-"""Skill and employee-skill domain entities."""
+"""Skill and user-skill domain entities."""
 
 from dataclasses import dataclass
 from datetime import datetime
@@ -17,11 +17,12 @@ class Skill:
 
 
 @dataclass(frozen=True, slots=True)
-class EmployeeSkill:
-    """Assignment of a skill to an employee with proficiency."""
+class UserSkill:
+    """Assignment of a skill to a user with proficiency."""
 
     id: int
-    employee_id: int
+    user_id: int
     skill_id: int
     proficiency: ProficiencyLevel
     assigned_at: datetime
+

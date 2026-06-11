@@ -2,36 +2,27 @@
 
 from datetime import UTC, datetime
 
-from sqlalchemy import JSON, create_engine
 from sqlalchemy.orm import Session
 
 from prm.domain.enums import ProjectHealthStatus, ProjectStatus, Role
-from prm.infrastructure.db.models import ProjectHealthSnapshotModel, ProjectModel, UserModel
+from prm.infrastructure.db.models import ProjectHealthSnapshotModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyProjectHealthSnapshotRepository,
     SqlAlchemyProjectRepository,
-    SqlAlchemyUserRepository,
 )
-from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import create_memory_session, create_user
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    ProjectHealthSnapshotModel.__table__.c.risk_flags.type = JSON()
-    ProjectHealthSnapshotModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return create_memory_session(include_project=True)
 
 
 def _seed_project(session: Session) -> int:
-    user_repo = SqlAlchemyUserRepository(session)
-    hasher = BcryptPasswordHasher()
-    manager = user_repo.create(
+    manager_id = create_user(
+        session,
         full_name="Ankit Shah",
         username="ankit",
         email="ankit@example.test",
-        password_hash=hasher.hash("TempPass1"),
         role=Role.MANAGER,
     )
     project_repo = SqlAlchemyProjectRepository(session)
@@ -41,7 +32,7 @@ def _seed_project(session: Session) -> int:
         start_date=datetime(2026, 3, 1).date(),
         end_date=datetime(2026, 6, 30).date(),
         status=ProjectStatus.ACTIVE,
-        manager_user_id=manager.id,
+        manager_user_id=manager_id,
     )
     session.flush()
     return project.id

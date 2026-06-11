@@ -4,15 +4,19 @@ import os
 import uuid
 from datetime import date, timedelta
 
-import httpx
 import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from prm.scheduler.factory import create_scheduler_service
+from tests.integration.support import (
+    admin_headers as _admin_headers,
+    api_url as _api_url,
+    bootstrap_credentials as _bootstrap_credentials,
+    request_or_skip as _request_or_skip,
+)
 
-API_BASE_URL = os.getenv("PRM_API_URL", "http://localhost:8000")
 TEMP_PASSWORD = "TempPass1"
 
 
@@ -23,21 +27,6 @@ def _completed_week_start() -> str:
     return (this_monday - timedelta(days=7)).isoformat()
 
 
-def _api_url(path: str) -> str:
-    return f"{API_BASE_URL.rstrip('/')}{path}"
-
-
-def _bootstrap_credentials() -> tuple[str, str]:
-    username = os.getenv("BOOTSTRAP_ADMIN_USERNAME", "").strip()
-    password = os.getenv("BOOTSTRAP_ADMIN_PASSWORD", "").strip()
-    if not username or not password:
-        pytest.skip(
-            "BOOTSTRAP_ADMIN_USERNAME and BOOTSTRAP_ADMIN_PASSWORD must be set "
-            "(e.g. set -a && source .env && set +a)"
-        )
-    return username, password
-
-
 def _database_url() -> str:
     url = os.getenv("DATABASE_URL", "").strip()
     if not url:
@@ -46,26 +35,6 @@ def _database_url() -> str:
             "(use localhost when running pytest from the host)"
         )
     return url
-
-
-def _request_or_skip(method: str, url: str, **kwargs: object) -> httpx.Response:
-    try:
-        request = getattr(httpx, method)
-        return request(url, timeout=10.0, **kwargs)
-    except httpx.ConnectError as exc:
-        pytest.skip(f"API not running at {API_BASE_URL}: {exc}")
-
-
-def _admin_headers() -> dict[str, str]:
-    username, password = _bootstrap_credentials()
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": password},
-    )
-    assert login.status_code == 200
-    assert login.json()["role"] == "ADMIN"
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
 def _unique_username(prefix: str) -> str:
@@ -105,7 +74,7 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> tuple[dict, dic
             "email": email,
             "username": username,
             "temporary_password": TEMP_PASSWORD,
-            "role": "EMPLOYEE",
+            "role": "ENGINEER",
         },
     )
     assert create_user.status_code == 201
@@ -121,7 +90,7 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> tuple[dict, dic
             "full_name": "Scheduler Smoke Employee",
             "email": email,
             "department": "Backend",
-            "designation": "Developer",
+            "designation": "SE",
         },
     )
     assert create_employee.status_code == 201
@@ -131,7 +100,7 @@ def _create_employee(headers: dict[str, str], *, prefix: str) -> tuple[dict, dic
 def _assign_manager(
     headers: dict[str, str],
     *,
-    employee_user_id: int,
+    engineer_user_id: int,
     manager_user_id: int,
 ) -> None:
     assign = _request_or_skip(
@@ -139,7 +108,7 @@ def _assign_manager(
         _api_url("/admin/employees/assign-manager"),
         headers=headers,
         json={
-            "employee_user_id": employee_user_id,
+            "engineer_user_id": engineer_user_id,
             "manager_user_id": manager_user_id,
         },
     )
@@ -175,14 +144,14 @@ def _manager_headers(*, username: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
-def _employee_headers(*, username: str) -> dict[str, str]:
+def _engineer_headers(*, username: str) -> dict[str, str]:
     login = _request_or_skip(
         "post",
         _api_url("/auth/login"),
         json={"username": username, "password": TEMP_PASSWORD},
     )
     assert login.status_code == 200
-    assert login.json()["role"] == "EMPLOYEE"
+    assert login.json()["role"] == "ENGINEER"
     return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
@@ -213,7 +182,7 @@ def test_scheduler_updates_health_and_missed_timesheets_smoke() -> None:
     employee_user, employee = _create_employee(admin_headers, prefix=f"emp_{prefix}")
     _assign_manager(
         admin_headers,
-        employee_user_id=employee_user["id"],
+        engineer_user_id=employee_user["id"],
         manager_user_id=manager["id"],
     )
     project = _create_project(
@@ -222,7 +191,7 @@ def test_scheduler_updates_health_and_missed_timesheets_smoke() -> None:
         prefix=prefix,
     )
     manager_headers = _manager_headers(username=manager["username"])
-    employee_headers = _employee_headers(username=employee_user["username"])
+    employee_headers = _engineer_headers(username=employee_user["username"])
     missed_week = _completed_week_start()
 
     milestone = _request_or_skip(
@@ -244,7 +213,7 @@ def test_scheduler_updates_health_and_missed_timesheets_smoke() -> None:
         headers=manager_headers,
         json={
             "project_id": project["id"],
-            "employee_id": employee["id"],
+            "user_id": employee["id"],
             "utilisation_percent": 50,
             "from_date": "2026-01-01",
             "to_date": "2026-12-31",
@@ -267,7 +236,7 @@ def test_scheduler_updates_health_and_missed_timesheets_smoke() -> None:
 
     history = _request_or_skip(
         "get",
-        _api_url("/employee/timesheets"),
+        _api_url("/engineer/timesheets"),
         headers=employee_headers,
     )
     assert history.status_code == 200

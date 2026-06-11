@@ -7,9 +7,14 @@ from prm.infrastructure.db.base import Base
 def test_metadata_registers_all_entity_tables() -> None:
     expected = {
         "users",
-        "employees",
+        "roles",
+        "permissions",
+        "role_permissions",
+        "departments",
+        "designations",
+        "resource_status",
         "skills",
-        "employee_skills",
+        "user_skills",
         "projects",
         "milestones",
         "project_health_snapshots",

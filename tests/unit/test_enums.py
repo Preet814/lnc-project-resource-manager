@@ -3,12 +3,12 @@
 from prm.domain.enums import (
     ActivityTag,
     AllocationStatus,
-    EmployeeWorkStatus,
     LLMProvider,
     MilestoneStatus,
     ProficiencyLevel,
     ProjectHealthStatus,
     ProjectStatus,
+    ResourceWorkStatus,
     Role,
     SkillCategory,
     TimesheetWeekStatus,
@@ -17,7 +17,7 @@ from prm.domain.enums import (
 
 
 def test_role_values() -> None:
-    assert set(Role) == {Role.ADMIN, Role.MANAGER, Role.EMPLOYEE}
+    assert set(Role) == {Role.ADMIN, Role.MANAGER, Role.ENGINEER}
 
 
 def test_user_account_status_values() -> None:
@@ -38,7 +38,7 @@ def test_all_enums_are_str_enums() -> None:
     enums = [
         Role,
         UserAccountStatus,
-        EmployeeWorkStatus,
+        ResourceWorkStatus,
         SkillCategory,
         ProficiencyLevel,
         ProjectStatus,

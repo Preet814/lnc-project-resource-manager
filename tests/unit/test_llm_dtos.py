@@ -17,7 +17,7 @@ from prm.domain.enums import MilestoneStatus, ProjectHealthStatus
 
 def test_skill_match_candidate_fields() -> None:
     candidate = SkillMatchCandidate(
-        employee_id=12,
+        user_id=12,
         full_name="Anil Mehta",
         skill_names=("Microservices", "Docker"),
         utilisation_percent=0,
@@ -45,15 +45,15 @@ def test_skill_match_context_part_time_request() -> None:
 def test_skill_match_list_result_with_matches() -> None:
     matches = (
         SkillMatchResult(
-            employee_id=12,
-            employee_name="Anil Mehta",
+            user_id=12,
+            user_name="Anil Mehta",
             reason="Microservices skills and fully available on bench.",
             suggested_allocation_percent=25,
             free_hours_per_week=40,
         ),
         SkillMatchResult(
-            employee_id=14,
-            employee_name="Dev Patel",
+            user_id=14,
+            user_name="Dev Patel",
             reason="Java background with partial availability.",
             suggested_allocation_percent=50,
             free_hours_per_week=20,
@@ -77,7 +77,7 @@ def test_skill_match_list_result_without_matches() -> None:
         requirement="20 hrs/week, backend API work",
         matches=(),
         total=0,
-        message="No employees have at least 20 free hours per week.",
+        message="No engineers have at least 20 free hours per week.",
     )
 
     assert result.total == 0
@@ -105,13 +105,13 @@ def test_risk_summary_context_fields() -> None:
         ),
         allocated_resources=(
             RiskSummaryResourceFact(
-                employee_full_name="Ravi Kumar",
+                user_full_name="Ravi Kumar",
                 utilisation_percent=50,
             ),
         ),
         recent_timesheets=(
             RiskSummaryTimesheetFact(
-                employee_full_name="Ravi Kumar",
+                user_full_name="Ravi Kumar",
                 week_start_date=date(2026, 5, 5),
                 hours_logged=4,
                 expected_hours=20,

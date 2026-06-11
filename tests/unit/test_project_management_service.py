@@ -18,15 +18,12 @@ from prm.infrastructure.db.repositories import (
 )
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
+from tests.unit.engineer_fixtures import create_memory_session, seed_rbac
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 
 
 def _session() -> Session:
-    engine = create_engine("sqlite:///:memory:")
-    UserModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    MilestoneModel.__table__.create(engine, checkfirst=True)
-    return Session(engine)
+    return create_memory_session(include_project=True)
 
 
 def _service(session: Session) -> ProjectManagementService:
@@ -62,6 +59,7 @@ def _create_user(
     role: Role,
     full_name: str | None = None,
 ) -> int:
+    seed_rbac(session)
     created = _user_service(session).create_user(
         full_name=full_name or f"{username} Name",
         email=email,
@@ -131,11 +129,11 @@ def test_create_project_fails_when_manager_missing() -> None:
 
 def test_create_project_fails_when_manager_not_manager_role() -> None:
     with _session() as session:
-        employee_id = _create_user(
+        user_id = _create_user(
             session,
             username="ravi",
             email="ravi@example.test",
-            role=Role.EMPLOYEE,
+            role=Role.ENGINEER,
         )
         with pytest.raises(ValidationError, match="Manager account"):
             _service(session).create_project(
@@ -144,7 +142,7 @@ def test_create_project_fails_when_manager_not_manager_role() -> None:
                 start_date=date(2026, 3, 1),
                 end_date=date(2026, 6, 30),
                 status=ProjectStatus.ACTIVE,
-                manager_user_id=employee_id,
+                manager_user_id=user_id,
             )
 
 
@@ -319,11 +317,11 @@ def test_update_project_fails_when_new_manager_invalid() -> None:
             email="ankit@example.test",
             role=Role.MANAGER,
         )
-        employee_id = _create_user(
+        user_id = _create_user(
             session,
             username="ravi",
             email="ravi@example.test",
-            role=Role.EMPLOYEE,
+            role=Role.ENGINEER,
         )
         created = _service(session).create_project(
             name="Alpha Portal",
@@ -338,7 +336,7 @@ def test_update_project_fails_when_new_manager_invalid() -> None:
         with pytest.raises(ValidationError, match="Manager account"):
             _service(session).update_project(
                 created.id,
-                manager_user_id=employee_id,
+                manager_user_id=user_id,
             )
 
 

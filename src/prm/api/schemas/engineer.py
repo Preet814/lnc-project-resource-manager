@@ -1,4 +1,4 @@
-"""Employee timesheet and allocation API schemas."""
+"""Engineer timesheet and allocation API schemas."""
 
 from datetime import date, datetime
 

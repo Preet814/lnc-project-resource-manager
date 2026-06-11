@@ -6,35 +6,38 @@ from datetime import date
 import pytest
 from fastapi import Depends
 from fastapi.testclient import TestClient
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
 from prm.api.app import create_app
 from prm.api.deps import get_resource_dashboard_service
 from prm.application.resource_dashboard_service import ResourceDashboardService
-from prm.domain.enums import AllocationStatus, EmployeeWorkStatus, Role
+from prm.domain.enums import AllocationStatus, ResourceWorkStatus, Role
 from prm.infrastructure.db.models import (
     AllocationModel,
-    EmployeeModel,
-    EmployeeSkillModel,
+    DepartmentModel,
+    DesignationModel,
     ProjectModel,
+    ResourceStatusModel,
+    RoleModel,
     SkillModel,
     SystemConfigurationModel,
     UserModel,
+    UserSkillModel,
 )
+from prm.infrastructure.security.password import BcryptPasswordHasher
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
-    SqlAlchemyEmployeeRepository,
-    SqlAlchemyEmployeeSkillRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemySkillRepository,
     SqlAlchemyUserRepository,
+    SqlAlchemyUserSkillRepository,
 )
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration
 from prm.infrastructure.db.session import get_db_session
-from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_user, set_engineer_status
 
 MANAGER_USERNAME = "test_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -55,12 +58,31 @@ class _FakeTimesheetRepository:
 
     def list_recent_activity_tags(
         self,
-        employee_id: int,
+        user_id: int,
         *,
         weeks: int = 4,
         as_of: date | None = None,
     ) -> list[str]:
         return []
+
+
+def _create_route_tables(engine) -> None:
+    from tests.unit.engineer_fixtures import create_route_tables as _create_tables
+
+    _create_tables(
+        engine,
+        include_project=True,
+        include_allocation=True,
+        include_skill=True,
+        include_config=True,
+    )
+
+
+def _set_login_password(session: Session, *, username: str, password: str) -> None:
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    assert model is not None
+    model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
 
 
 @pytest.fixture
@@ -70,13 +92,7 @@ def client() -> Generator[TestClient, None, None]:
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    UserModel.__table__.create(engine, checkfirst=True)
-    EmployeeModel.__table__.create(engine, checkfirst=True)
-    ProjectModel.__table__.create(engine, checkfirst=True)
-    AllocationModel.__table__.create(engine, checkfirst=True)
-    SkillModel.__table__.create(engine, checkfirst=True)
-    EmployeeSkillModel.__table__.create(engine, checkfirst=True)
-    SystemConfigurationModel.__table__.create(engine, checkfirst=True)
+    _create_route_tables(engine)
 
     with Session(engine) as setup:
         seed_bootstrap_admin(
@@ -87,80 +103,68 @@ def client() -> Generator[TestClient, None, None]:
             email=TEST_EMAIL,
         )
         seed_default_system_configuration(setup)
-        repo = SqlAlchemyUserRepository(setup)
-        hasher = BcryptPasswordHasher()
-        manager = repo.create(
+        manager_id = create_user(
+            setup,
             full_name="Test Manager",
             username=MANAGER_USERNAME,
             email=MANAGER_EMAIL,
-            password_hash=hasher.hash(MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
-        repo.create(
+        create_user(
+            setup,
             full_name="Other Manager",
             username=OTHER_MANAGER_USERNAME,
             email=OTHER_MANAGER_EMAIL,
-            password_hash=hasher.hash(OTHER_MANAGER_PASSWORD),
             role=Role.MANAGER,
-            force_password_change=False,
+            department_name="Delivery",
+            designation_name="Project Manager",
         )
-        employee_user = repo.create(
+        engineer_id = create_user(
+            setup,
             full_name="Ravi Kumar",
             username=EMPLOYEE_USERNAME,
             email=EMPLOYEE_EMAIL,
-            password_hash=hasher.hash(EMPLOYEE_PASSWORD),
-            role=Role.EMPLOYEE,
-            force_password_change=False,
+            role=Role.ENGINEER,
+            manager_id=manager_id,
         )
-        bench_user = repo.create(
+        bench_id = create_user(
+            setup,
             full_name="Priya Sharma",
             username=BENCH_USERNAME,
             email=BENCH_EMAIL,
-            password_hash=hasher.hash(BENCH_PASSWORD),
-            role=Role.EMPLOYEE,
-            force_password_change=False,
+            role=Role.ENGINEER,
+            manager_id=manager_id,
         )
-        employee_repo = SqlAlchemyEmployeeRepository(setup)
-        employee = employee_repo.create(
-            user_id=employee_user.id,
-            full_name="Ravi Kumar",
-            email=EMPLOYEE_EMAIL,
-            department="Backend",
-            designation="Developer",
+        set_engineer_status(
+            setup,
+            engineer_id,
+            utilisation_percent=50,
+            work_status=ResourceWorkStatus.ALLOCATED,
         )
-        bench_employee = employee_repo.create(
-            user_id=bench_user.id,
-            full_name="Priya Sharma",
-            email=BENCH_EMAIL,
-            department="Frontend",
-            designation="Developer",
-        )
-        employee_repo.set_manager_id(employee.id, manager_id=manager.id)
-        employee_repo.set_manager_id(bench_employee.id, manager_id=manager.id)
-        employee_repo.update_utilisation_and_status(
-            employee.id,
-            current_utilisation_percent=50,
-            work_status=EmployeeWorkStatus.ALLOCATED,
-        )
+        _set_login_password(setup, username=MANAGER_USERNAME, password=MANAGER_PASSWORD)
+        _set_login_password(setup, username=OTHER_MANAGER_USERNAME, password=OTHER_MANAGER_PASSWORD)
+        _set_login_password(setup, username=EMPLOYEE_USERNAME, password=EMPLOYEE_PASSWORD)
+        _set_login_password(setup, username=BENCH_USERNAME, password=BENCH_PASSWORD)
         project = ProjectModel(
             name="Alpha Portal",
             description="Test project",
             start_date=date(2026, 3, 1),
             end_date=date(2026, 6, 30),
-            manager_user_id=manager.id,
+            manager_user_id=manager_id,
         )
         setup.add(project)
         setup.flush()
         setup.add(
             AllocationModel(
-                employee_id=employee.id,
+                user_id=engineer_id,
                 project_id=project.id,
                 utilisation_percent=50,
                 from_date=date(2026, 3, 1),
                 to_date=date(2026, 6, 30),
                 status=AllocationStatus.ACTIVE,
-                created_by_user_id=manager.id,
+                created_by_user_id=manager_id,
             )
         )
         setup.commit()
@@ -176,8 +180,8 @@ def client() -> Generator[TestClient, None, None]:
         db: Session = Depends(get_db_session),
     ) -> ResourceDashboardService:
         return ResourceDashboardService(
-            employee_repository=SqlAlchemyEmployeeRepository(db),
-            employee_skill_repository=SqlAlchemyEmployeeSkillRepository(db),
+            user_repository=SqlAlchemyUserRepository(db),
+            user_skill_repository=SqlAlchemyUserSkillRepository(db),
             skill_repository=SqlAlchemySkillRepository(db),
             allocation_repository=SqlAlchemyAllocationRepository(db),
             project_repository=SqlAlchemyProjectRepository(db),
@@ -240,10 +244,10 @@ def test_get_resources_returns_dashboard(client: TestClient) -> None:
 
 def test_get_employee_detail_returns_drill_down(client: TestClient) -> None:
     listing = client.get("/manager/resources", headers=_manager_headers(client)).json()
-    employee_id = listing["active"][0]["employee_id"]
+    user_id = listing["active"][0]["user_id"]
 
     response = client.get(
-        f"/manager/resources/{employee_id}",
+        f"/manager/resources/{user_id}",
         headers=_manager_headers(client),
     )
 
@@ -267,12 +271,12 @@ def test_list_project_allocations_returns_active_rows(client: TestClient) -> Non
     assert response.status_code == 200
     body = response.json()
     assert body["total"] == 1
-    assert body["allocations"][0]["employee_full_name"] == "Ravi Kumar"
+    assert body["allocations"][0]["user_full_name"] == "Ravi Kumar"
 
 
 def test_create_allocation_returns_201(client: TestClient) -> None:
     dashboard = client.get("/manager/resources", headers=_manager_headers(client)).json()
-    bench_employee_id = dashboard["on_bench"][0]["employee_id"]
+    bench_user_id = dashboard["on_bench"][0]["user_id"]
     admin_allocations = client.get("/admin/allocations", headers=_admin_headers(client)).json()
     project_id = admin_allocations["allocations"][0]["project_id"]
 
@@ -281,7 +285,7 @@ def test_create_allocation_returns_201(client: TestClient) -> None:
         headers=_manager_headers(client),
         json={
             "project_id": project_id,
-            "employee_id": bench_employee_id,
+            "user_id": bench_user_id,
             "utilisation_percent": 50,
             "from_date": "2026-07-01",
             "to_date": "2026-09-30",
@@ -296,7 +300,7 @@ def test_create_allocation_returns_201(client: TestClient) -> None:
 
 def test_create_allocation_returns_409_when_over_cap(client: TestClient) -> None:
     dashboard = client.get("/manager/resources", headers=_manager_headers(client)).json()
-    employee_id = dashboard["active"][0]["employee_id"]
+    user_id = dashboard["active"][0]["user_id"]
     admin_allocations = client.get("/admin/allocations", headers=_admin_headers(client)).json()
     project_id = admin_allocations["allocations"][0]["project_id"]
 
@@ -305,7 +309,7 @@ def test_create_allocation_returns_409_when_over_cap(client: TestClient) -> None
         headers=_manager_headers(client),
         json={
             "project_id": project_id,
-            "employee_id": employee_id,
+            "user_id": user_id,
             "utilisation_percent": 75,
             "from_date": "2026-03-01",
             "to_date": "2026-06-30",
@@ -318,7 +322,7 @@ def test_create_allocation_returns_409_when_over_cap(client: TestClient) -> None
 
 def test_create_allocation_returns_403_for_non_owner(client: TestClient) -> None:
     dashboard = client.get("/manager/resources", headers=_manager_headers(client)).json()
-    bench_employee_id = dashboard["on_bench"][0]["employee_id"]
+    bench_user_id = dashboard["on_bench"][0]["user_id"]
     admin_allocations = client.get("/admin/allocations", headers=_admin_headers(client)).json()
     project_id = admin_allocations["allocations"][0]["project_id"]
     other_token = _login_token(
@@ -332,7 +336,7 @@ def test_create_allocation_returns_403_for_non_owner(client: TestClient) -> None
         headers={"Authorization": f"Bearer {other_token}"},
         json={
             "project_id": project_id,
-            "employee_id": bench_employee_id,
+            "user_id": bench_user_id,
             "utilisation_percent": 50,
             "from_date": "2026-07-01",
             "to_date": "2026-09-30",

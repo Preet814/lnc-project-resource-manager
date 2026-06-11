@@ -5,8 +5,14 @@ from sqlalchemy.orm import Session
 
 from prm.api.settings import Settings, get_settings
 from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, DEFAULT_SCHEDULER_INTERVAL_HOURS
-from prm.domain.enums import LLMProvider, Role, UserAccountStatus
+from prm.domain.enums import LLMProvider, UserAccountStatus
 from prm.infrastructure.db.models import SystemConfigurationModel, UserModel
+from prm.infrastructure.db.rbac_seed import (
+    default_department_id,
+    default_designation_id,
+    role_id_for_code,
+    seed_rbac_lookups,
+)
 from prm.infrastructure.db.session import get_session_factory
 from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
@@ -21,21 +27,22 @@ def seed_bootstrap_admin(
     email: str,
     password_hasher: BcryptPasswordHasher | None = None,
 ) -> bool:
-    """Insert the first Admin account if it does not exist.
-
-    Returns True when a new row is created, False when admin already exists.
-    """
+    """Insert the first Admin account if it does not exist."""
     hasher = password_hasher or BcryptPasswordHasher()
     existing = session.scalar(select(UserModel).where(UserModel.username == username))
     if existing is not None:
         return False
+
+    seed_rbac_lookups(session)
 
     admin = UserModel(
         full_name=full_name,
         username=username,
         email=email,
         password_hash=hasher.hash(password),
-        role=Role.ADMIN,
+        role_id=role_id_for_code(session, "ADMIN"),
+        department_id=default_department_id(session, name="IT"),
+        designation_id=default_designation_id(session, name="System Administrator"),
         account_status=UserAccountStatus.ACTIVE,
         force_password_change=True,
     )
@@ -52,10 +59,7 @@ def seed_default_system_configuration(
     scheduler_interval_hours: int = DEFAULT_SCHEDULER_INTERVAL_HOURS,
     max_weekly_hours: int = DEFAULT_MAX_WEEKLY_HOURS,
 ) -> bool:
-    """Insert the default system configuration row if none exists.
-
-    Returns True when a new row is created, False when configuration already exists.
-    """
+    """Insert the default system configuration row if none exists."""
     existing = session.scalar(
         select(SystemConfigurationModel).order_by(SystemConfigurationModel.id).limit(1)
     )
@@ -124,6 +128,9 @@ def main() -> None:
     settings = get_settings()
     session_factory = get_session_factory()
     with session_factory() as session:
+        seed_rbac_lookups(session)
+        session.commit()
+
         admin_created = seed_bootstrap_admin_from_settings(session, settings)
         if admin_created:
             print(f"Created bootstrap admin user '{settings.bootstrap_admin_username}'.")
