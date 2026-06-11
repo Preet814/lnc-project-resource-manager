@@ -66,6 +66,7 @@ class UserProfileService:
                 id=engineer.id,
                 full_name=engineer.full_name,
                 department=engineer.department_name or "",
+                designation=engineer.designation_name or "",
                 work_status=engineer.work_status or ResourceWorkStatus.BENCH,
                 is_active=engineer.is_active(),
             )

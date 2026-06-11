@@ -27,6 +27,8 @@ class UserManagementService:
         username: str,
         temporary_password: str,
         role: Role,
+        department: str | None = None,
+        designation: str | None = None,
     ) -> User:
         validate_password_strength(temporary_password)
 
@@ -35,16 +37,8 @@ class UserManagementService:
         if self._users.find_by_email(email) is not None:
             raise ValidationError(f"Email '{email}' is already in use.")
 
-        department_name = "IT" if role == Role.ADMIN else "Engineering"
-        designation_by_role = {
-            Role.ADMIN: "System Administrator",
-            Role.MANAGER: "Project Manager",
-            Role.ENGINEER: "SE",
-        }
-        department_id = self._users.resolve_department_id(department_name)
-        designation_id = self._users.resolve_designation_id(designation_by_role[role])
-        if department_id is None or designation_id is None:
-            raise ValidationError("Default department or designation is not configured.")
+        department_id = self._resolve_optional_department_id(department)
+        designation_id = self._resolve_optional_designation_id(designation)
 
         return self._users.create(
             full_name=full_name,
@@ -67,6 +61,8 @@ class UserManagementService:
                 full_name=user.full_name,
                 role=user.role,
                 account_status=user.account_status,
+                department=user.department_name,
+                designation=user.designation_name,
             )
             for user in users
         )
@@ -114,6 +110,24 @@ class UserManagementService:
         if user is None:
             raise NotFoundError(f"User {user_id} not found.")
         return user
+
+    def _resolve_optional_department_id(self, department: str | None) -> int | None:
+        if department is None or not department.strip():
+            return None
+        name = department.strip()
+        department_id = self._users.resolve_department_id(name)
+        if department_id is None:
+            raise ValidationError(f"Department '{name}' not found.")
+        return department_id
+
+    def _resolve_optional_designation_id(self, designation: str | None) -> int | None:
+        if designation is None or not designation.strip():
+            return None
+        name = designation.strip()
+        designation_id = self._users.resolve_designation_id(name)
+        if designation_id is None:
+            raise ValidationError(f"Designation '{name}' not found.")
+        return designation_id
 
     def _resolve_user(self, identifier: str) -> User:
         stripped = identifier.strip()

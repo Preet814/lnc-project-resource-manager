@@ -27,6 +27,8 @@ class UserSummary:
     full_name: str
     role: Role
     account_status: UserAccountStatus
+    department: str | None = None
+    designation: str | None = None
 
 
 @dataclass(frozen=True)
@@ -42,6 +44,7 @@ class EngineerSummary:
     id: int
     full_name: str
     department: str
+    designation: str
     work_status: ResourceWorkStatus
     is_active: bool
 

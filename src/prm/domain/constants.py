@@ -27,3 +27,23 @@ HEALTH_RESOURCES_ALLOCATED_FLAG = "Resources are correctly allocated"
 
 # How many past weeks the scheduler scans when flagging MISSED timesheets.
 SCHEDULER_MISSED_LOOKBACK_WEEKS = 52
+
+# RBAC lookup values seeded into departments / designations tables.
+SEEDED_DEPARTMENTS = (
+    "IT",
+    "Engineering",
+    "Backend",
+    "Frontend",
+    "DevOps",
+    "QA",
+    "Delivery",
+)
+
+SEEDED_DESIGNATIONS = (
+    ("System Administrator", "ADMIN"),
+    ("Program Manager", "MANAGEMENT"),
+    ("Project Manager", "MANAGEMENT"),
+    ("SSE", "IC"),
+    ("SE", "IC"),
+    ("JSE", "IC"),
+)

@@ -158,17 +158,21 @@ class PrmApiClient:
         username: str,
         temporary_password: str,
         role: Role,
+        department: str | None = None,
+        designation: str | None = None,
     ) -> CreatedUser:
         body = self._request(
             "POST",
             "/admin/users",
-            json={
-                "full_name": full_name,
-                "email": email,
-                "username": username,
-                "temporary_password": temporary_password,
-                "role": role.value,
-            },
+            json=self._omit_none(
+                full_name=full_name,
+                email=email,
+                username=username,
+                temporary_password=temporary_password,
+                role=role.value,
+                department=department,
+                designation=designation,
+            ),
             headers=self._auth_header(access_token),
         )
         return CreatedUser(
@@ -190,6 +194,8 @@ class PrmApiClient:
                     full_name=item["full_name"],
                     role=Role(item["role"]),
                     account_status=UserAccountStatus(item["account_status"]),
+                    department=item.get("department"),
+                    designation=item.get("designation"),
                 )
                 for item in body["users"]
             ),
@@ -251,6 +257,7 @@ class PrmApiClient:
                     id=item["id"],
                     full_name=item["full_name"],
                     department=item["department"],
+                    designation=item["designation"],
                     work_status=ResourceWorkStatus(item["work_status"]),
                     is_active=item["is_active"],
                 )
