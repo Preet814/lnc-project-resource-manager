@@ -505,7 +505,12 @@ class SkillMatchListResult:
 
 @dataclass(frozen=True, slots=True)
 class TeamSlotFilters:
-    """Optional search filters for one team slot; null/empty means do not filter."""
+    """Optional search filters for one team slot; null/empty means do not filter.
+
+    Active employees on the manager's team are always required in code — never
+    controlled by this DTO. work_status is a hard filter only when set; when
+    null, bench vs allocated is handled as a preference during assignment.
+    """
 
     department: str | None = None
     designation: str | None = None
@@ -515,6 +520,40 @@ class TeamSlotFilters:
     min_free_hours_per_week: int | None = None
     activity_tags: tuple[ActivityTag, ...] = ()
     work_status: ResourceWorkStatus | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSearchSkill:
+    """Skill fact attached to a team search candidate."""
+
+    name: str
+    category: SkillCategory
+    proficiency: ProficiencyLevel
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSearchAllocationFact:
+    """Active allocation on another project for availability context."""
+
+    project_name: str
+    utilisation_percent: int
+    to_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSearchCandidate:
+    """Engineer row returned by team candidate search."""
+
+    user_id: int
+    full_name: str
+    department: str
+    designation: str
+    skills: tuple[TeamSearchSkill, ...]
+    utilisation_percent: int
+    free_hours_per_week: int
+    work_status: ResourceWorkStatus
+    other_allocations: tuple[TeamSearchAllocationFact, ...]
+    recent_activity_tags: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
