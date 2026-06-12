@@ -22,6 +22,9 @@ from prm.application.resource_dashboard_service import ResourceDashboardService
 from prm.application.risk_summary_service import RiskSummaryService
 from prm.application.skill_match_service import SkillMatchService
 from prm.application.system_config_service import SystemConfigService
+from prm.application.team_assignment_service import TeamAssignmentService
+from prm.application.team_candidate_search_service import TeamCandidateSearchService
+from prm.application.team_match_service import TeamMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
@@ -310,6 +313,40 @@ def get_skill_match_service(
         authorization=AuthorizationService(project_repository),
         llm_client=llm_client,
         max_weekly_hours=config.max_weekly_hours,
+    )
+
+
+def get_team_assignment_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> TeamAssignmentService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    config = _require_system_configuration(db)
+    search_service = TeamCandidateSearchService(
+        user_repository=SqlAlchemyUserRepository(db),
+        user_skill_repository=SqlAlchemyUserSkillRepository(db),
+        skill_repository=SqlAlchemySkillRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=project_repository,
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        max_weekly_hours=config.max_weekly_hours,
+    )
+    return TeamAssignmentService(
+        search_service=search_service,
+        authorization=AuthorizationService(project_repository),
+        max_weekly_hours=config.max_weekly_hours,
+    )
+
+
+def get_team_match_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    llm_client: Annotated[LLMClient, Depends(get_llm_client)],
+) -> TeamMatchService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    assignment_service = get_team_assignment_service(db)
+    return TeamMatchService(
+        authorization=AuthorizationService(project_repository),
+        llm_client=llm_client,
+        assignment_service=assignment_service,
     )
 
 
