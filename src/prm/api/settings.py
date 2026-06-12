@@ -9,6 +9,8 @@ from prm import __version__
 from prm.domain.constants import (
     DEFAULT_GEMINI_BASE_URL,
     DEFAULT_GEMINI_MODEL,
+    DEFAULT_GEMMA_BASE_URL,
+    DEFAULT_GEMMA_MODEL,
     DEFAULT_GROQ_BASE_URL,
     DEFAULT_GROQ_MODEL,
     DEFAULT_MAX_WEEKLY_HOURS,
@@ -51,6 +53,8 @@ class Settings(BaseSettings):
     gemini_model: str = DEFAULT_GEMINI_MODEL
     groq_base_url: str = DEFAULT_GROQ_BASE_URL
     groq_model: str = DEFAULT_GROQ_MODEL
+    gemma_base_url: str = DEFAULT_GEMMA_BASE_URL
+    gemma_model: str = DEFAULT_GEMMA_MODEL
 
     @field_validator("gemini_base_url")
     @classmethod
@@ -70,6 +74,16 @@ class Settings(BaseSettings):
     @field_validator("groq_model")
     @classmethod
     def validate_groq_model(cls, value: str) -> str:
+        return validate_llm_model(value)
+
+    @field_validator("gemma_base_url")
+    @classmethod
+    def validate_gemma_base_url(cls, value: str) -> str:
+        return validate_llm_base_url(LLMProvider.GEMMA, value)
+
+    @field_validator("gemma_model")
+    @classmethod
+    def validate_gemma_model(cls, value: str) -> str:
         return validate_llm_model(value)
 
 

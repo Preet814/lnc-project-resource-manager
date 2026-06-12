@@ -16,6 +16,7 @@ from prm.api.schemas.admin_config import (
 from prm.application.system_config_service import SystemConfigService
 from prm.domain.dtos import SystemConfigurationSummary
 from prm.infrastructure.security.jwt import JwtTokenPayload
+from prm.scheduler.registry import reschedule_interval_hours
 
 router = APIRouter(prefix="/admin/config", tags=["admin-config"])
 
@@ -72,6 +73,7 @@ def update_scheduler_interval(
 ) -> SystemConfigurationResponse:
     summary = service.update_scheduler_interval_hours(body.scheduler_interval_hours)
     db.commit()
+    reschedule_interval_hours(body.scheduler_interval_hours)
     return _to_configuration_response(summary)
 
 

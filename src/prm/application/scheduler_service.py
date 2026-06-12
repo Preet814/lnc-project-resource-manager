@@ -22,7 +22,7 @@ from prm.domain.dtos import (
 )
 from prm.domain.entities.allocation import Allocation
 from prm.domain.enums import ProjectStatus, ResourceWorkStatus, TimesheetWeekStatus
-from prm.domain.week_calendar import week_end, week_start_on_or_before
+from prm.domain.week_calendar import last_completed_week_start, week_end
 
 
 class SchedulerService:
@@ -95,7 +95,7 @@ class SchedulerService:
 
     def flag_missed_timesheets(self, as_of: date) -> int:
         created = 0
-        last_completed_week = self._last_completed_week_start(as_of)
+        last_completed_week = last_completed_week_start(as_of)
         if last_completed_week is None:
             return 0
 
@@ -137,17 +137,18 @@ class SchedulerService:
         )
 
         allocations = self._allocations.list_active(project_id=project_id)
-        last_week_start = self._last_completed_week_start(as_of)
+        last_week_start = last_completed_week_start(as_of)
         timesheet_facts: list[HealthTimesheetFact] = []
         if last_week_start is not None:
             period_end = week_end(last_week_start)
             max_weekly_hours = self._max_weekly_hours()
             for allocation in allocations:
-                if not allocation.overlaps_period(last_week_start, period_end):
+                expected_hours = allocation.expected_hours_for_week(
+                    last_week_start,
+                    max_weekly_hours=max_weekly_hours,
+                )
+                if expected_hours <= 0:
                     continue
-                expected_hours = (
-                    allocation.utilisation_percent * max_weekly_hours
-                ) // 100
                 hours_logged = self._hours_logged_on_project(
                     allocation.user_id,
                     project_id,
@@ -207,15 +208,6 @@ class SchedulerService:
         if config is None:
             return DEFAULT_MAX_WEEKLY_HOURS
         return config.get_max_weekly_hours()
-
-    @staticmethod
-    def _last_completed_week_start(as_of: date) -> date | None:
-        current_week_start = week_start_on_or_before(as_of)
-        if week_end(current_week_start) < as_of:
-            return current_week_start
-        if current_week_start <= date(1970, 1, 5):
-            return None
-        return current_week_start - timedelta(weeks=1)
 
     @staticmethod
     def _allocation_covers_week(

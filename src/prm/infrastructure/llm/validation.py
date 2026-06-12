@@ -16,6 +16,13 @@ def validate_llm_base_url(provider: LLMProvider, base_url: str) -> str:
         raise ValidationError("LLM base URL is required.")
 
     parsed = urlparse(cleaned)
+    if provider is LLMProvider.GEMMA:
+        if parsed.scheme not in ("http", "https"):
+            raise ValidationError("Gemma base URL must use HTTP or HTTPS.")
+        if not parsed.netloc:
+            raise ValidationError("LLM base URL is invalid.")
+        return cleaned
+
     if parsed.scheme != "https":
         raise ValidationError("LLM base URL must use HTTPS.")
     if not parsed.netloc:

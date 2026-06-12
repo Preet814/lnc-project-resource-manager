@@ -60,6 +60,7 @@ def _to_employee_list_response(result: EngineerListResult) -> EngineerListRespon
                 id=summary.id,
                 full_name=summary.full_name,
                 department=summary.department,
+                designation=summary.designation,
                 work_status=summary.work_status,
                 is_active=summary.is_active,
             )

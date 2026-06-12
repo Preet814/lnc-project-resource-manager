@@ -7,6 +7,7 @@ from fastapi import FastAPI
 
 from prm.api.settings import get_settings
 from prm.infrastructure.db.session import get_session_factory
+from prm.scheduler.registry import register_runner, unregister_runner
 from prm.scheduler.runner import SchedulerRunner
 
 
@@ -17,9 +18,11 @@ async def scheduler_lifespan(_app: FastAPI) -> AsyncIterator[None]:
     runner: SchedulerRunner | None = None
     if settings.scheduler_enabled:
         runner = SchedulerRunner(get_session_factory())
+        register_runner(runner)
         runner.start(run_on_startup=settings.scheduler_run_on_startup)
     try:
         yield
     finally:
         if runner is not None:
+            unregister_runner()
             runner.shutdown()

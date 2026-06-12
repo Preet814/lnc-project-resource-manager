@@ -55,6 +55,23 @@ docker compose up --build
 
 If the API logs `could not translate host name "postgres"`, wait a few seconds and run `docker compose up` again — the API startup script retries DB connectivity. Ensure `.env` uses `DATABASE_URL=...@postgres:5432/...` for Docker (not `localhost`).
 
+### Demo dataset (optional manual testing)
+
+After the API is up and bootstrap admin exists, load **33 demo users**, **8 projects**, allocations, skills, and sample timesheets:
+
+```bash
+# Docker (recommended)
+docker compose exec api python scripts/seed_demo_data.py
+
+# Reseed from scratch (removes demo_* users and Demo * projects)
+docker compose exec api python scripts/seed_demo_data.py --force
+
+# Local (with .env DATABASE_URL pointing at Postgres)
+python scripts/seed_demo_data.py
+```
+
+All demo accounts use password **`Demo@1234`** (`force_password_change` is off). Usernames are prefixed `demo_` (e.g. `demo_mgr_ankit`, `demo_eng_chinmay`). Projects are prefixed `Demo `. Your bootstrap admin from `.env` is left unchanged.
+
 Verify the API:
 
 ```bash
@@ -272,6 +289,11 @@ curl -s -X PATCH http://localhost:8000/admin/config/llm-provider \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"provider":"GROQ"}'
+
+# Or self-hosted Gemma (Ollama-compatible /api/generate)
+# curl -s -X PATCH http://localhost:8000/admin/config/llm-provider \
+#   -H "Authorization: Bearer $TOKEN" \
+#   -d '{"provider":"GEMMA"}'
 curl -s -X PATCH http://localhost:8000/admin/config/scheduler-interval \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -287,7 +309,7 @@ curl -s -X PATCH http://localhost:8000/admin/config/max-weekly-hours \
 | `GET /admin/allocations` | Admin JWT | List active allocations + total count |
 | `GET /admin/config` | Admin JWT | Current system settings (masked API key) |
 | `PATCH /admin/config/llm-api-key` | Admin JWT | Set LLM API key (stored encrypted) |
-| `PATCH /admin/config/llm-provider` | Admin JWT | Switch Gemini / Groq |
+| `PATCH /admin/config/llm-provider` | Admin JWT | Switch Gemini / Groq / Gemma |
 | `PATCH /admin/config/scheduler-interval` | Admin JWT | Update scheduler interval (hours) |
 | `PATCH /admin/config/max-weekly-hours` | Admin JWT | Update max weekly hours cap |
 
@@ -406,17 +428,14 @@ The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`)
 2. Evaluate **ACTIVE** project health (`ON_TRACK` / `ATTENTION` / `AT_RISK`) and store risk flags
 3. Flag **MISSED** timesheet weeks for closed weeks with allocations (lookback: 52 weeks)
 
-**Interval:** read from `system_configuration.scheduler_interval_hours` when the API **starts** (bootstrap default 4 hours from `.env`). Admin updates the value via `PATCH /admin/config/scheduler-interval`; **restart the api service** for a new interval to take effect.
+**Interval:** bootstrap default from `.env` (`BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, default 4). Runtime value lives in `system_configuration.scheduler_interval_hours`. Admin updates via `PATCH /admin/config/scheduler-interval` or the console — APScheduler is **rescheduled immediately** (no API restart).
 
 ```bash
 # Optional .env flags (see .env.example)
 # SCHEDULER_ENABLED=true
 # SCHEDULER_RUN_ON_STARTUP=true
 
-# After Admin changes scheduler interval:
-docker compose restart api
-
-# Watch scheduler logs
+# Watch scheduler logs (look for "rescheduled" after Admin changes interval)
 docker compose logs -f api
 ```
 
@@ -424,7 +443,7 @@ Look for log lines such as `Background scheduler started` and `Scheduler tick co
 
 | Setting | Where | Notes |
 |---------|--------|--------|
-| `scheduler_interval_hours` | DB via Admin API | Restart API after change |
+| `scheduler_interval_hours` | DB via Admin API | Rescheduled immediately on PATCH |
 | `max_weekly_hours` | DB via Admin API | Applies on next request / scheduler tick |
 | `SCHEDULER_ENABLED` | `.env` | Disable background jobs without code changes |
 | `SCHEDULER_RUN_ON_STARTUP` | `.env` | Run one tick immediately when API starts |
@@ -438,7 +457,7 @@ pytest tests/integration/test_scheduler_smoke.py -v -m integration
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
-Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. The project must be **ACTIVE** or **PLANNED** (same rule as direct allocation). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
+Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. The project must be **ACTIVE** or **PLANNED** (same rule as direct allocation). Provider and API key come from system config (admin API). Deploy-time model/URL per provider come from `.env` (`GEMINI_*`, `GROQ_*`, `GEMMA_*`). Gemma uses an Ollama-compatible `POST /api/generate` endpoint (HTTP allowed). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
@@ -550,7 +569,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Persistence | SQLAlchemy + PostgreSQL + Alembic |
 | Console client | httpx calling REST |
 | Scheduler | APScheduler (in api container; interval from Admin config) |
-| LLM | Gemini / Groq behind `LLMClient` protocol + factory; Admin configures provider/key |
+| LLM | Gemini / Groq / Gemma behind `LLMClient` protocol + factory; Admin configures provider/key |
 | Tests | pytest |
 
 ## Status

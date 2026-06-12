@@ -116,3 +116,54 @@ def test_runner_load_interval_hours_uses_system_configuration() -> None:
     runner = SchedulerRunner(factory)
 
     assert runner._load_interval_hours() == 6
+
+
+def test_runner_update_interval_hours_reschedules_active_job() -> None:
+    executed = {"count": 0}
+
+    def run_jobs() -> None:
+        executed["count"] += 1
+
+    factory = _session_factory()
+    runner = SchedulerRunner(
+        factory,
+        read_interval_hours=lambda: 4,
+        run_jobs=run_jobs,
+    )
+    runner.start(run_on_startup=False)
+
+    job = runner._scheduler.get_job("prm_scheduler_tick")
+    assert job is not None
+    assert job.trigger.interval.total_seconds() == 4 * 3600
+
+    runner.update_interval_hours(6)
+
+    job = runner._scheduler.get_job("prm_scheduler_tick")
+    assert job is not None
+    assert job.trigger.interval.total_seconds() == 6 * 3600
+    assert runner._interval_hours == 6
+
+    runner.update_interval_hours(6)
+    runner.shutdown()
+
+
+def test_registry_reschedule_interval_hours_updates_registered_runner() -> None:
+    from prm.scheduler.registry import (
+        register_runner,
+        reschedule_interval_hours,
+        unregister_runner,
+    )
+
+    factory = _session_factory()
+    runner = SchedulerRunner(factory, read_interval_hours=lambda: 4, run_jobs=lambda: None)
+    register_runner(runner)
+    runner.start(run_on_startup=False)
+
+    try:
+        reschedule_interval_hours(8)
+        job = runner._scheduler.get_job("prm_scheduler_tick")
+        assert job is not None
+        assert job.trigger.interval.total_seconds() == 8 * 3600
+    finally:
+        unregister_runner()
+        runner.shutdown()

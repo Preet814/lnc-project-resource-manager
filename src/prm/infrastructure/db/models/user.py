@@ -21,11 +21,11 @@ class UserModel(Base):
     email: Mapped[str] = mapped_column(String(255), unique=True, nullable=False)
     password_hash: Mapped[str] = mapped_column(String(255), nullable=False)
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), nullable=False, index=True)
-    department_id: Mapped[int] = mapped_column(
-        ForeignKey("departments.id"), nullable=False, index=True
+    department_id: Mapped[int | None] = mapped_column(
+        ForeignKey("departments.id"), nullable=True, index=True
     )
-    designation_id: Mapped[int] = mapped_column(
-        ForeignKey("designations.id"), nullable=False, index=True
+    designation_id: Mapped[int | None] = mapped_column(
+        ForeignKey("designations.id"), nullable=True, index=True
     )
     manager_id: Mapped[int | None] = mapped_column(
         ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True

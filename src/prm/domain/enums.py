@@ -66,6 +66,7 @@ class TimesheetWeekStatus(StrEnum):
 class LLMProvider(StrEnum):
     GEMINI = "GEMINI"
     GROQ = "GROQ"
+    GEMMA = "GEMMA"
 
 
 class ActivityTag(StrEnum):

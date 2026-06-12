@@ -89,7 +89,7 @@ def seed_default_system_configuration_from_settings(
     except ValueError as exc:
         raise ValueError(
             f"Invalid BOOTSTRAP_LLM_PROVIDER '{config.bootstrap_llm_provider}'. "
-            "Expected GEMINI or GROQ."
+            "Expected GEMINI, GROQ, or GEMMA."
         ) from exc
 
     encrypted_key = None

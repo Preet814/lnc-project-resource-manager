@@ -65,6 +65,40 @@ def test_create_user_persists_with_force_password_change() -> None:
         assert created.role == Role.MANAGER
         assert created.force_password_change is True
         assert created.account_status == UserAccountStatus.ACTIVE
+        assert created.department_id is None
+        assert created.designation_id is None
+
+
+def test_create_user_with_department_and_designation() -> None:
+    with _session() as session:
+        seed_rbac(session)
+        created = _service(session).create_user(
+            full_name="Backend Engineer",
+            email="backend@example.test",
+            username="backend_eng",
+            temporary_password="TempPass1",
+            role=Role.ENGINEER,
+            department="Backend",
+            designation="SSE",
+        )
+        session.commit()
+
+        assert created.department_name == "Backend"
+        assert created.designation_name == "SSE"
+
+
+def test_create_user_fails_when_department_not_found() -> None:
+    with _session() as session:
+        seed_rbac(session)
+        with pytest.raises(ValidationError, match="Department"):
+            _service(session).create_user(
+                full_name="Bad Dept",
+                email="baddept@example.test",
+                username="bad_dept",
+                temporary_password="TempPass1",
+                role=Role.ENGINEER,
+                department="Unknown Dept",
+            )
 
 
 def test_create_user_fails_when_username_exists() -> None:
@@ -125,6 +159,8 @@ def test_list_users_returns_summaries_and_counts() -> None:
         assert result.users[0].username == TEST_USERNAME
         assert result.users[1].username == "emp_one"
         assert result.users[1].account_status == UserAccountStatus.INACTIVE
+        assert result.users[0].department == "IT"
+        assert result.users[0].designation == "System Administrator"
 
 
 def test_reactivate_user_sets_account_active() -> None:

@@ -4,6 +4,7 @@ from prm.console.client import ApiError, PrmApiClient
 from prm.console.screens.admin import create_user
 from prm.console.screens.admin._helpers import (
     confirm_action,
+    display_value,
     read_user_identifier,
     resolve_user,
     role_label,
@@ -62,12 +63,19 @@ def _view_all_users(client: PrmApiClient, session: UserSession) -> None:
             pause()
             return
 
-        print(f"{'ID':<5}{'Username':<18}{'Role':<12}{'Status'}")
-        print_divider(52)
+        print(
+            f"{'ID':<5}{'Username':<14}{'Role':<10}{'Department':<14}"
+            f"{'Designation':<18}{'Status'}"
+        )
+        print_divider(78)
         for user in result.users:
             status = "Active" if user.account_status == UserAccountStatus.ACTIVE else "Inactive"
-            print(f"{user.id:<5}{user.username:<18}{role_label(user.role):<12}{status}")
-        print_divider(52)
+            print(
+                f"{user.id:<5}{user.username:<14}{role_label(user.role):<10}"
+                f"{display_value(user.department):<14}"
+                f"{display_value(user.designation):<18}{status}"
+            )
+        print_divider(78)
         print(
             f"Total: {result.total}   |   Active: {result.active_count}   |   "
             f"Inactive: {result.inactive_count}"

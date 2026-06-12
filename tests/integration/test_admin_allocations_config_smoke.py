@@ -31,7 +31,7 @@ def test_admin_get_and_update_config_smoke() -> None:
     current = _request_or_skip("get", _api_url("/admin/config"), headers=headers)
     assert current.status_code == 200
     defaults = current.json()
-    assert defaults["llm_provider"] in {"GEMINI", "GROQ"}
+    assert defaults["llm_provider"] in {"GEMINI", "GROQ", "GEMMA"}
     assert defaults["scheduler_interval_hours"] >= 1
     assert defaults["max_weekly_hours"] >= 1
 

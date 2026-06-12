@@ -221,6 +221,86 @@ def test_summarize_risk_returns_llm_summary_with_project_context() -> None:
     )
 
 
+def test_summarize_risk_omits_timesheets_before_allocation_starts() -> None:
+    """Regression: do not flag 0/40 hrs in the in-progress week before onboarding."""
+    session = _session()
+    manager_id, project_id = _seed_manager_project(
+        session,
+        health_status=ProjectHealthStatus.ON_TRACK,
+    )
+    user_id = create_user(
+        session,
+        full_name="Chinmay Jain",
+        username="chinmay",
+        email="chinmay@example.test",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
+    )
+    session.add(
+        AllocationModel(
+            user_id=user_id,
+            project_id=project_id,
+            utilisation_percent=100,
+            from_date=date(2026, 6, 12),
+            to_date=date(2026, 6, 20),
+            created_by_user_id=manager_id,
+        )
+    )
+    session.commit()
+    llm = FakeLlmClient(risk_summary="No material risks identified.")
+
+    result = _service(session, llm=llm).summarize_risk(
+        manager_id,
+        project_id,
+        as_of=date(2026, 6, 11),
+    )
+
+    assert result.project_id == project_id
+    context = llm.risk_calls[0]
+    assert context.recent_timesheets == ()
+
+
+def test_summarize_risk_prorates_expected_hours_for_partial_week() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_project(session)
+    user_id = create_user(
+        session,
+        full_name="Chinmay Jain",
+        username="chinmay",
+        email="chinmay@example.test",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
+    )
+    session.add(
+        AllocationModel(
+            user_id=user_id,
+            project_id=project_id,
+            utilisation_percent=100,
+            from_date=date(2026, 6, 12),
+            to_date=date(2026, 6, 20),
+            created_by_user_id=manager_id,
+        )
+    )
+    session.commit()
+    llm = FakeLlmClient(risk_summary="Hours are low for the partial allocation week.")
+
+    _service(session, llm=llm).summarize_risk(
+        manager_id,
+        project_id,
+        as_of=date(2026, 6, 23),
+    )
+
+    context = llm.risk_calls[0]
+    week_facts = [
+        fact
+        for fact in context.recent_timesheets
+        if fact.week_start_date == date(2026, 6, 15)
+    ]
+    assert len(week_facts) == 1
+    assert week_facts[0].expected_hours == 34
+    assert week_facts[0].hours_logged == 0
+
+
 def test_summarize_risk_requires_project_owner() -> None:
     session = _session()
     manager_id, project_id = _seed_manager_project(session)

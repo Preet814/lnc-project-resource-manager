@@ -26,7 +26,15 @@ def test_user_summary_is_active() -> None:
 
 def test_user_list_result_stores_counts() -> None:
     users = (
-        UserSummary(1, "admin", "Admin", Role.ADMIN, UserAccountStatus.ACTIVE),
+        UserSummary(
+            1,
+            "admin",
+            "Admin",
+            Role.ADMIN,
+            UserAccountStatus.ACTIVE,
+            department="IT",
+            designation="System Administrator",
+        ),
         UserSummary(2, "mgr", "Manager", Role.MANAGER, UserAccountStatus.INACTIVE),
     )
     result = UserListResult(users=users, total=2, active_count=1, inactive_count=1)

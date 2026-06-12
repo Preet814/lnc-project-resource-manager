@@ -3,6 +3,7 @@
 from prm.console.client import ApiError, PrmApiClient
 from prm.console.screens.admin._helpers import (
     confirm_action,
+    display_value,
     read_int,
     read_optional_line,
 )
@@ -75,14 +76,16 @@ def _view_all_employees(client: PrmApiClient, session: UserSession) -> None:
             pause()
             return
 
-        print(f"{'ID':<5}{'Name':<18}{'Department':<14}{'Status'}")
-        print_divider(52)
+        print(f"{'ID':<5}{'Name':<16}{'Department':<14}{'Designation':<16}{'Status'}")
+        print_divider(68)
         for engineer in result.engineers:
             print(
-                f"{engineer.id:<5}{engineer.full_name:<18}"
-                f"{engineer.department:<14}{engineer.work_status.value}"
+                f"{engineer.id:<5}{engineer.full_name:<16}"
+                f"{display_value(engineer.department):<14}"
+                f"{display_value(engineer.designation):<16}"
+                f"{engineer.work_status.value}"
             )
-        print_divider(52)
+        print_divider(68)
         print(
             f"Total: {result.total}   |   Allocated: {result.allocated_count}   |   "
             f"Bench: {result.bench_count}"

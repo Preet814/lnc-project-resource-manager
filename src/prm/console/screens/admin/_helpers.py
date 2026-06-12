@@ -15,6 +15,34 @@ def role_label(role: Role) -> str:
     return role.value
 
 
+def display_value(value: str | None) -> str:
+    return value if value else "-"
+
+
+def read_optional_numbered_choice(
+    choices: dict[str, str],
+    *,
+    label: str,
+) -> str | None:
+    """Prompt for a numbered lookup value; Enter skips (returns None)."""
+    if not choices:
+        return None
+    max_key = str(len(choices))
+    print(f"{label}:")
+    for key, name in choices.items():
+        print(f"  ({key}) {name}")
+    print("  [Enter] Skip")
+    while True:
+        value = read_line(f"Select [1-{max_key}] or Enter to skip: ").strip()
+        if not value:
+            return None
+        selected = choices.get(value)
+        if selected is not None:
+            return selected
+        valid = ", ".join(choices.keys())
+        print_error(f"Invalid choice. Enter one of: {valid}, or press Enter to skip.")
+
+
 def resolve_user(
     client: PrmApiClient,
     session: UserSession,

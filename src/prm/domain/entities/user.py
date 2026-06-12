@@ -17,8 +17,8 @@ class User:
     password_hash: str
     role_id: int
     role: Role
-    department_id: int
-    designation_id: int
+    department_id: int | None
+    designation_id: int | None
     manager_id: int | None
     account_status: UserAccountStatus
     force_password_change: bool

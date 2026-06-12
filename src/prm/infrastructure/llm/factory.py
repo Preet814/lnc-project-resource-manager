@@ -6,6 +6,7 @@ from prm.application.protocols import LLMClient
 from prm.domain.enums import LLMProvider
 from prm.domain.exceptions import ValidationError
 from prm.infrastructure.llm.gemini_client import GeminiClient
+from prm.infrastructure.llm.gemma_client import GemmaClient
 from prm.infrastructure.llm.groq_client import GroqClient
 from prm.infrastructure.llm.validation import validate_llm_base_url, validate_llm_model
 
@@ -40,6 +41,12 @@ def create_llm_client(
             base_url=validated_url,
             model=validated_model,
         )
+    if provider is LLMProvider.GEMMA:
+        return GemmaClient(
+            normalized_key,
+            base_url=validated_url,
+            model=validated_model,
+        )
     raise ValidationError(f"Unknown LLM provider: {provider}")
 
 
@@ -62,5 +69,12 @@ def create_llm_client_from_settings(
             api_key,
             base_url=settings.groq_base_url,
             model=settings.groq_model,
+        )
+    if provider is LLMProvider.GEMMA:
+        return create_llm_client(
+            provider,
+            api_key,
+            base_url=settings.gemma_base_url,
+            model=settings.gemma_model,
         )
     raise ValidationError(f"Unknown LLM provider: {provider}")

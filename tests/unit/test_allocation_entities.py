@@ -70,3 +70,27 @@ def test_overlaps_ignores_ended_other_allocation() -> None:
         status=AllocationStatus.ENDED,
     )
     assert active.overlaps(ended) is False
+
+
+def test_expected_hours_for_week_prorates_partial_allocation() -> None:
+    allocation = Allocation(
+        id=1,
+        user_id=1,
+        project_id=1,
+        utilisation_percent=100,
+        from_date=date(2026, 6, 12),
+        to_date=date(2026, 6, 20),
+        status=AllocationStatus.ACTIVE,
+        created_by_user_id=1,
+    )
+    # Week Mon 8 - Sun 14 Jun: only Thu-Sun overlap would be 12-14 = 3 days -> 17 hrs
+    assert allocation.expected_hours_for_week(date(2026, 6, 8), max_weekly_hours=40) == 17
+    # Week Mon 15 - Sun 21 Jun: 15-20 = 6 days -> 34 hrs
+    assert allocation.expected_hours_for_week(date(2026, 6, 15), max_weekly_hours=40) == 34
+    # Week before allocation starts
+    assert allocation.expected_hours_for_week(date(2026, 6, 1), max_weekly_hours=40) == 0
+
+
+def test_expected_hours_for_week_uses_utilisation_percent() -> None:
+    allocation = _allocation(from_date=date(2026, 3, 1), to_date=date(2026, 6, 30))
+    assert allocation.expected_hours_for_week(date(2026, 5, 4), max_weekly_hours=40) == 20

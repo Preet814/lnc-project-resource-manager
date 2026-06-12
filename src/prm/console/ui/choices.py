@@ -1,5 +1,6 @@
-"""Fixed-choice menus aligned with domain enums."""
+"""Fixed-choice menus aligned with domain enums and seeded lookups."""
 
+from prm.domain.constants import SEEDED_DEPARTMENTS, SEEDED_DESIGNATIONS
 from prm.domain.enums import (
     LLMProvider,
     MilestoneStatus,
@@ -44,4 +45,13 @@ WORK_STATUS_CHOICES: dict[str, ResourceWorkStatus] = {
 LLM_PROVIDER_CHOICES: dict[str, LLMProvider] = {
     "1": LLMProvider.GEMINI,
     "2": LLMProvider.GROQ,
+    "3": LLMProvider.GEMMA,
+}
+
+DEPARTMENT_CHOICES: dict[str, str] = {
+    str(index): name for index, name in enumerate(SEEDED_DEPARTMENTS, start=1)
+}
+
+DESIGNATION_CHOICES: dict[str, str] = {
+    str(index): name for index, (name, _track) in enumerate(SEEDED_DESIGNATIONS, start=1)
 }

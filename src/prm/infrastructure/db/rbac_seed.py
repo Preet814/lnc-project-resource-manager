@@ -3,6 +3,7 @@
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from prm.domain.constants import SEEDED_DEPARTMENTS, SEEDED_DESIGNATIONS
 from prm.domain.permission_codes import (
     ALLOCATION_CREATE,
     ALLOCATION_END,
@@ -38,24 +39,8 @@ ROLES = (
     (3, "ADMIN", "Admin", 3),
 )
 
-DEPARTMENTS = (
-    "IT",
-    "Engineering",
-    "Backend",
-    "Frontend",
-    "DevOps",
-    "QA",
-    "Delivery",
-)
-
-DESIGNATIONS = (
-    ("System Administrator", "ADMIN"),
-    ("Program Manager", "MANAGEMENT"),
-    ("Project Manager", "MANAGEMENT"),
-    ("SSE", "IC"),
-    ("SE", "IC"),
-    ("JSE", "IC"),
-)
+DEPARTMENTS = SEEDED_DEPARTMENTS
+DESIGNATIONS = SEEDED_DESIGNATIONS
 
 PERMISSIONS = (
     (TIMESHEET_SUBMIT, "Submit timesheet", 1, "TIMESHEET"),

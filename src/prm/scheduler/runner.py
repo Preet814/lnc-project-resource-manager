@@ -13,6 +13,8 @@ from prm.scheduler.factory import create_scheduler_service
 
 logger = logging.getLogger(__name__)
 
+_SCHEDULER_JOB_ID = "prm_scheduler_tick"
+
 
 class SchedulerRunner:
     """Start and stop APScheduler ticks that run SchedulerService jobs."""
@@ -28,19 +30,34 @@ class SchedulerRunner:
         self._scheduler = BackgroundScheduler()
         self._read_interval_hours = read_interval_hours or self._load_interval_hours
         self._run_jobs = run_jobs or self._execute_jobs
+        self._interval_hours: int | None = None
 
     def start(self, *, run_on_startup: bool = True) -> None:
         interval_hours = self._read_interval_hours()
+        self._interval_hours = interval_hours
         self._scheduler.add_job(
             self._run_jobs,
             trigger=IntervalTrigger(hours=interval_hours),
-            id="prm_scheduler_tick",
+            id=_SCHEDULER_JOB_ID,
             replace_existing=True,
         )
         self._scheduler.start()
         logger.info("Background scheduler started (interval=%s hours)", interval_hours)
         if run_on_startup:
             self._run_jobs()
+
+    def update_interval_hours(self, hours: int) -> None:
+        """Reschedule the background tick to a new interval (Option A — admin PATCH)."""
+        if self._interval_hours == hours:
+            return
+        self._interval_hours = hours
+        if not self._scheduler.running:
+            return
+        self._scheduler.reschedule_job(
+            _SCHEDULER_JOB_ID,
+            trigger=IntervalTrigger(hours=hours),
+        )
+        logger.info("Scheduler interval rescheduled to %s hours", hours)
 
     def shutdown(self) -> None:
         if self._scheduler.running:

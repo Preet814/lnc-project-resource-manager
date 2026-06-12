@@ -1,6 +1,8 @@
 """Screen 3.4.1 — Create user account (admin only)."""
 
 from prm.console.client import ApiError, PrmApiClient
+from prm.console.screens.admin._helpers import display_value, read_optional_numbered_choice
+from prm.console.ui.choices import DEPARTMENT_CHOICES, DESIGNATION_CHOICES
 from prm.console.session import UserSession
 from prm.console.ui import (
     clear_screen,
@@ -32,6 +34,14 @@ def run(client: PrmApiClient, session: UserSession) -> None:
         temporary_password = read_password("Temporary Password: ")
         print("Role              : (1) Admin  (2) Manager  (3) Engineer")
         role_choice = read_line("Select role [1-3]: ")
+        department = read_optional_numbered_choice(
+            DEPARTMENT_CHOICES,
+            label="(optional) Department",
+        )
+        designation = read_optional_numbered_choice(
+            DESIGNATION_CHOICES,
+            label="(optional) Designation",
+        )
         print()
         print_divider()
         print("[S] Save     [B] Back")
@@ -59,6 +69,8 @@ def run(client: PrmApiClient, session: UserSession) -> None:
                 username=username,
                 temporary_password=temporary_password,
                 role=role,
+                department=department,
+                designation=designation,
             )
         except ApiError as exc:
             print_error(str(exc))
@@ -67,7 +79,9 @@ def run(client: PrmApiClient, session: UserSession) -> None:
 
         print_success(
             "Account created. User must change password on first login. ✓\n"
-            f"  ID: {created.id}  |  Username: {created.username}  |  Role: {created.role.value}"
+            f"  ID: {created.id}  |  Username: {created.username}  |  Role: {created.role.value}\n"
+            f"  Department: {display_value(department)}  |  "
+            f"Designation: {display_value(designation)}"
         )
         pause()
         return

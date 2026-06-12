@@ -48,6 +48,8 @@ def _to_user_list_response(result: UserListResult) -> UserListResponse:
                 full_name=summary.full_name,
                 role=summary.role,
                 account_status=summary.account_status,
+                department=summary.department,
+                designation=summary.designation,
             )
             for summary in result.users
         ],
@@ -70,6 +72,8 @@ def create_user(
         username=body.username,
         temporary_password=body.temporary_password,
         role=body.role,
+        department=body.department,
+        designation=body.designation,
     )
     db.commit()
     return _to_user_response(created)

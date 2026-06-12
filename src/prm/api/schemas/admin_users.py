@@ -11,6 +11,8 @@ class CreateUserRequest(BaseModel):
     username: str = Field(min_length=1)
     temporary_password: str = Field(min_length=1)
     role: Role
+    department: str | None = None
+    designation: str | None = None
 
 
 class ResetPasswordRequest(BaseModel):
@@ -34,6 +36,8 @@ class UserSummaryResponse(BaseModel):
     full_name: str
     role: Role
     account_status: UserAccountStatus
+    department: str | None = None
+    designation: str | None = None
 
 
 class UserListResponse(BaseModel):
