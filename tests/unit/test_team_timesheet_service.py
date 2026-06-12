@@ -9,7 +9,12 @@ from sqlalchemy.orm import Session
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.domain.enums import ActivityTag, Role, TimesheetWeekStatus
 from prm.domain.exceptions import NotFoundError, UnauthorizedError
-from prm.infrastructure.db.models import AllocationModel, ProjectModel, TimesheetEntryModel, TimesheetWeekModel
+from prm.infrastructure.db.models import (
+    AllocationModel,
+    ProjectModel,
+    TimesheetEntryModel,
+    TimesheetWeekModel,
+)
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyProjectRepository,

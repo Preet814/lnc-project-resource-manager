@@ -5,7 +5,7 @@ from datetime import date
 
 import pytest
 from fastapi.testclient import TestClient
-from sqlalchemy import JSON, create_engine, select
+from sqlalchemy import create_engine, select
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
 
@@ -13,14 +13,7 @@ from prm.api.app import create_app
 from prm.domain.enums import AllocationStatus, Role
 from prm.infrastructure.db.models import (
     AllocationModel,
-    DepartmentModel,
-    DesignationModel,
     ProjectModel,
-    ResourceStatusModel,
-    RoleModel,
-    SystemConfigurationModel,
-    TimesheetEntryModel,
-    TimesheetWeekModel,
     UserModel,
 )
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration

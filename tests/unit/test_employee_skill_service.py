@@ -3,9 +3,9 @@
 import pytest
 from sqlalchemy.orm import Session
 
-from prm.application.user_skill_service import UserSkillService
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
+from prm.application.user_skill_service import UserSkillService
 from prm.domain.enums import ProficiencyLevel, Role, SkillCategory
 from prm.domain.exceptions import NotFoundError, ValidationError
 from prm.infrastructure.db.repositories import (

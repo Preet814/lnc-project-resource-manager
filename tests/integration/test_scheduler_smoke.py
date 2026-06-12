@@ -12,8 +12,11 @@ from sqlalchemy.orm import Session
 from prm.scheduler.factory import create_scheduler_service
 from tests.integration.support import (
     admin_headers as _admin_headers,
+)
+from tests.integration.support import (
     api_url as _api_url,
-    bootstrap_credentials as _bootstrap_credentials,
+)
+from tests.integration.support import (
     request_or_skip as _request_or_skip,
 )
 

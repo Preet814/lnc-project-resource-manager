@@ -16,17 +16,9 @@ from prm.application.resource_dashboard_service import ResourceDashboardService
 from prm.domain.enums import AllocationStatus, ResourceWorkStatus, Role
 from prm.infrastructure.db.models import (
     AllocationModel,
-    DepartmentModel,
-    DesignationModel,
     ProjectModel,
-    ResourceStatusModel,
-    RoleModel,
-    SkillModel,
-    SystemConfigurationModel,
     UserModel,
-    UserSkillModel,
 )
-from prm.infrastructure.security.password import BcryptPasswordHasher
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyProjectRepository,
@@ -36,6 +28,7 @@ from prm.infrastructure.db.repositories import (
 )
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration
 from prm.infrastructure.db.session import get_db_session
+from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 from tests.unit.engineer_fixtures import create_user, set_engineer_status
 
@@ -129,7 +122,7 @@ def client() -> Generator[TestClient, None, None]:
             role=Role.ENGINEER,
             manager_id=manager_id,
         )
-        bench_id = create_user(
+        create_user(
             setup,
             full_name="Priya Sharma",
             username=BENCH_USERNAME,

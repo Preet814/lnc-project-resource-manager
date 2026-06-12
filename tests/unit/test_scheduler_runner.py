@@ -7,9 +7,7 @@ from sqlalchemy.orm import Session, sessionmaker
 
 from prm.domain.enums import ProjectStatus, Role
 from prm.infrastructure.db.models import (
-    MilestoneModel,
     ProjectHealthSnapshotModel,
-    ProjectModel,
 )
 from prm.infrastructure.db.repositories import (
     SqlAlchemyProjectRepository,

@@ -2,7 +2,7 @@
 
 from datetime import UTC, datetime
 
-from prm.domain.dtos import EngineerListResult, UserSkillDetail, EngineerSummary
+from prm.domain.dtos import EngineerListResult, EngineerSummary, UserSkillDetail
 from prm.domain.enums import ProficiencyLevel, ResourceWorkStatus, SkillCategory
 
 

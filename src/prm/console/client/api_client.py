@@ -42,6 +42,10 @@ from prm.console.client.models import (
     RiskSummary,
     SkillMatchList,
     SkillMatchResult,
+    TeamAvailabilityHint,
+    TeamMatchResult,
+    TeamSlotAssignment,
+    TeamSlotGap,
     SubmittedTimesheet,
     SystemConfig,
     TeamTimesheetList,
@@ -62,6 +66,7 @@ from prm.domain.enums import (
     ResourceWorkStatus,
     Role,
     SkillCategory,
+    TeamGapType,
     TimesheetWeekStatus,
     UserAccountStatus,
 )
@@ -101,7 +106,7 @@ class PrmApiClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "PrmApiClient":
+    def __enter__(self) -> PrmApiClient:
         return self
 
     def __exit__(self, *_args: object) -> None:
@@ -805,6 +810,57 @@ class PrmApiClient:
             ),
             total=body["total"],
             message=body.get("message"),
+        )
+
+    def team_match(
+        self,
+        access_token: str,
+        project_id: int,
+        requirement: str,
+    ) -> TeamMatchResult:
+        body = self._request(
+            "POST",
+            f"/manager/projects/{project_id}/team-match",
+            json={"requirement": requirement},
+            headers=self._auth_header(access_token),
+        )
+        return TeamMatchResult(
+            project_id=body["project_id"],
+            requirement=body["requirement"],
+            assignments=tuple(
+                TeamSlotAssignment(
+                    slot_id=item["slot_id"],
+                    role_label=item["role_label"],
+                    position=item["position"],
+                    user_id=item["user_id"],
+                    user_name=item["user_name"],
+                    suggested_allocation_percent=item["suggested_allocation_percent"],
+                    reason=item["reason"],
+                    free_hours_per_week=item["free_hours_per_week"],
+                )
+                for item in body["assignments"]
+            ),
+            gaps=tuple(
+                TeamSlotGap(
+                    slot_id=item["slot_id"],
+                    role_label=item["role_label"],
+                    position=item["position"],
+                    gap_type=TeamGapType(item["gap_type"]),
+                    detail=item["detail"],
+                    availability_hints=tuple(
+                        TeamAvailabilityHint(
+                            user_name=hint["user_name"],
+                            available_from=(
+                                date.fromisoformat(hint["available_from"])
+                                if hint.get("available_from")
+                                else None
+                            ),
+                        )
+                        for hint in item.get("availability_hints", [])
+                    ),
+                )
+                for item in body["gaps"]
+            ),
         )
 
     def get_risk_summary(self, access_token: str, project_id: int) -> RiskSummary:

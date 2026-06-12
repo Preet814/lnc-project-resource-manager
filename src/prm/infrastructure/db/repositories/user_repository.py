@@ -250,7 +250,9 @@ class SqlAlchemyUserRepository:
         return self._require_domain(user_id)
 
     def resolve_role_id(self, role: Role) -> int:
-        return self._engineer_role_id() if role == Role.ENGINEER else self._role_id_for_code(role.value)
+        if role == Role.ENGINEER:
+            return self._engineer_role_id()
+        return self._role_id_for_code(role.value)
 
     def resolve_department_id(self, name: str) -> int | None:
         model = self._session.scalar(

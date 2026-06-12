@@ -11,7 +11,6 @@ from prm.api.deps import (
     require_admin,
     require_permission,
 )
-from prm.domain.permission_codes import USER_CREATE, USER_DEACTIVATE, USER_RESET_PASSWORD
 from prm.api.schemas.admin_users import (
     CreateUserRequest,
     ResetPasswordRequest,
@@ -22,6 +21,7 @@ from prm.api.schemas.admin_users import (
 from prm.application.user_management_service import UserManagementService
 from prm.domain.dtos import UserListResult
 from prm.domain.entities.user import User
+from prm.domain.permission_codes import USER_CREATE, USER_DEACTIVATE, USER_RESET_PASSWORD
 from prm.infrastructure.security.jwt import JwtTokenPayload
 
 router = APIRouter(prefix="/admin/users", tags=["admin-users"])

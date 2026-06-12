@@ -10,7 +10,6 @@ from prm.domain.entities.user import User
 from prm.domain.enums import ProjectHealthStatus, ProjectStatus, Role, UserAccountStatus
 from prm.domain.exceptions import NotFoundError, UnauthorizedError
 
-
 _ROLE_IDS = {
     Role.ENGINEER: 1,
     Role.MANAGER: 2,

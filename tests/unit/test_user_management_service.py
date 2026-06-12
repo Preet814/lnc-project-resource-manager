@@ -1,18 +1,16 @@
 """Unit tests for UserManagementService."""
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.application.user_management_service import UserManagementService
 from prm.domain.enums import Role, UserAccountStatus
 from prm.domain.exceptions import NotFoundError, ValidationError
-from prm.infrastructure.db.models import UserModel
 from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
-from tests.unit.engineer_fixtures import create_memory_session, seed_rbac
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_memory_session, seed_rbac
 
 
 def _session() -> Session:

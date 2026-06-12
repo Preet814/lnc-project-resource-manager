@@ -13,6 +13,7 @@ from prm.api.deps import (
     get_resource_dashboard_service,
     get_risk_summary_service,
     get_skill_match_service,
+    get_team_match_service,
     get_team_timesheet_service,
     require_manager,
 )
@@ -21,11 +22,11 @@ from prm.api.schemas.manager import (
     ActiveEngineerResponse,
     BenchEngineerResponse,
     CreateAllocationRequest,
+    EndAllocationRequest,
     EngineerAllocationDetailResponse,
     EngineerResourceDetailResponse,
     EngineerTimesheetEntryResponse,
     EngineerTimesheetWeekDetailResponse,
-    EndAllocationRequest,
     ManagerAllocationResponse,
     ManagerProjectDetailResponse,
     ManagerProjectListResponse,
@@ -38,6 +39,11 @@ from prm.api.schemas.manager import (
     SkillMatchRequest,
     SkillMatchResponse,
     SkillMatchResultResponse,
+    TeamAvailabilityHintResponse,
+    TeamMatchRequest,
+    TeamMatchResponse,
+    TeamSlotAssignmentResponse,
+    TeamSlotGapResponse,
     TeamTimesheetListResponse,
     TeamTimesheetRowResponse,
 )
@@ -46,6 +52,7 @@ from prm.application.manager_project_service import ManagerProjectService
 from prm.application.resource_dashboard_service import ResourceDashboardService
 from prm.application.risk_summary_service import RiskSummaryService
 from prm.application.skill_match_service import SkillMatchService
+from prm.application.team_match_service import TeamMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.domain.dtos import (
     AllocationSummary,
@@ -56,6 +63,7 @@ from prm.domain.dtos import (
     ResourceDashboardResult,
     RiskSummaryResult,
     SkillMatchListResult,
+    TeamAssignmentResult,
     TeamTimesheetListResult,
 )
 from prm.domain.entities.allocation import Allocation
@@ -266,6 +274,43 @@ def _to_risk_summary_response(result: RiskSummaryResult) -> RiskSummaryResponse:
     )
 
 
+def _to_team_match_response(result: TeamAssignmentResult) -> TeamMatchResponse:
+    return TeamMatchResponse(
+        project_id=result.project_id,
+        requirement=result.requirement or "",
+        assignments=[
+            TeamSlotAssignmentResponse(
+                slot_id=assignment.slot_id,
+                role_label=assignment.role_label,
+                position=assignment.position,
+                user_id=assignment.user_id,
+                user_name=assignment.user_name,
+                suggested_allocation_percent=assignment.suggested_allocation_percent,
+                reason=assignment.reason,
+                free_hours_per_week=assignment.free_hours_per_week,
+            )
+            for assignment in result.assignments
+        ],
+        gaps=[
+            TeamSlotGapResponse(
+                slot_id=gap.slot_id,
+                role_label=gap.role_label,
+                position=gap.position,
+                gap_type=gap.gap_type,
+                detail=gap.detail,
+                availability_hints=[
+                    TeamAvailabilityHintResponse(
+                        user_name=hint.user_name,
+                        available_from=hint.available_from,
+                    )
+                    for hint in gap.availability_hints
+                ],
+            )
+            for gap in result.gaps
+        ],
+    )
+
+
 @router.get("/projects", response_model=ManagerProjectListResponse)
 def list_my_projects(
     manager: Annotated[JwtTokenPayload, Depends(require_manager)],
@@ -394,6 +439,17 @@ def skill_match(
 ) -> SkillMatchResponse:
     result = service.find_matches(manager.user_id, project_id, body.requirement)
     return _to_skill_match_response(result)
+
+
+@router.post("/projects/{project_id}/team-match", response_model=TeamMatchResponse)
+def team_match(
+    project_id: int,
+    body: TeamMatchRequest,
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[TeamMatchService, Depends(get_team_match_service)],
+) -> TeamMatchResponse:
+    result = service.match_team(manager.user_id, project_id, body.requirement)
+    return _to_team_match_response(result)
 
 
 @router.get("/projects/{project_id}/risk-summary", response_model=RiskSummaryResponse)

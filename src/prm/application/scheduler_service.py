@@ -140,7 +140,6 @@ class SchedulerService:
         last_week_start = last_completed_week_start(as_of)
         timesheet_facts: list[HealthTimesheetFact] = []
         if last_week_start is not None:
-            period_end = week_end(last_week_start)
             max_weekly_hours = self._max_weekly_hours()
             for allocation in allocations:
                 expected_hours = allocation.expected_hours_for_week(

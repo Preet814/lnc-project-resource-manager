@@ -22,7 +22,6 @@ from prm.infrastructure.db.models import (
     AllocationModel,
     MilestoneModel,
     ProjectHealthSnapshotModel,
-    ProjectModel,
     TimesheetWeekModel,
 )
 from prm.infrastructure.db.repositories import (

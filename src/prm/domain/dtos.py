@@ -14,6 +14,7 @@ from prm.domain.enums import (
     ResourceWorkStatus,
     Role,
     SkillCategory,
+    TeamGapType,
     TimesheetWeekStatus,
     UserAccountStatus,
 )
@@ -501,6 +502,168 @@ class SkillMatchListResult:
     matches: tuple[SkillMatchResult, ...]
     total: int
     message: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotFilters:
+    """Optional search filters for one team slot; null/empty means do not filter.
+
+    Active employees on the manager's team are always required in code — never
+    controlled by this DTO. work_status is a hard filter only when set; when
+    null, bench vs allocated is handled as a preference during assignment.
+    """
+
+    department: str | None = None
+    designation: str | None = None
+    skill_category: SkillCategory | None = None
+    skill_name: str | None = None
+    min_proficiency: ProficiencyLevel | None = None
+    min_free_hours_per_week: int | None = None
+    activity_tags: tuple[ActivityTag, ...] = ()
+    work_status: ResourceWorkStatus | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSearchSkill:
+    """Skill fact attached to a team search candidate."""
+
+    name: str
+    category: SkillCategory
+    proficiency: ProficiencyLevel
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSearchAllocationFact:
+    """Active allocation on another project for availability context."""
+
+    project_name: str
+    utilisation_percent: int
+    to_date: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSearchCandidate:
+    """Engineer row returned by team candidate search."""
+
+    user_id: int
+    full_name: str
+    department: str
+    designation: str
+    skills: tuple[TeamSearchSkill, ...]
+    utilisation_percent: int
+    free_hours_per_week: int
+    work_status: ResourceWorkStatus
+    other_allocations: tuple[TeamSearchAllocationFact, ...]
+    recent_activity_tags: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotSpec:
+    """One staffing slot in a team plan (role label, headcount, filters)."""
+
+    slot_id: int
+    role_label: str
+    headcount: int
+    filters: TeamSlotFilters
+
+
+@dataclass(frozen=True, slots=True)
+class TeamPlan:
+    """Structured team requirement parsed from plain English."""
+
+    team_slots: tuple[TeamSlotSpec, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamPlanParseContext:
+    """Project and requirement context for LLM team-plan parsing."""
+
+    project_id: int
+    project_name: str
+    requirement: str
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotAssignment:
+    """One filled position in a team assignment result."""
+
+    slot_id: int
+    role_label: str
+    position: int
+    user_id: int
+    user_name: str
+    suggested_allocation_percent: int
+    reason: str
+    free_hours_per_week: int
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAvailabilityHint:
+    """Engineer who has required skills but is not available now."""
+
+    user_name: str
+    available_from: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotGap:
+    """Unfilled team slot position with a typed reason."""
+
+    slot_id: int
+    role_label: str
+    position: int
+    gap_type: TeamGapType
+    detail: str
+    availability_hints: tuple[TeamAvailabilityHint, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentResult:
+    """Outcome of assigning a whole team plan for one project."""
+
+    project_id: int
+    assignments: tuple[TeamSlotAssignment, ...]
+    gaps: tuple[TeamSlotGap, ...] = ()
+    requirement: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentExplainSlot:
+    """One filled slot with DB facts for LLM explain-only reasoning."""
+
+    slot_id: int
+    position: int
+    role_label: str
+    filters: TeamSlotFilters
+    user_id: int
+    user_name: str
+    suggested_allocation_percent: int
+    free_hours_per_week: int
+    utilisation_percent: int
+    work_status: ResourceWorkStatus | None
+    skills: tuple[TeamSearchSkill, ...] = ()
+    recent_activity_tags: tuple[str, ...] = ()
+    other_allocations: tuple[TeamSearchAllocationFact, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentExplainContext:
+    """Context for LLM to explain code-chosen team assignments."""
+
+    project_id: int
+    project_name: str
+    requirement: str
+    slots: tuple[TeamAssignmentExplainSlot, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentReason:
+    """LLM-generated reason for one filled team slot."""
+
+    slot_id: int
+    position: int
+    user_id: int
+    reason: str
 
 
 @dataclass(frozen=True, slots=True)

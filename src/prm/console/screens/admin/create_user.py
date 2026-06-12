@@ -2,7 +2,6 @@
 
 from prm.console.client import ApiError, PrmApiClient
 from prm.console.screens.admin._helpers import display_value, read_optional_numbered_choice
-from prm.console.ui.choices import DEPARTMENT_CHOICES, DESIGNATION_CHOICES
 from prm.console.session import UserSession
 from prm.console.ui import (
     clear_screen,
@@ -15,6 +14,7 @@ from prm.console.ui import (
     read_password,
     read_save_or_back,
 )
+from prm.console.ui.choices import DEPARTMENT_CHOICES, DESIGNATION_CHOICES
 from prm.domain.enums import Role
 
 _ROLE_CHOICES: dict[str, Role] = {
