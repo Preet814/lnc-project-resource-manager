@@ -75,7 +75,8 @@ def build_risk_summary_prompt(context: RiskSummaryContext) -> str:
     return (
         "You are a delivery manager assistant. Write one concise plain-English paragraph "
         "summarizing project risks and concerns from the factual data below. "
-        "Do not invent facts. Mention overdue milestones, low logged hours, and timeline "
-        "pressure when present.\n\n"
+        "Do not invent facts. recent_timesheets only includes completed weeks and "
+        "expected_hours is already prorated for partial allocations. "
+        "Mention overdue milestones, low logged hours, and timeline pressure when present.\n\n"
         f"Project facts JSON:\n{json.dumps(payload, indent=2)}"
     )

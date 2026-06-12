@@ -17,7 +17,7 @@ from prm.domain.enums import (
     Role,
     TimesheetWeekStatus,
 )
-from prm.domain.week_calendar import week_start_on_or_before
+from prm.domain.week_calendar import last_completed_week_start, week_start_on_or_before
 from prm.infrastructure.db.models import (
     AllocationModel,
     MilestoneModel,
@@ -255,7 +255,7 @@ def test_flag_missed_timesheets_creates_row_for_closed_week_with_allocation() ->
         session.commit()
         service = _service(session, missed_lookback_weeks=1)
         as_of = date(2026, 5, 19)
-        expected_week = SchedulerService._last_completed_week_start(as_of)
+        expected_week = last_completed_week_start(as_of)
         assert expected_week is not None
 
         created = service.flag_missed_timesheets(as_of)
@@ -305,7 +305,7 @@ def test_flag_missed_timesheets_skips_when_submitted_week_exists() -> None:
             )
         )
         as_of = date(2026, 5, 19)
-        submitted_week = SchedulerService._last_completed_week_start(as_of)
+        submitted_week = last_completed_week_start(as_of)
         assert submitted_week is not None
         session.add(
             TimesheetWeekModel(
@@ -343,8 +343,8 @@ def test_flag_missed_timesheets_skips_current_week() -> None:
         timesheets = SqlAlchemyTimesheetRepository(session)
         as_of = date(2026, 5, 14)
         current_week_start = week_start_on_or_before(as_of)
-        last_completed_week_start = SchedulerService._last_completed_week_start(as_of)
-        assert last_completed_week_start is not None
+        completed_week_start = last_completed_week_start(as_of)
+        assert completed_week_start is not None
 
         created = service.flag_missed_timesheets(as_of)
         session.commit()
@@ -352,7 +352,7 @@ def test_flag_missed_timesheets_skips_current_week() -> None:
         current_week = timesheets.find_week_by_user(user_id, current_week_start)
         last_completed_week = timesheets.find_week_by_user(
             user_id,
-            last_completed_week_start,
+            completed_week_start,
         )
 
         assert current_week is None

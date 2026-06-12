@@ -23,6 +23,7 @@ from prm.domain.dtos import (
 from prm.domain.entities.allocation import Allocation
 from prm.domain.entities.project import Project
 from prm.domain.enums import TimesheetWeekStatus
+from prm.domain.week_calendar import last_completed_week_start
 
 
 class RiskSummaryService:
@@ -112,17 +113,19 @@ class RiskSummaryService:
         reference: date,
     ) -> tuple[RiskSummaryTimesheetFact, ...]:
         facts: list[RiskSummaryTimesheetFact] = []
-        current_week_start = self._week_start_on_or_before(reference)
+        anchor_week_start = last_completed_week_start(reference)
+        if anchor_week_start is None:
+            return ()
 
         for week_index in range(RECENT_RISK_TIMESHEET_WEEKS):
-            week_start = current_week_start - timedelta(weeks=week_index)
-            week_end = week_start + timedelta(days=6)
+            week_start = anchor_week_start - timedelta(weeks=week_index)
             for allocation in allocations:
-                if not allocation.overlaps_period(week_start, week_end):
+                expected_hours = allocation.expected_hours_for_week(
+                    week_start,
+                    max_weekly_hours=self._max_weekly_hours,
+                )
+                if expected_hours <= 0:
                     continue
-                expected_hours = (
-                    allocation.utilisation_percent * self._max_weekly_hours
-                ) // 100
                 hours_logged = self._hours_logged_on_project(
                     allocation.user_id,
                     project_id,
@@ -159,7 +162,3 @@ class RiskSummaryService:
         if user is None:
             return "Unknown"
         return user.full_name
-
-    @staticmethod
-    def _week_start_on_or_before(reference: date) -> date:
-        return reference - timedelta(days=reference.weekday())
