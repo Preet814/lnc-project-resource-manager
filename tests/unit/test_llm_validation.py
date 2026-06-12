@@ -2,7 +2,11 @@
 
 import pytest
 
-from prm.domain.constants import DEFAULT_GEMINI_BASE_URL, DEFAULT_GROQ_BASE_URL
+from prm.domain.constants import (
+    DEFAULT_GEMINI_BASE_URL,
+    DEFAULT_GEMMA_BASE_URL,
+    DEFAULT_GROQ_BASE_URL,
+)
 from prm.domain.enums import LLMProvider
 from prm.domain.exceptions import ValidationError
 from prm.infrastructure.llm.validation import validate_llm_base_url, validate_llm_model
@@ -42,3 +46,10 @@ def test_validate_llm_model_rejects_blank_value() -> None:
 
 def test_validate_llm_model_accepts_non_empty_name() -> None:
     assert validate_llm_model(" gemini-1.5-flash ") == "gemini-1.5-flash"
+
+
+def test_validate_llm_base_url_accepts_http_for_gemma() -> None:
+    assert (
+        validate_llm_base_url(LLMProvider.GEMMA, DEFAULT_GEMMA_BASE_URL)
+        == DEFAULT_GEMMA_BASE_URL
+    )

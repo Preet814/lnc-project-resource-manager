@@ -272,6 +272,11 @@ curl -s -X PATCH http://localhost:8000/admin/config/llm-provider \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
   -d '{"provider":"GROQ"}'
+
+# Or self-hosted Gemma (Ollama-compatible /api/generate)
+# curl -s -X PATCH http://localhost:8000/admin/config/llm-provider \
+#   -H "Authorization: Bearer $TOKEN" \
+#   -d '{"provider":"GEMMA"}'
 curl -s -X PATCH http://localhost:8000/admin/config/scheduler-interval \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer $TOKEN" \
@@ -287,7 +292,7 @@ curl -s -X PATCH http://localhost:8000/admin/config/max-weekly-hours \
 | `GET /admin/allocations` | Admin JWT | List active allocations + total count |
 | `GET /admin/config` | Admin JWT | Current system settings (masked API key) |
 | `PATCH /admin/config/llm-api-key` | Admin JWT | Set LLM API key (stored encrypted) |
-| `PATCH /admin/config/llm-provider` | Admin JWT | Switch Gemini / Groq |
+| `PATCH /admin/config/llm-provider` | Admin JWT | Switch Gemini / Groq / Gemma |
 | `PATCH /admin/config/scheduler-interval` | Admin JWT | Update scheduler interval (hours) |
 | `PATCH /admin/config/max-weekly-hours` | Admin JWT | Update max weekly hours cap |
 
@@ -435,7 +440,7 @@ pytest tests/integration/test_scheduler_smoke.py -v -m integration
 
 ### Manager AI skill match and risk summary (BRD §4.2 AI, §4.3 [A], §4.5)
 
-Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. The project must be **ACTIVE** or **PLANNED** (same rule as direct allocation). Provider and deploy-time model/URL come from system config and `.env` (`GEMINI_*`, `GROQ_*`). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
+Requires a **MANAGER** JWT, project ownership, and an LLM API key configured by Admin (`PATCH /admin/config/llm-api-key`). Only employees assigned to the manager via `assign-manager` are considered for skill match. The project must be **ACTIVE** or **PLANNED** (same rule as direct allocation). Provider and API key come from system config (admin API). Deploy-time model/URL per provider come from `.env` (`GEMINI_*`, `GROQ_*`, `GEMMA_*`). Gemma uses an Ollama-compatible `POST /api/generate` endpoint (HTTP allowed). Results are AI-generated suggestions — managers still confirm allocation via `POST /manager/allocations`.
 
 ```bash
 export TOKEN="YOUR_MANAGER_ACCESS_TOKEN"
@@ -547,7 +552,7 @@ PRM_API_URL=http://localhost:8000 pytest tests/integration -v -m integration
 | Persistence | SQLAlchemy + PostgreSQL + Alembic |
 | Console client | httpx calling REST |
 | Scheduler | APScheduler (in api container; interval from Admin config) |
-| LLM | Gemini / Groq behind `LLMClient` protocol + factory; Admin configures provider/key |
+| LLM | Gemini / Groq / Gemma behind `LLMClient` protocol + factory; Admin configures provider/key |
 | Tests | pytest |
 
 ## Status

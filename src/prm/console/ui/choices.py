@@ -45,6 +45,7 @@ WORK_STATUS_CHOICES: dict[str, ResourceWorkStatus] = {
 LLM_PROVIDER_CHOICES: dict[str, LLMProvider] = {
     "1": LLMProvider.GEMINI,
     "2": LLMProvider.GROQ,
+    "3": LLMProvider.GEMMA,
 }
 
 DEPARTMENT_CHOICES: dict[str, str] = {

@@ -18,7 +18,11 @@ from prm.domain.enums import LLMProvider
 
 
 def _provider_label(provider: LLMProvider) -> str:
-    return "Google Gemini" if provider == LLMProvider.GEMINI else "Groq"
+    if provider == LLMProvider.GEMINI:
+        return "Google Gemini"
+    if provider == LLMProvider.GROQ:
+        return "Groq"
+    return "Gemma (self-hosted)"
 
 
 def run(client: PrmApiClient, session: UserSession) -> None:
@@ -41,7 +45,7 @@ def run(client: PrmApiClient, session: UserSession) -> None:
         print()
         print_divider()
         print("1. Update LLM API Key")
-        print("2. Change LLM Provider  (Gemini / Groq)")
+        print("2. Change LLM Provider  (Gemini / Groq/ Gemma (self-hosted))")
         print("3. Update Scheduler Interval")
         print("4. Update Max Weekly Hours")
         print("5. Back")
@@ -80,7 +84,7 @@ def _update_api_key(client: PrmApiClient, session: UserSession) -> None:
 
 
 def _update_provider(client: PrmApiClient, session: UserSession) -> None:
-    print("Select provider: (1) Gemini   (2) Groq")
+    print("Select provider: (1) Gemini   (2) Groq   (3) Gemma (self-hosted)")
     choice = read_line("Enter choice: ").strip()
     provider = LLM_PROVIDER_CHOICES.get(choice)
     if provider is None:

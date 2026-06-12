@@ -5,6 +5,8 @@ import pytest
 from prm.domain.constants import (
     DEFAULT_GEMINI_BASE_URL,
     DEFAULT_GEMINI_MODEL,
+    DEFAULT_GEMMA_BASE_URL,
+    DEFAULT_GEMMA_MODEL,
     DEFAULT_GROQ_BASE_URL,
     DEFAULT_GROQ_MODEL,
 )
@@ -12,6 +14,7 @@ from prm.domain.enums import LLMProvider
 from prm.domain.exceptions import ValidationError
 from prm.infrastructure.llm.factory import create_llm_client, create_llm_client_from_settings
 from prm.infrastructure.llm.gemini_client import GeminiClient
+from prm.infrastructure.llm.gemma_client import GemmaClient
 from prm.infrastructure.llm.groq_client import GroqClient
 
 
@@ -24,6 +27,17 @@ def test_create_gemini_client() -> None:
     )
 
     assert isinstance(client, GeminiClient)
+
+
+def test_create_gemma_client() -> None:
+    client = create_llm_client(
+        LLMProvider.GEMMA,
+        "gemma-key",
+        base_url=DEFAULT_GEMMA_BASE_URL,
+        model=DEFAULT_GEMMA_MODEL,
+    )
+
+    assert isinstance(client, GemmaClient)
 
 
 def test_create_groq_client() -> None:
