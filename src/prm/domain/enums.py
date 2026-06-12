@@ -34,6 +34,13 @@ class ProficiencyLevel(StrEnum):
     ADVANCED = "ADVANCED"
 
 
+class TeamGapType(StrEnum):
+    """Why a team role could not be filled in a single-pass team build."""
+
+    SKILL_GAP = "SKILL_GAP"
+    AVAILABILITY_GAP = "AVAILABILITY_GAP"
+
+
 class ProjectStatus(StrEnum):
     PLANNED = "PLANNED"
     ACTIVE = "ACTIVE"
