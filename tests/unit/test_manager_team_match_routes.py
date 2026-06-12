@@ -242,6 +242,7 @@ def test_team_match_returns_assignments_and_gaps_with_fake_llm(
     assert "Senior Java Developer" in body["requirement"]
     assert len(body["assignments"]) == 1
     assert body["assignments"][0]["user_name"] == "Priya Sharma"
+    assert "strong fit" in body["assignments"][0]["reason"]
     assert len(body["gaps"]) == 1
     assert body["gaps"][0]["gap_type"] == TeamGapType.SKILL_GAP.value
     assert "Selenium" in body["gaps"][0]["detail"]

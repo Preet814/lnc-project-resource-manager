@@ -9,6 +9,8 @@ from prm.domain.dtos import (
     SkillMatchCandidate,
     SkillMatchContext,
     SkillMatchResult,
+    TeamAssignmentExplainContext,
+    TeamAssignmentReason,
     TeamPlan,
     TeamPlanParseContext,
 )
@@ -395,3 +397,8 @@ class LLMClient(Protocol):
     def summarize_risk(self, context: RiskSummaryContext) -> str: ...
 
     def parse_team_plan(self, context: TeamPlanParseContext) -> TeamPlan: ...
+
+    def explain_team_assignments(
+        self,
+        context: TeamAssignmentExplainContext,
+    ) -> tuple[TeamAssignmentReason, ...]: ...

@@ -9,7 +9,12 @@ from prm.application.authorization_service import AuthorizationService
 from prm.application.team_assignment_service import TeamAssignmentService
 from prm.application.team_candidate_search_service import TeamCandidateSearchService
 from prm.application.team_match_service import TeamMatchService
-from prm.domain.dtos import TeamPlan, TeamSlotFilters, TeamSlotSpec
+from prm.domain.dtos import (
+    TeamAssignmentReason,
+    TeamPlan,
+    TeamSlotFilters,
+    TeamSlotSpec,
+)
 from prm.domain.enums import (
     ProficiencyLevel,
     ProjectStatus,
@@ -79,6 +84,7 @@ def _match_service(
         authorization=AuthorizationService(project_repo),
         llm_client=fake_llm,
         assignment_service=assignment,
+        search_service=search,
     )
 
 
@@ -160,6 +166,98 @@ def test_match_team_parses_requirement_and_assigns() -> None:
     assert result.requirement == requirement
     assert len(result.assignments) == 1
     assert result.assignments[0].user_id == engineer_id
+    assert len(fake_llm.explain_team_assignments_calls) == 1
+    assert "strong fit" in result.assignments[0].reason
+
+
+def test_match_team_uses_llm_reason_when_preset() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_project(session)
+    engineer_id = create_user(
+        session,
+        full_name="Ravi Kumar",
+        username="ravi.kumar",
+        email="ravi@example.test",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
+    )
+    set_engineer_status(
+        session,
+        engineer_id,
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+    )
+    skill = SqlAlchemySkillRepository(session).get_or_create(
+        name="Java",
+        category=SkillCategory.BACKEND,
+    )
+    SqlAlchemyUserSkillRepository(session).assign(
+        user_id=engineer_id,
+        skill_id=skill.id,
+        proficiency=ProficiencyLevel.ADVANCED,
+    )
+    fake_llm = FakeLlmClient(
+        team_plan=_banking_plan(),
+        explain_reasons=(
+            TeamAssignmentReason(
+                slot_id=1,
+                position=1,
+                user_id=engineer_id,
+                reason="Ravi brings Advanced Java and is fully available on bench.",
+            ),
+        ),
+    )
+
+    result = _match_service(session, fake_llm=fake_llm).match_team(
+        manager_id,
+        project_id,
+        "Banking portal needs a Senior Java Developer",
+    )
+
+    assert result.assignments[0].reason == (
+        "Ravi brings Advanced Java and is fully available on bench."
+    )
+
+
+def test_match_team_keeps_template_reason_when_explain_fails() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_project(session)
+    engineer_id = create_user(
+        session,
+        full_name="Ravi Kumar",
+        username="ravi.kumar",
+        email="ravi@example.test",
+        role=Role.ENGINEER,
+        manager_id=manager_id,
+    )
+    set_engineer_status(
+        session,
+        engineer_id,
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+    )
+    skill = SqlAlchemySkillRepository(session).get_or_create(
+        name="Java",
+        category=SkillCategory.BACKEND,
+    )
+    SqlAlchemyUserSkillRepository(session).assign(
+        user_id=engineer_id,
+        skill_id=skill.id,
+        proficiency=ProficiencyLevel.ADVANCED,
+    )
+    fake_llm = FakeLlmClient(
+        team_plan=_banking_plan(),
+        fail_explain_team_assignments=True,
+    )
+
+    result = _match_service(session, fake_llm=fake_llm).match_team(
+        manager_id,
+        project_id,
+        "Banking portal needs a Senior Java Developer",
+    )
+
+    assert result.assignments[0].user_id == engineer_id
+    assert "matches Senior Java Developer" in result.assignments[0].reason
 
 
 def test_match_team_rejects_blank_requirement() -> None:

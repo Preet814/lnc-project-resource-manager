@@ -628,6 +628,45 @@ class TeamAssignmentResult:
 
 
 @dataclass(frozen=True, slots=True)
+class TeamAssignmentExplainSlot:
+    """One filled slot with DB facts for LLM explain-only reasoning."""
+
+    slot_id: int
+    position: int
+    role_label: str
+    filters: TeamSlotFilters
+    user_id: int
+    user_name: str
+    suggested_allocation_percent: int
+    free_hours_per_week: int
+    utilisation_percent: int
+    work_status: ResourceWorkStatus | None
+    skills: tuple[TeamSearchSkill, ...] = ()
+    recent_activity_tags: tuple[str, ...] = ()
+    other_allocations: tuple[TeamSearchAllocationFact, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentExplainContext:
+    """Context for LLM to explain code-chosen team assignments."""
+
+    project_id: int
+    project_name: str
+    requirement: str
+    slots: tuple[TeamAssignmentExplainSlot, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentReason:
+    """LLM-generated reason for one filled team slot."""
+
+    slot_id: int
+    position: int
+    user_id: int
+    reason: str
+
+
+@dataclass(frozen=True, slots=True)
 class RiskSummaryMilestoneFact:
     """Milestone fact included in risk summary LLM context."""
 

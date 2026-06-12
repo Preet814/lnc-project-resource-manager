@@ -7,12 +7,20 @@ from prm.domain.dtos import (
     SkillMatchCandidate,
     SkillMatchContext,
     SkillMatchResult,
+    TeamAssignmentExplainContext,
+    TeamAssignmentExplainSlot,
+    TeamAssignmentReason,
     TeamPlan,
     TeamPlanParseContext,
     TeamSlotFilters,
     TeamSlotSpec,
 )
-from prm.domain.enums import ProficiencyLevel, ProjectHealthStatus, SkillCategory
+from prm.domain.enums import (
+    ProficiencyLevel,
+    ProjectHealthStatus,
+    ResourceWorkStatus,
+    SkillCategory,
+)
 from prm.domain.exceptions import LlmUnavailableError
 from prm.infrastructure.llm.fake_client import FakeLlmClient
 
@@ -116,3 +124,53 @@ def test_fake_llm_client_returns_preset_team_plan() -> None:
 
     assert parsed == plan
     assert len(fake.parse_team_plan_calls) == 1
+
+
+def test_fake_llm_client_returns_preset_explain_reasons() -> None:
+    context = TeamAssignmentExplainContext(
+        project_id=1,
+        project_name="Banking Portal",
+        requirement="Need a Java developer",
+        slots=(
+            TeamAssignmentExplainSlot(
+                slot_id=1,
+                position=1,
+                role_label="Java Developer",
+                filters=TeamSlotFilters(skill_name="Java"),
+                user_id=5,
+                user_name="Ravi Kumar",
+                suggested_allocation_percent=50,
+                free_hours_per_week=40,
+                utilisation_percent=0,
+                work_status=ResourceWorkStatus.BENCH,
+            ),
+        ),
+    )
+    fake = FakeLlmClient(
+        explain_reasons=(
+            TeamAssignmentReason(
+                slot_id=1,
+                position=1,
+                user_id=5,
+                reason="Advanced Java skills with full bench availability.",
+            ),
+        ),
+    )
+
+    reasons = fake.explain_team_assignments(context)
+
+    assert reasons[0].reason == "Advanced Java skills with full bench availability."
+    assert len(fake.explain_team_assignments_calls) == 1
+
+
+def test_fake_llm_client_can_simulate_explain_failure() -> None:
+    fake = FakeLlmClient(fail_explain_team_assignments=True)
+    context = TeamAssignmentExplainContext(
+        project_id=1,
+        project_name="Banking Portal",
+        requirement="Need a Java developer",
+        slots=(),
+    )
+
+    with pytest.raises(LlmUnavailableError, match="team assignment explain failure"):
+        fake.explain_team_assignments(context)

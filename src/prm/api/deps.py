@@ -342,11 +342,21 @@ def get_team_match_service(
     llm_client: Annotated[LLMClient, Depends(get_llm_client)],
 ) -> TeamMatchService:
     project_repository = SqlAlchemyProjectRepository(db)
-    assignment_service = get_team_assignment_service(db)
+    config = _require_system_configuration(db)
+    search_service = TeamCandidateSearchService(
+        user_repository=SqlAlchemyUserRepository(db),
+        user_skill_repository=SqlAlchemyUserSkillRepository(db),
+        skill_repository=SqlAlchemySkillRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=project_repository,
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        max_weekly_hours=config.max_weekly_hours,
+    )
     return TeamMatchService(
         authorization=AuthorizationService(project_repository),
         llm_client=llm_client,
-        assignment_service=assignment_service,
+        assignment_service=get_team_assignment_service(db),
+        search_service=search_service,
     )
 
 

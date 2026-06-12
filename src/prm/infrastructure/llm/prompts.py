@@ -6,7 +6,9 @@ from prm.domain.dtos import (
     RiskSummaryContext,
     SkillMatchCandidate,
     SkillMatchContext,
+    TeamAssignmentExplainContext,
     TeamPlanParseContext,
+    TeamSlotFilters,
 )
 
 
@@ -72,6 +74,82 @@ def build_team_plan_prompt(context: TeamPlanParseContext) -> str:
         '{"team_slots":[{"slot_id":1,"role_label":"Backend Developer","headcount":1,'
         f'"filters":{filter_schema}}}]\n'
         "Include one team_slots entry per distinct role requested."
+    )
+
+
+def _serialize_team_slot_filters(filters: TeamSlotFilters) -> dict[str, object]:
+    return {
+        "department": filters.department,
+        "designation": filters.designation,
+        "skill_category": (
+            filters.skill_category.value if filters.skill_category is not None else None
+        ),
+        "skill_name": filters.skill_name,
+        "min_proficiency": (
+            filters.min_proficiency.value if filters.min_proficiency is not None else None
+        ),
+        "min_free_hours_per_week": filters.min_free_hours_per_week,
+        "activity_tags": [tag.value for tag in filters.activity_tags],
+        "work_status": (
+            filters.work_status.value if filters.work_status is not None else None
+        ),
+    }
+
+
+def build_team_assignment_explain_prompt(context: TeamAssignmentExplainContext) -> str:
+    slot_payload = [
+        {
+            "slot_id": slot.slot_id,
+            "position": slot.position,
+            "role_label": slot.role_label,
+            "filters": _serialize_team_slot_filters(slot.filters),
+            "assigned_user": {
+                "user_id": slot.user_id,
+                "user_name": slot.user_name,
+                "suggested_allocation_percent": slot.suggested_allocation_percent,
+                "free_hours_per_week": slot.free_hours_per_week,
+                "utilisation_percent": slot.utilisation_percent,
+                "work_status": (
+                    slot.work_status.value if slot.work_status is not None else None
+                ),
+                "skills": [
+                    {
+                        "name": skill.name,
+                        "category": skill.category.value,
+                        "proficiency": skill.proficiency.value,
+                    }
+                    for skill in slot.skills
+                ],
+                "recent_activity_tags": list(slot.recent_activity_tags),
+                "other_allocations": [
+                    {
+                        "project_name": allocation.project_name,
+                        "utilisation_percent": allocation.utilisation_percent,
+                        "to_date": (
+                            allocation.to_date.isoformat()
+                            if allocation.to_date is not None
+                            else None
+                        ),
+                    }
+                    for allocation in slot.other_allocations
+                ],
+            },
+        }
+        for slot in context.slots
+    ]
+    return (
+        "You are a resource planning assistant. The system has already assigned "
+        "engineers to team slots using database rules. Write a concise one-sentence "
+        "reason per filled slot explaining why the assigned person fits. Use only the "
+        "supplied facts. Do not change user_id, slot_id, or position.\n\n"
+        f"Project: {context.project_name} (id={context.project_id})\n"
+        f"Requirement: {context.requirement}\n\n"
+        f"Filled slots JSON:\n{json.dumps(slot_payload, indent=2)}\n\n"
+        "Respond with JSON only in this shape:\n"
+        '{"reasons":[{"slot_id":1,"position":1,"user_id":5,'
+        '"reason":"One sentence explaining the fit."}]}\n'
+        "Include one reasons entry per filled slot. "
+        "user_id values must match the assigned_user.user_id in the input."
     )
 
 
