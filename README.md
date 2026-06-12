@@ -406,17 +406,14 @@ The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`)
 2. Evaluate **ACTIVE** project health (`ON_TRACK` / `ATTENTION` / `AT_RISK`) and store risk flags
 3. Flag **MISSED** timesheet weeks for closed weeks with allocations (lookback: 52 weeks)
 
-**Interval:** read from `system_configuration.scheduler_interval_hours` when the API **starts** (bootstrap default 4 hours from `.env`). Admin updates the value via `PATCH /admin/config/scheduler-interval`; **restart the api service** for a new interval to take effect.
+**Interval:** bootstrap default from `.env` (`BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, default 4). Runtime value lives in `system_configuration.scheduler_interval_hours`. Admin updates via `PATCH /admin/config/scheduler-interval` or the console — APScheduler is **rescheduled immediately** (no API restart).
 
 ```bash
 # Optional .env flags (see .env.example)
 # SCHEDULER_ENABLED=true
 # SCHEDULER_RUN_ON_STARTUP=true
 
-# After Admin changes scheduler interval:
-docker compose restart api
-
-# Watch scheduler logs
+# Watch scheduler logs (look for "rescheduled" after Admin changes interval)
 docker compose logs -f api
 ```
 
@@ -424,7 +421,7 @@ Look for log lines such as `Background scheduler started` and `Scheduler tick co
 
 | Setting | Where | Notes |
 |---------|--------|--------|
-| `scheduler_interval_hours` | DB via Admin API | Restart API after change |
+| `scheduler_interval_hours` | DB via Admin API | Rescheduled immediately on PATCH |
 | `max_weekly_hours` | DB via Admin API | Applies on next request / scheduler tick |
 | `SCHEDULER_ENABLED` | `.env` | Disable background jobs without code changes |
 | `SCHEDULER_RUN_ON_STARTUP` | `.env` | Run one tick immediately when API starts |
