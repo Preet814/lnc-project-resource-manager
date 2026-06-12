@@ -14,7 +14,6 @@ from prm.domain.enums import (
     ResourceWorkStatus,
     Role,
     SkillCategory,
-    TeamGapType,
     TimesheetWeekStatus,
     UserAccountStatus,
 )
@@ -502,91 +501,6 @@ class SkillMatchListResult:
     matches: tuple[SkillMatchResult, ...]
     total: int
     message: str | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class TeamRoleSkillRequirement:
-    """One skill requirement for a team role."""
-
-    skill_name: str
-    min_proficiency: ProficiencyLevel
-
-
-@dataclass(frozen=True, slots=True)
-class TeamRoleRequirement:
-    """Structured role definition for multi-role team building."""
-
-    role_label: str
-    required_skills: tuple[TeamRoleSkillRequirement, ...]
-    hours_per_week: int | None = None
-
-
-@dataclass(frozen=True, slots=True)
-class TeamBuilderSkill:
-    """Skill with proficiency on a team-builder candidate."""
-
-    name: str
-    proficiency: ProficiencyLevel
-
-
-@dataclass(frozen=True, slots=True)
-class TeamBuilderAllocationFact:
-    """Active allocation on another project (for availability gap context)."""
-
-    project_name: str
-    utilisation_percent: int
-    to_date: date | None
-
-
-@dataclass(frozen=True, slots=True)
-class TeamBuilderCandidate:
-    """Manager-team employee facts used for deterministic team matching."""
-
-    user_id: int
-    full_name: str
-    skills: tuple[TeamBuilderSkill, ...]
-    utilisation_percent: int
-    free_hours_per_week: int
-    other_allocations: tuple[TeamBuilderAllocationFact, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class TeamRoleAssignment:
-    """One filled role in a team-build result."""
-
-    role_label: str
-    user_id: int
-    user_name: str
-    suggested_allocation_percent: int
-    reason: str
-    free_hours_per_week: int
-
-
-@dataclass(frozen=True, slots=True)
-class TeamAvailabilityHint:
-    """Engineer who has required skills but is not available now."""
-
-    user_name: str
-    available_from: date | None
-
-
-@dataclass(frozen=True, slots=True)
-class TeamRoleGap:
-    """Unfilled role with a typed reason."""
-
-    role_label: str
-    gap_type: TeamGapType
-    detail: str
-    availability_hints: tuple[TeamAvailabilityHint, ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class TeamBuilderResult:
-    """Outcome of a single-pass team build for one project."""
-
-    project_id: int
-    assignments: tuple[TeamRoleAssignment, ...]
-    gaps: tuple[TeamRoleGap, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

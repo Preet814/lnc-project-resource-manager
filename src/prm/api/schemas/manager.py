@@ -8,10 +8,8 @@ from prm.api.schemas.admin_allocations import AllocationSummaryResponse
 from prm.domain.enums import (
     AllocationStatus,
     MilestoneStatus,
-    ProficiencyLevel,
     ProjectHealthStatus,
     ResourceWorkStatus,
-    TeamGapType,
     TimesheetWeekStatus,
 )
 
@@ -176,45 +174,3 @@ class RiskSummaryResponse(BaseModel):
     project_id: int
     summary: str
     disclaimer: str
-
-
-class TeamRoleSkillRequirementRequest(BaseModel):
-    skill_name: str = Field(min_length=1)
-    min_proficiency: ProficiencyLevel
-
-
-class TeamRoleRequirementRequest(BaseModel):
-    role_label: str = Field(min_length=1)
-    required_skills: list[TeamRoleSkillRequirementRequest] = Field(min_length=1)
-    hours_per_week: int | None = Field(default=None, gt=0)
-
-
-class TeamMatchRequest(BaseModel):
-    roles: list[TeamRoleRequirementRequest] = Field(min_length=1)
-
-
-class TeamRoleAssignmentResponse(BaseModel):
-    role_label: str
-    user_id: int
-    user_name: str
-    suggested_allocation_percent: int
-    reason: str
-    free_hours_per_week: int
-
-
-class TeamAvailabilityHintResponse(BaseModel):
-    user_name: str
-    available_from: date | None = None
-
-
-class TeamRoleGapResponse(BaseModel):
-    role_label: str
-    gap_type: TeamGapType
-    detail: str
-    availability_hints: list[TeamAvailabilityHintResponse] = Field(default_factory=list)
-
-
-class TeamMatchResponse(BaseModel):
-    project_id: int
-    assignments: list[TeamRoleAssignmentResponse]
-    gaps: list[TeamRoleGapResponse] = Field(default_factory=list)
