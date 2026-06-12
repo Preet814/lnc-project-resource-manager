@@ -15,6 +15,7 @@ from prm.domain.enums import (
     ResourceWorkStatus,
     Role,
     SkillCategory,
+    TeamGapType,
     TimesheetWeekStatus,
     UserAccountStatus,
 )
@@ -298,6 +299,42 @@ class RiskSummary:
     project_id: int
     summary: str
     disclaimer: str
+
+
+@dataclass(frozen=True)
+class TeamSlotAssignment:
+    slot_id: int
+    role_label: str
+    position: int
+    user_id: int
+    user_name: str
+    suggested_allocation_percent: int
+    reason: str
+    free_hours_per_week: int
+
+
+@dataclass(frozen=True)
+class TeamAvailabilityHint:
+    user_name: str
+    available_from: date | None
+
+
+@dataclass(frozen=True)
+class TeamSlotGap:
+    slot_id: int
+    role_label: str
+    position: int
+    gap_type: TeamGapType
+    detail: str
+    availability_hints: tuple[TeamAvailabilityHint, ...]
+
+
+@dataclass(frozen=True)
+class TeamMatchResult:
+    project_id: int
+    requirement: str
+    assignments: tuple[TeamSlotAssignment, ...]
+    gaps: tuple[TeamSlotGap, ...]
 
 
 @dataclass(frozen=True)

@@ -23,19 +23,24 @@ def run(client: PrmApiClient, session: UserSession) -> None:
         clear_screen()
         print_banner("AI ASSISTANT")
         print("1. Skill Match    — Find best employees for a project requirement")
-        print("2. Risk Summary   — Get a health analysis for a project")
-        print("3. Back")
+        print("2. Team Builder   — Staff a whole team from one paragraph")
+        print("3. Risk Summary   — Get a health analysis for a project")
+        print("4. Back")
         print()
         choice = read_option()
 
-        if choice == "3":
+        if choice == "4":
             return
         if choice == "1":
             _skill_match(client, session)
         elif choice == "2":
+            from prm.console.screens.manager import team_builder
+
+            team_builder.run(client, session)
+        elif choice == "3":
             _risk_summary(client, session)
         else:
-            print_error("Invalid option. Choose 1–3.")
+            print_error("Invalid option. Choose 1–4.")
             pause()
 
 
