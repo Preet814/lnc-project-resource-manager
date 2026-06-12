@@ -7,8 +7,12 @@ from prm.domain.dtos import (
     SkillMatchCandidate,
     SkillMatchContext,
     SkillMatchResult,
+    TeamPlan,
+    TeamPlanParseContext,
+    TeamSlotFilters,
+    TeamSlotSpec,
 )
-from prm.domain.enums import ProjectHealthStatus
+from prm.domain.enums import ProficiencyLevel, ProjectHealthStatus, SkillCategory
 from prm.domain.exceptions import LlmUnavailableError
 from prm.infrastructure.llm.fake_client import FakeLlmClient
 
@@ -84,3 +88,31 @@ def test_fake_llm_client_can_simulate_failures() -> None:
 
     with pytest.raises(LlmUnavailableError, match="Fake LLM rank failure"):
         fake.rank_candidates(_context(), (_candidate(),))
+
+
+def test_fake_llm_client_returns_preset_team_plan() -> None:
+    plan = TeamPlan(
+        team_slots=(
+            TeamSlotSpec(
+                slot_id=1,
+                role_label="QA Tester",
+                headcount=1,
+                filters=TeamSlotFilters(
+                    skill_category=SkillCategory.QA,
+                    skill_name="Manual Testing",
+                    min_proficiency=ProficiencyLevel.INTERMEDIATE,
+                ),
+            ),
+        ),
+    )
+    fake = FakeLlmClient(team_plan=plan)
+    context = TeamPlanParseContext(
+        project_id=1,
+        project_name="Banking Portal",
+        requirement="Need a QA tester",
+    )
+
+    parsed = fake.parse_team_plan(context)
+
+    assert parsed == plan
+    assert len(fake.parse_team_plan_calls) == 1

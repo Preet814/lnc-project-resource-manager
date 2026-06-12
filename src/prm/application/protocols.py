@@ -9,6 +9,8 @@ from prm.domain.dtos import (
     SkillMatchCandidate,
     SkillMatchContext,
     SkillMatchResult,
+    TeamPlan,
+    TeamPlanParseContext,
 )
 from prm.domain.entities.allocation import Allocation
 from prm.domain.entities.milestone import Milestone
@@ -391,3 +393,5 @@ class LLMClient(Protocol):
     ) -> tuple[SkillMatchResult, ...]: ...
 
     def summarize_risk(self, context: RiskSummaryContext) -> str: ...
+
+    def parse_team_plan(self, context: TeamPlanParseContext) -> TeamPlan: ...

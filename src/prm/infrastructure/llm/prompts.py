@@ -2,7 +2,12 @@
 
 import json
 
-from prm.domain.dtos import RiskSummaryContext, SkillMatchCandidate, SkillMatchContext
+from prm.domain.dtos import (
+    RiskSummaryContext,
+    SkillMatchCandidate,
+    SkillMatchContext,
+    TeamPlanParseContext,
+)
 
 
 def build_skill_match_prompt(
@@ -37,6 +42,36 @@ def build_skill_match_prompt(
         '"suggested_allocation_percent":25,"free_hours_per_week":10}]}\n'
         "Include only user_id values from the candidate list. "
         "Order matches from best to worst fit."
+    )
+
+
+def build_team_plan_prompt(context: TeamPlanParseContext) -> str:
+    filter_schema = (
+        '{"department":null,"designation":null,"skill_category":null,'
+        '"skill_name":null,"min_proficiency":null,"min_free_hours_per_week":null,'
+        '"activity_tags":[],"work_status":null}'
+    )
+    return (
+        "You are a resource planning assistant. A manager described a whole project team "
+        "in plain English. Convert it into a fixed JSON team plan.\n\n"
+        f"Project: {context.project_name} (id={context.project_id})\n"
+        f"Requirement: {context.requirement}\n\n"
+        "Rules:\n"
+        "- Output every filter field for every slot. Use null when the manager did not "
+        "mention that criterion. Use [] for activity_tags when none were mentioned.\n"
+        "- Only non-null / non-empty fields will be used to search the database later.\n"
+        "- headcount is how many distinct people are needed for that slot (default 1).\n"
+        "- skill_category: BACKEND, FRONTEND, DEVOPS, QA, or OTHER.\n"
+        "- min_proficiency: BEGINNER, INTERMEDIATE, or ADVANCED.\n"
+        "- work_status: BENCH or ALLOCATED when explicitly requested, else null.\n"
+        "- activity_tags values: BACKEND_API, MICROSERVICES, DATABASE_DESIGN, WEBSOCKET, "
+        "FRONTEND, CODE_REVIEW, BUG_FIXING, DEVOPS, TESTING_QA, DOCUMENTATION, OTHER.\n"
+        "- Infer skill_name and min_proficiency from role titles (e.g. Senior Java Developer "
+        "→ Java, ADVANCED).\n\n"
+        "Respond with JSON only in this shape:\n"
+        '{"team_slots":[{"slot_id":1,"role_label":"Backend Developer","headcount":1,'
+        f'"filters":{filter_schema}}}]\n'
+        "Include one team_slots entry per distinct role requested."
     )
 
 

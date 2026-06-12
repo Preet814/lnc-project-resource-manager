@@ -504,6 +504,46 @@ class SkillMatchListResult:
 
 
 @dataclass(frozen=True, slots=True)
+class TeamSlotFilters:
+    """Optional search filters for one team slot; null/empty means do not filter."""
+
+    department: str | None = None
+    designation: str | None = None
+    skill_category: SkillCategory | None = None
+    skill_name: str | None = None
+    min_proficiency: ProficiencyLevel | None = None
+    min_free_hours_per_week: int | None = None
+    activity_tags: tuple[ActivityTag, ...] = ()
+    work_status: ResourceWorkStatus | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotSpec:
+    """One staffing slot in a team plan (role label, headcount, filters)."""
+
+    slot_id: int
+    role_label: str
+    headcount: int
+    filters: TeamSlotFilters
+
+
+@dataclass(frozen=True, slots=True)
+class TeamPlan:
+    """Structured team requirement parsed from plain English."""
+
+    team_slots: tuple[TeamSlotSpec, ...]
+
+
+@dataclass(frozen=True, slots=True)
+class TeamPlanParseContext:
+    """Project and requirement context for LLM team-plan parsing."""
+
+    project_id: int
+    project_name: str
+    requirement: str
+
+
+@dataclass(frozen=True, slots=True)
 class RiskSummaryMilestoneFact:
     """Milestone fact included in risk summary LLM context."""
 
