@@ -9,6 +9,7 @@ RUN apt-get update \
 COPY pyproject.toml README.md alembic.ini ./
 COPY alembic ./alembic
 COPY src ./src
+COPY scripts ./scripts
 
 RUN pip install --no-cache-dir -e .
 

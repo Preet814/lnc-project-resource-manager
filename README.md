@@ -55,6 +55,23 @@ docker compose up --build
 
 If the API logs `could not translate host name "postgres"`, wait a few seconds and run `docker compose up` again — the API startup script retries DB connectivity. Ensure `.env` uses `DATABASE_URL=...@postgres:5432/...` for Docker (not `localhost`).
 
+### Demo dataset (optional manual testing)
+
+After the API is up and bootstrap admin exists, load **33 demo users**, **8 projects**, allocations, skills, and sample timesheets:
+
+```bash
+# Docker (recommended)
+docker compose exec api python scripts/seed_demo_data.py
+
+# Reseed from scratch (removes demo_* users and Demo * projects)
+docker compose exec api python scripts/seed_demo_data.py --force
+
+# Local (with .env DATABASE_URL pointing at Postgres)
+python scripts/seed_demo_data.py
+```
+
+All demo accounts use password **`Demo@1234`** (`force_password_change` is off). Usernames are prefixed `demo_` (e.g. `demo_mgr_ankit`, `demo_eng_chinmay`). Projects are prefixed `Demo `. Your bootstrap admin from `.env` is left unchanged.
+
 Verify the API:
 
 ```bash
