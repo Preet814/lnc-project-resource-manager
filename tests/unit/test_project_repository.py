@@ -3,12 +3,10 @@
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.domain.enums import ProjectHealthStatus, ProjectStatus, Role
 from prm.domain.exceptions import NotFoundError
-from prm.infrastructure.db.models import ProjectModel, UserModel
 from prm.infrastructure.db.repositories import SqlAlchemyProjectRepository
 from tests.unit.engineer_fixtures import create_memory_session, create_user
 

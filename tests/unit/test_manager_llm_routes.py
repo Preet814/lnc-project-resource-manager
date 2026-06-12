@@ -23,19 +23,11 @@ from prm.domain.enums import (
 )
 from prm.infrastructure.db.models import (
     AllocationModel,
-    DepartmentModel,
-    DesignationModel,
-    MilestoneModel,
     ProjectHealthSnapshotModel,
     ProjectModel,
-    ResourceStatusModel,
-    RoleModel,
-    SkillModel,
-    SystemConfigurationModel,
     TimesheetEntryModel,
     TimesheetWeekModel,
     UserModel,
-    UserSkillModel,
 )
 from prm.infrastructure.db.repositories import SqlAlchemyMilestoneRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system_configuration

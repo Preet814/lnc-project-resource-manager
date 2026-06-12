@@ -20,7 +20,6 @@ from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.engineer_fixtures import (
     create_allocation_tables,
     create_memory_session,
-    create_user,
     seed_rbac,
 )
 

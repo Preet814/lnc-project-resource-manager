@@ -7,7 +7,6 @@ from sqlalchemy.orm import Session
 from prm.domain.enums import Role, UserAccountStatus
 from prm.domain.exceptions import NotFoundError
 from prm.infrastructure.db.models import UserModel
-from tests.unit.engineer_fixtures import create_rbac_tables
 from prm.infrastructure.db.rbac_seed import (
     default_department_id,
     default_designation_id,
@@ -18,6 +17,7 @@ from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_rbac_tables
 
 
 def _session() -> Session:

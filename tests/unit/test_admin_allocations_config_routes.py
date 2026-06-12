@@ -15,7 +15,6 @@ from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
 from tests.unit.engineer_fixtures import (
     build_test_client,
-    create_route_tables,
     create_sqlite_engine,
     create_user,
 )

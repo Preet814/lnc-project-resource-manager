@@ -1,7 +1,6 @@
 """Unit tests for AuthService."""
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.application.auth_service import AuthService
@@ -12,8 +11,8 @@ from prm.infrastructure.db.repositories import SqlAlchemyUserRepository
 from prm.infrastructure.db.seed import seed_bootstrap_admin
 from prm.infrastructure.security.jwt import JwtTokenService
 from prm.infrastructure.security.password import BcryptPasswordHasher
-from tests.unit.engineer_fixtures import create_memory_session
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
+from tests.unit.engineer_fixtures import create_memory_session
 
 JWT_SECRET = "auth-service-test-secret"
 

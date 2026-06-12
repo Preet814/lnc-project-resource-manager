@@ -3,12 +3,10 @@
 from datetime import datetime
 
 import pytest
-from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from prm.domain.enums import MilestoneStatus, ProjectStatus, Role
 from prm.domain.exceptions import NotFoundError
-from prm.infrastructure.db.models import MilestoneModel, ProjectModel, UserModel
 from prm.infrastructure.db.repositories import (
     SqlAlchemyMilestoneRepository,
     SqlAlchemyProjectRepository,

@@ -5,7 +5,10 @@ from sqlalchemy.orm import Session
 
 from prm.domain.enums import ProficiencyLevel, Role, SkillCategory
 from prm.domain.exceptions import NotFoundError
-from prm.infrastructure.db.repositories import SqlAlchemySkillRepository, SqlAlchemyUserSkillRepository
+from prm.infrastructure.db.repositories import (
+    SqlAlchemySkillRepository,
+    SqlAlchemyUserSkillRepository,
+)
 from tests.unit.engineer_fixtures import (
     create_memory_session,
     create_skill_tables,

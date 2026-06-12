@@ -7,7 +7,13 @@ from sqlalchemy.orm import Session
 
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
-from prm.domain.enums import AllocationStatus, ProjectStatus, ResourceWorkStatus, Role, UserAccountStatus
+from prm.domain.enums import (
+    AllocationStatus,
+    ProjectStatus,
+    ResourceWorkStatus,
+    Role,
+    UserAccountStatus,
+)
 from prm.domain.exceptions import NotFoundError, ValidationError
 from prm.infrastructure.db.models import AllocationModel, ProjectModel
 from prm.infrastructure.db.repositories import (

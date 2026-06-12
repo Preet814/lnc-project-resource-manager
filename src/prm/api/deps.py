@@ -13,9 +13,8 @@ from prm.application.auth_service import AuthService
 from prm.application.authorization_service import AuthorizationService
 from prm.application.engineer_allocation_service import EngineerAllocationService
 from prm.application.engineer_timesheet_service import EngineerTimesheetService
-from prm.application.permission_service import PermissionService
-from prm.application.user_skill_service import UserSkillService
 from prm.application.manager_project_service import ManagerProjectService
+from prm.application.permission_service import PermissionService
 from prm.application.project_management_service import ProjectManagementService
 from prm.application.project_milestone_service import ProjectMilestoneService
 from prm.application.protocols import LLMClient
@@ -26,6 +25,7 @@ from prm.application.system_config_service import SystemConfigService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
+from prm.application.user_skill_service import UserSkillService
 from prm.application.utilisation_calculator import UtilisationCalculator
 from prm.domain.entities.system_configuration import SystemConfiguration
 from prm.domain.enums import Role

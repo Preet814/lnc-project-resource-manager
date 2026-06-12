@@ -20,14 +20,8 @@ from prm.domain.enums import (
 )
 from prm.infrastructure.db.models import (
     AllocationModel,
-    DepartmentModel,
-    DesignationModel,
-    MilestoneModel,
     ProjectHealthSnapshotModel,
     ProjectModel,
-    ResourceStatusModel,
-    RoleModel,
-    SystemConfigurationModel,
     TimesheetEntryModel,
     TimesheetWeekModel,
     UserModel,

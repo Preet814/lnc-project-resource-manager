@@ -16,7 +16,6 @@ from prm.console.ui import (
 )
 from prm.console.ui.choices import MILESTONE_STATUS_CHOICES, PROJECT_STATUS_CHOICES
 from prm.console.ui.dates import format_date, format_date_input, parse_date
-from prm.domain.enums import ProjectStatus
 
 
 def run(client: PrmApiClient, session: UserSession) -> None:

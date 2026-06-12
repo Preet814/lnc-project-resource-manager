@@ -11,7 +11,12 @@ from prm.domain.dtos import SubmitTimesheetCommand, SubmitTimesheetEntry
 from prm.domain.enums import ActivityTag, AllocationStatus, Role, TimesheetWeekStatus
 from prm.domain.exceptions import NotFoundError, ValidationError
 from prm.domain.week_calendar import week_start_on_or_before
-from prm.infrastructure.db.models import AllocationModel, ProjectModel, TimesheetEntryModel, TimesheetWeekModel
+from prm.infrastructure.db.models import (
+    AllocationModel,
+    ProjectModel,
+    TimesheetEntryModel,
+    TimesheetWeekModel,
+)
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyProjectRepository,

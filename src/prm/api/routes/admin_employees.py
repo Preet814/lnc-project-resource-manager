@@ -11,17 +11,12 @@ from prm.api.deps import (
     get_user_skill_service,
     require_permission,
 )
-from prm.domain.permission_codes import (
-    ENGINEER_ASSIGN_MANAGER,
-    ENGINEER_MANAGE,
-    SKILL_MANAGE_ANY,
-)
 from prm.api.schemas.admin_employees import (
     AddUserSkillRequest,
     AssignManagerRequest,
     CreateEmployeeRequest,
-    EngineerListResponse,
     EmployeeResponse,
+    EngineerListResponse,
     EngineerSummaryResponse,
     UpdateEmployeeRequest,
     UpdateUserSkillRequest,
@@ -33,6 +28,11 @@ from prm.application.user_skill_service import UserSkillService
 from prm.domain.dtos import EngineerListResult, UserSkillDetail
 from prm.domain.entities.user import User
 from prm.domain.enums import ResourceWorkStatus
+from prm.domain.permission_codes import (
+    ENGINEER_ASSIGN_MANAGER,
+    ENGINEER_MANAGE,
+    SKILL_MANAGE_ANY,
+)
 from prm.infrastructure.security.jwt import JwtTokenPayload
 
 router = APIRouter(prefix="/admin/employees", tags=["admin-employees"])

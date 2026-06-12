@@ -183,7 +183,8 @@ def _deactivate_employee(client: PrmApiClient, session: UserSession) -> None:
     print(f"Department : {employee.department}")
     print(f"Status     : {employee.work_status.value} ({employee.current_utilisation_percent}%)")
     if allocations.allocations:
-        print(f"\n⚠  Warning: This employee has {len(allocations.allocations)} active allocation(s).")
+        count = len(allocations.allocations)
+        print(f"\n⚠  Warning: This employee has {count} active allocation(s).")
         print("   Ending their employment will remove them from:")
         for allocation in allocations.allocations:
             end = format_date(allocation.to_date)

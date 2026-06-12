@@ -8,8 +8,8 @@ from prm.api.schemas.admin_allocations import AllocationSummaryResponse
 from prm.domain.enums import (
     AllocationStatus,
     MilestoneStatus,
-    ResourceWorkStatus,
     ProjectHealthStatus,
+    ResourceWorkStatus,
     TimesheetWeekStatus,
 )
 

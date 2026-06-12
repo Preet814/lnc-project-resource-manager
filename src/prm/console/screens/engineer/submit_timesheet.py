@@ -38,7 +38,9 @@ def run(client: PrmApiClient, session: UserSession) -> None:
     clear_screen()
     print_banner("SUBMIT TIMESHEET")
     print(f"Employee  : {session.full_name}")
-    week_raw = read_line("Week Start: Enter date (DD-MM-YYYY) or press Enter for last Monday\n          > ")
+    week_raw = read_line(
+        "Week Start: Enter date (DD-MM-YYYY) or press Enter for last Monday\n          > "
+    )
     week_start = parse_date(week_raw) if week_raw.strip() else default_week_start()
     if week_start is None:
         print_error("Invalid week start date. Use DD-MM-YYYY (must be a Monday).")
@@ -106,9 +108,10 @@ def run(client: PrmApiClient, session: UserSession) -> None:
     print_banner("SUMMARY")
     for entry in entries:
         if entry.hours_worked > 0:
+            tag_labels = [t.value.replace("_", " ").title() for t in entry.activity_tags]
             print(
                 f"  {entry.project_name:<16}{entry.hours_worked} hrs    "
-                f"[{format_activity_tags([t.value.replace('_', ' ').title() for t in entry.activity_tags])}]"
+                f"[{format_activity_tags(tag_labels)}]"
             )
     print("  ─────────────────────────────────────────")
     max_hours = week_allocations.max_weekly_hours

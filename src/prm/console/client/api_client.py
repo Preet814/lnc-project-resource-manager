@@ -101,7 +101,7 @@ class PrmApiClient:
     def close(self) -> None:
         self._client.close()
 
-    def __enter__(self) -> "PrmApiClient":
+    def __enter__(self) -> PrmApiClient:
         return self
 
     def __exit__(self, *_args: object) -> None:
