@@ -22,6 +22,7 @@ from prm.application.resource_dashboard_service import ResourceDashboardService
 from prm.application.risk_summary_service import RiskSummaryService
 from prm.application.skill_match_service import SkillMatchService
 from prm.application.system_config_service import SystemConfigService
+from prm.application.team_builder_service import TeamBuilderService
 from prm.application.team_timesheet_service import TeamTimesheetService
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
@@ -309,6 +310,22 @@ def get_skill_match_service(
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
         authorization=AuthorizationService(project_repository),
         llm_client=llm_client,
+        max_weekly_hours=config.max_weekly_hours,
+    )
+
+
+def get_team_builder_service(
+    db: Annotated[Session, Depends(get_db_session)],
+) -> TeamBuilderService:
+    project_repository = SqlAlchemyProjectRepository(db)
+    config = _require_system_configuration(db)
+    return TeamBuilderService(
+        user_repository=SqlAlchemyUserRepository(db),
+        user_skill_repository=SqlAlchemyUserSkillRepository(db),
+        skill_repository=SqlAlchemySkillRepository(db),
+        allocation_repository=SqlAlchemyAllocationRepository(db),
+        project_repository=project_repository,
+        authorization=AuthorizationService(project_repository),
         max_weekly_hours=config.max_weekly_hours,
     )
 
