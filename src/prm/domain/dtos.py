@@ -14,6 +14,7 @@ from prm.domain.enums import (
     ResourceWorkStatus,
     Role,
     SkillCategory,
+    TeamGapType,
     TimesheetWeekStatus,
     UserAccountStatus,
 )
@@ -580,6 +581,50 @@ class TeamPlanParseContext:
     project_id: int
     project_name: str
     requirement: str
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotAssignment:
+    """One filled position in a team assignment result."""
+
+    slot_id: int
+    role_label: str
+    position: int
+    user_id: int
+    user_name: str
+    suggested_allocation_percent: int
+    reason: str
+    free_hours_per_week: int
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAvailabilityHint:
+    """Engineer who has required skills but is not available now."""
+
+    user_name: str
+    available_from: date | None
+
+
+@dataclass(frozen=True, slots=True)
+class TeamSlotGap:
+    """Unfilled team slot position with a typed reason."""
+
+    slot_id: int
+    role_label: str
+    position: int
+    gap_type: TeamGapType
+    detail: str
+    availability_hints: tuple[TeamAvailabilityHint, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class TeamAssignmentResult:
+    """Outcome of assigning a whole team plan for one project."""
+
+    project_id: int
+    assignments: tuple[TeamSlotAssignment, ...]
+    gaps: tuple[TeamSlotGap, ...] = ()
+    requirement: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
