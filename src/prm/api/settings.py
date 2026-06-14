@@ -56,6 +56,15 @@ class Settings(BaseSettings):
     gemma_base_url: str = DEFAULT_GEMMA_BASE_URL
     gemma_model: str = DEFAULT_GEMMA_MODEL
 
+    smtp_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+    email_verification_required: bool = True
+
     @field_validator("gemini_base_url")
     @classmethod
     def validate_gemini_base_url(cls, value: str) -> str:
