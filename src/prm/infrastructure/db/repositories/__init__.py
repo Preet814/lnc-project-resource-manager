@@ -3,6 +3,9 @@
 from prm.infrastructure.db.repositories.allocation_repository import (
     SqlAlchemyAllocationRepository,
 )
+from prm.infrastructure.db.repositories.email_verification_otp_repository import (
+    SqlAlchemyEmailVerificationOtpRepository,
+)
 from prm.infrastructure.db.repositories.lookup_repository import SqlAlchemyLookupRepository
 from prm.infrastructure.db.repositories.milestone_repository import SqlAlchemyMilestoneRepository
 from prm.infrastructure.db.repositories.permission_repository import (
@@ -22,6 +25,7 @@ from prm.infrastructure.db.repositories.user_skill_repository import SqlAlchemyU
 
 __all__ = [
     "SqlAlchemyAllocationRepository",
+    "SqlAlchemyEmailVerificationOtpRepository",
     "SqlAlchemyLookupRepository",
     "SqlAlchemyMilestoneRepository",
     "SqlAlchemyPermissionRepository",

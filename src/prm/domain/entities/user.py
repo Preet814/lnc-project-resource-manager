@@ -22,6 +22,7 @@ class User:
     manager_id: int | None
     account_status: UserAccountStatus
     force_password_change: bool
+    email_verified: bool
     created_at: datetime
     updated_at: datetime
     department_name: str | None = None
@@ -31,6 +32,9 @@ class User:
 
     def requires_password_change(self) -> bool:
         return self.force_password_change
+
+    def requires_email_verification(self) -> bool:
+        return not self.email_verified
 
     def is_active(self) -> bool:
         return self.account_status == UserAccountStatus.ACTIVE

@@ -4,6 +4,7 @@ from prm.infrastructure.db.models.allocation import AllocationModel
 from prm.infrastructure.db.models.department import DepartmentModel
 from prm.infrastructure.db.models.designation import DesignationModel
 from prm.infrastructure.db.models.permission import PermissionModel, RolePermissionModel
+from prm.infrastructure.db.models.email_verification_otp import EmailVerificationOtpModel
 from prm.infrastructure.db.models.project import (
     MilestoneModel,
     ProjectHealthSnapshotModel,
@@ -20,6 +21,7 @@ __all__ = [
     "AllocationModel",
     "DepartmentModel",
     "DesignationModel",
+    "EmailVerificationOtpModel",
     "MilestoneModel",
     "PermissionModel",
     "ProjectHealthSnapshotModel",

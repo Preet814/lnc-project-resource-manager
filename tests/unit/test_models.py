@@ -22,6 +22,7 @@ def test_metadata_registers_all_entity_tables() -> None:
         "timesheet_weeks",
         "timesheet_entries",
         "system_configurations",
+        "email_verification_otps",
     }
     assert expected.issubset(set(Base.metadata.tables.keys()))
 
@@ -29,4 +30,5 @@ def test_metadata_registers_all_entity_tables() -> None:
 def test_user_table_has_force_password_change_column() -> None:
     users = Base.metadata.tables["users"]
     assert "force_password_change" in users.c
+    assert "email_verified" in users.c
     assert users.c.username.unique is True

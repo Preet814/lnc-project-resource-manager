@@ -30,6 +30,11 @@ HEALTH_RESOURCES_ALLOCATED_FLAG = "Resources are correctly allocated"
 # How many past weeks the scheduler scans when flagging MISSED timesheets.
 SCHEDULER_MISSED_LOOKBACK_WEEKS = 52
 
+EMAIL_OTP_LENGTH = 6
+EMAIL_OTP_EXPIRY_MINUTES = 10
+EMAIL_OTP_MAX_ATTEMPTS = 5
+EMAIL_OTP_RESEND_SECONDS = 60
+
 # RBAC lookup values seeded into departments / designations tables.
 SEEDED_DEPARTMENTS = (
     "IT",
