@@ -25,9 +25,22 @@ _PROFICIENCY_ORDER: dict[ProficiencyLevel, int] = {
     ProficiencyLevel.ADVANCED: 2,
 }
 
+_DESIGNATION_EQUIVALENTS: tuple[frozenset[str], ...] = (
+    frozenset({"se", "software engineer"}),
+    frozenset({"sse", "senior software engineer"}),
+    frozenset({"jse", "junior software engineer"}),
+)
+
+_DEPARTMENT_ROLE_EQUIVALENTS: tuple[frozenset[str], ...] = (
+    frozenset({"devops", "dev ops"}),
+    frozenset({"qa", "quality assurance"}),
+    frozenset({"backend", "back-end"}),
+    frozenset({"frontend", "front-end"}),
+)
+
 
 class TeamCandidateSearchService:
-    """Return active direct-report engineers matching only non-empty slot filters."""
+    """Return active direct-report engineers; hard-filter only explicit constraints."""
 
     def __init__(
         self,
@@ -77,10 +90,67 @@ class TeamCandidateSearchService:
                 exclude_project_id=exclude_project_id,
                 as_of=reference,
             )
-            if self._matches_filters(candidate, filters):
+            if self._passes_hard_filters(candidate, filters):
                 matched.append(candidate)
 
         return tuple(matched)
+
+    def score_candidate(
+        self,
+        filters: TeamSlotFilters,
+        candidate: TeamSearchCandidate,
+    ) -> tuple[int, int, int, int, int, int, int, int, int]:
+        """Rank candidates: soft preferences first, then capacity and bench."""
+        return (
+            self._department_bonus(filters, candidate),
+            self._designation_bonus(filters, candidate),
+            self._skill_name_bonus(filters, candidate),
+            self._skill_category_bonus(filters, candidate),
+            self._proficiency_headroom(filters, candidate),
+            self._activity_overlap_bonus(filters, candidate),
+            candidate.free_hours_per_week,
+            self._bench_bonus(filters, candidate),
+            MAX_UTILISATION_PERCENT - candidate.utilisation_percent,
+        )
+
+    def meets_skill_requirements(
+        self,
+        filters: TeamSlotFilters,
+        candidate: TeamSearchCandidate,
+    ) -> bool:
+        """True when the candidate satisfies explicit skill filters (if any)."""
+        if filters.skill_name is None and filters.skill_category is None:
+            return True
+        if filters.skill_name is not None:
+            for skill in candidate.skills:
+                if skill.name.casefold() != filters.skill_name.casefold():
+                    continue
+                if (
+                    filters.skill_category is not None
+                    and skill.category != filters.skill_category
+                ):
+                    continue
+                if self._skill_meets_proficiency(skill, filters):
+                    return True
+            return False
+        for skill in candidate.skills:
+            if skill.category != filters.skill_category:
+                continue
+            if self._skill_meets_proficiency(skill, filters):
+                return True
+        return False
+
+    def _passes_hard_filters(
+        self,
+        candidate: TeamSearchCandidate,
+        filters: TeamSlotFilters,
+    ) -> bool:
+        if filters.work_status is not None and candidate.work_status != filters.work_status:
+            return False
+        if filters.min_free_hours_per_week is not None:
+            if candidate.free_hours_per_week < filters.min_free_hours_per_week:
+                return False
+        return True
 
     def _to_candidate(
         self,
@@ -148,75 +218,83 @@ class TeamCandidateSearchService:
             )
         return tuple(facts)
 
-    def _matches_filters(
+    def _department_bonus(
         self,
-        candidate: TeamSearchCandidate,
         filters: TeamSlotFilters,
-    ) -> bool:
-        if filters.department is not None and not self._text_matches(
-            candidate.department,
-            filters.department,
-        ):
-            return False
-        if filters.designation is not None and not self._text_matches(
-            candidate.designation,
-            filters.designation,
-        ):
-            return False
-        if filters.work_status is not None and candidate.work_status != filters.work_status:
-            return False
-        if filters.min_free_hours_per_week is not None:
-            if candidate.free_hours_per_week < filters.min_free_hours_per_week:
-                return False
-        if filters.activity_tags and not self._has_activity_tag_overlap(
-            candidate,
-            filters.activity_tags,
-        ):
-            return False
-        if not self._matches_skill_filters(candidate, filters):
-            return False
-        return True
+        candidate: TeamSearchCandidate,
+    ) -> int:
+        if filters.department is None:
+            return 0
+        if self._department_matches(candidate.department, filters.department):
+            return 100
+        return 0
 
-    def _matches_skill_filters(
+    def _designation_bonus(
         self,
-        candidate: TeamSearchCandidate,
         filters: TeamSlotFilters,
-    ) -> bool:
-        has_skill_filter = (
-            filters.skill_name is not None
-            or filters.skill_category is not None
-            or filters.min_proficiency is not None
-        )
-        if not has_skill_filter:
-            return True
+        candidate: TeamSearchCandidate,
+    ) -> int:
+        if filters.designation is None:
+            return 0
+        if self._designation_matches(candidate.designation, filters.designation):
+            return 80
+        return 0
 
+    def _skill_name_bonus(
+        self,
+        filters: TeamSlotFilters,
+        candidate: TeamSearchCandidate,
+    ) -> int:
+        if filters.skill_name is None:
+            return 0
         for skill in candidate.skills:
-            if not self._skill_matches_name(skill, filters.skill_name):
+            if skill.name.casefold() == filters.skill_name.casefold():
+                if filters.skill_category is not None and skill.category != filters.skill_category:
+                    continue
+                if not self._skill_meets_proficiency(skill, filters):
+                    continue
+                return 60
+        return 0
+
+    def _skill_category_bonus(
+        self,
+        filters: TeamSlotFilters,
+        candidate: TeamSearchCandidate,
+    ) -> int:
+        if filters.skill_category is None or filters.skill_name is not None:
+            return 0
+        for skill in candidate.skills:
+            if skill.category != filters.skill_category:
                 continue
-            if not self._skill_matches_category(skill, filters.skill_category):
+            if not self._skill_meets_proficiency(skill, filters):
                 continue
-            if not self._skill_matches_proficiency(skill, filters):
+            return 40
+        return 0
+
+    def _proficiency_headroom(
+        self,
+        filters: TeamSlotFilters,
+        candidate: TeamSearchCandidate,
+    ) -> int:
+        if filters.min_proficiency is None:
+            return 0
+        best = 0
+        for skill in candidate.skills:
+            if filters.skill_name is not None:
+                if skill.name.casefold() != filters.skill_name.casefold():
+                    continue
+            if filters.skill_category is not None and skill.category != filters.skill_category:
                 continue
-            return True
-        return False
+            headroom = (
+                _PROFICIENCY_ORDER[skill.proficiency]
+                - _PROFICIENCY_ORDER[filters.min_proficiency]
+            )
+            if headroom >= 0:
+                best = max(best, headroom + 1)
+        return best
 
     @staticmethod
-    def _skill_matches_name(skill: TeamSearchSkill, skill_name: str | None) -> bool:
-        if skill_name is None:
-            return True
-        return skill.name.casefold() == skill_name.casefold()
-
-    @staticmethod
-    def _skill_matches_category(
-        skill: TeamSearchSkill,
-        skill_category: SkillCategory | None,
-    ) -> bool:
-        if skill_category is None:
-            return True
-        return skill.category == skill_category
-
-    @staticmethod
-    def _skill_matches_proficiency(
+    def _skill_meets_proficiency(
         skill: TeamSearchSkill,
         filters: TeamSlotFilters,
     ) -> bool:
@@ -228,19 +306,53 @@ class TeamCandidateSearchService:
         )
 
     @staticmethod
-    def _text_matches(actual: str, expected: str) -> bool:
-        return actual.casefold() == expected.casefold()
+    def _bench_bonus(
+        filters: TeamSlotFilters,
+        candidate: TeamSearchCandidate,
+    ) -> int:
+        if filters.work_status is not None:
+            return 0
+        if candidate.work_status == ResourceWorkStatus.BENCH:
+            return 1
+        return 0
 
     @staticmethod
-    def _has_activity_tag_overlap(
+    def _activity_overlap_bonus(
+        filters: TeamSlotFilters,
         candidate: TeamSearchCandidate,
-        required_tags: tuple[ActivityTag, ...],
-    ) -> bool:
+    ) -> int:
+        if not filters.activity_tags:
+            return 0
         candidate_tags = {tag.casefold() for tag in candidate.recent_activity_tags}
-        for tag in required_tags:
-            if tag.value.casefold() in candidate_tags:
+        return sum(
+            1 for tag in filters.activity_tags if tag.value.casefold() in candidate_tags
+        )
+
+    @classmethod
+    def _department_matches(cls, actual: str, expected: str) -> bool:
+        if cls._text_matches(actual, expected):
+            return True
+        actual_key = actual.casefold().strip()
+        expected_key = expected.casefold().strip()
+        for equivalents in _DEPARTMENT_ROLE_EQUIVALENTS:
+            if actual_key in equivalents and expected_key in equivalents:
                 return True
         return False
+
+    @classmethod
+    def _designation_matches(cls, actual: str, expected: str) -> bool:
+        if cls._text_matches(actual, expected):
+            return True
+        actual_key = actual.casefold().strip()
+        expected_key = expected.casefold().strip()
+        for equivalents in _DESIGNATION_EQUIVALENTS:
+            if actual_key in equivalents and expected_key in equivalents:
+                return True
+        return False
+
+    @staticmethod
+    def _text_matches(actual: str, expected: str) -> bool:
+        return actual.casefold().strip() == expected.casefold().strip()
 
     def _free_hours_per_week(self, utilisation_percent: int) -> int:
         availability_percent = max(0, MAX_UTILISATION_PERCENT - utilisation_percent)

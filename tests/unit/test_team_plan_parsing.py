@@ -2,6 +2,7 @@
 
 import pytest
 
+from prm.domain.dtos import TeamSlotFilters
 from prm.domain.enums import (
     ActivityTag,
     ProficiencyLevel,
@@ -135,3 +136,55 @@ def test_parse_team_plan_response_rejects_empty_team_slots() -> None:
 def test_parse_team_plan_response_rejects_invalid_json() -> None:
     with pytest.raises(LlmUnavailableError, match="invalid team plan"):
         parse_team_plan_response("not-json")
+
+
+def test_parse_team_plan_response_tolerates_llm_preamble_and_string_ids() -> None:
+    raw = """
+    Here is the team plan you requested:
+    {
+      "team_slots": [
+        {
+          "slot_id": "1",
+          "role_label": "DevOps Engineer",
+          "headcount": "1",
+          "filters": {
+            "department": null,
+            "designation": "SE",
+            "skill_category": "DEVOPS",
+            "skill_name": null,
+            "min_proficiency": null,
+            "min_free_hours_per_week": 20,
+            "activity_tags": [],
+            "work_status": null
+          }
+        }
+      ]
+    }
+    Hope this helps.
+    """
+
+    plan = parse_team_plan_response(raw)
+
+    assert len(plan.team_slots) == 1
+    slot = plan.team_slots[0]
+    assert slot.filters.designation == "SE"
+    assert slot.filters.skill_category == SkillCategory.DEVOPS
+    assert slot.filters.min_free_hours_per_week == 20
+
+
+def test_parse_team_plan_response_defaults_missing_filters_object() -> None:
+    raw = """
+    {
+      "team_slots": [
+        {
+          "slot_id": 1,
+          "role_label": "DevOps Engineer",
+          "headcount": 1
+        }
+      ]
+    }
+    """
+
+    plan = parse_team_plan_response(raw)
+
+    assert plan.team_slots[0].filters == TeamSlotFilters()

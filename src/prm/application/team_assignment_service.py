@@ -15,14 +15,8 @@ from prm.domain.dtos import (
     TeamSlotGap,
     TeamSlotSpec,
 )
-from prm.domain.enums import ProficiencyLevel, ResourceWorkStatus, TeamGapType
+from prm.domain.enums import TeamGapType
 from prm.domain.exceptions import ValidationError
-
-_PROFICIENCY_ORDER: dict[ProficiencyLevel, int] = {
-    ProficiencyLevel.BEGINNER: 0,
-    ProficiencyLevel.INTERMEDIATE: 1,
-    ProficiencyLevel.ADVANCED: 2,
-}
 
 
 class TeamAssignmentService:
@@ -63,11 +57,11 @@ class TeamAssignmentService:
         slot_order = sorted(
             plan.team_slots,
             key=lambda slot: len(
-                self._search.search_candidates(
+                self._qualified_candidates(
                     manager_user_id,
                     slot.filters,
-                    exclude_user_ids=assigned_user_ids,
-                    exclude_project_id=project_id,
+                    assigned_user_ids=assigned_user_ids,
+                    project_id=project_id,
                     as_of=as_of,
                 )
             ),
@@ -75,17 +69,17 @@ class TeamAssignmentService:
 
         for slot in slot_order:
             for position in range(1, slot.headcount + 1):
-                eligible = self._search.search_candidates(
+                qualified = self._qualified_candidates(
                     manager_user_id,
                     slot.filters,
-                    exclude_user_ids=assigned_user_ids,
-                    exclude_project_id=project_id,
+                    assigned_user_ids=assigned_user_ids,
+                    project_id=project_id,
                     as_of=as_of,
                 )
-                if eligible:
+                if qualified:
                     best = max(
-                        eligible,
-                        key=lambda candidate: self._score_candidate(
+                        qualified,
+                        key=lambda candidate: self._search.score_candidate(
                             slot.filters,
                             candidate,
                         ),
@@ -127,6 +121,28 @@ class TeamAssignmentService:
             gaps=self._order_gaps(plan, gaps),
         )
 
+    def _qualified_candidates(
+        self,
+        manager_user_id: int,
+        filters: TeamSlotFilters,
+        *,
+        assigned_user_ids: set[int],
+        project_id: int,
+        as_of: date | None,
+    ) -> tuple[TeamSearchCandidate, ...]:
+        eligible = self._search.search_candidates(
+            manager_user_id,
+            filters,
+            exclude_user_ids=assigned_user_ids,
+            exclude_project_id=project_id,
+            as_of=as_of,
+        )
+        return tuple(
+            candidate
+            for candidate in eligible
+            if self._search.meets_skill_requirements(filters, candidate)
+        )
+
     def _build_gap(
         self,
         manager_user_id: int,
@@ -137,13 +153,28 @@ class TeamAssignmentService:
         *,
         as_of: date | None,
     ) -> TeamSlotGap:
-        skill_pool = self._search.search_candidates(
+        base_filters = self._without_capacity_filters(slot.filters)
+        team_pool = self._search.search_candidates(
             manager_user_id,
-            self._without_capacity_filters(slot.filters),
+            base_filters,
             exclude_project_id=project_id,
             as_of=as_of,
         )
-        if not skill_pool:
+        if not team_pool:
+            return TeamSlotGap(
+                slot_id=slot.slot_id,
+                role_label=slot.role_label,
+                position=position,
+                gap_type=TeamGapType.SKILL_GAP,
+                detail=self._empty_team_gap_detail(slot),
+            )
+
+        qualified_team = tuple(
+            candidate
+            for candidate in team_pool
+            if self._search.meets_skill_requirements(slot.filters, candidate)
+        )
+        if not qualified_team:
             return TeamSlotGap(
                 slot_id=slot.slot_id,
                 role_label=slot.role_label,
@@ -152,13 +183,41 @@ class TeamAssignmentService:
                 detail=self._skill_gap_detail(slot),
             )
 
-        blocked = [
+        available_pool = self._qualified_candidates(
+            manager_user_id,
+            slot.filters,
+            assigned_user_ids=assigned_user_ids,
+            project_id=project_id,
+            as_of=as_of,
+        )
+        if available_pool:
+            primary = available_pool[0]
+            return TeamSlotGap(
+                slot_id=slot.slot_id,
+                role_label=slot.role_label,
+                position=position,
+                gap_type=TeamGapType.AVAILABILITY_GAP,
+                detail=self._availability_gap_detail(slot, primary),
+                availability_hints=tuple(
+                    TeamAvailabilityHint(
+                        user_name=candidate.full_name,
+                        available_from=self._latest_allocation_end(candidate),
+                    )
+                    for candidate in available_pool
+                ),
+            )
+
+        unassigned_qualified = tuple(
             candidate
-            for candidate in skill_pool
-            if candidate.user_id in assigned_user_ids
-            and self._has_capacity(candidate, slot.filters)
-        ]
-        if blocked:
+            for candidate in qualified_team
+            if candidate.user_id not in assigned_user_ids
+        )
+        if not unassigned_qualified:
+            blocked = [
+                candidate
+                for candidate in qualified_team
+                if candidate.user_id in assigned_user_ids
+            ]
             names = ", ".join(candidate.full_name for candidate in blocked)
             return TeamSlotGap(
                 slot_id=slot.slot_id,
@@ -166,7 +225,7 @@ class TeamAssignmentService:
                 position=position,
                 gap_type=TeamGapType.AVAILABILITY_GAP,
                 detail=(
-                    f"Qualified engineers exist but are already assigned to other roles "
+                    f"Suitable engineers exist but are already assigned to other roles "
                     f"in this team plan: {names}."
                 ),
                 availability_hints=tuple(
@@ -180,11 +239,10 @@ class TeamAssignmentService:
 
         unavailable = [
             candidate
-            for candidate in skill_pool
-            if candidate.user_id not in assigned_user_ids
-            and not self._has_capacity(candidate, slot.filters)
+            for candidate in unassigned_qualified
+            if not self._has_capacity(candidate, slot.filters)
         ]
-        primary = unavailable[0] if unavailable else skill_pool[0]
+        primary = unavailable[0] if unavailable else unassigned_qualified[0]
         return TeamSlotGap(
             slot_id=slot.slot_id,
             role_label=slot.role_label,
@@ -199,58 +257,6 @@ class TeamAssignmentService:
                 for candidate in unavailable
             ),
         )
-
-    def _score_candidate(
-        self,
-        filters: TeamSlotFilters,
-        candidate: TeamSearchCandidate,
-    ) -> tuple[int, int, int, int]:
-        bench_bonus = (
-            1
-            if filters.work_status is None
-            and candidate.work_status == ResourceWorkStatus.BENCH
-            else 0
-        )
-        proficiency_bonus = self._proficiency_headroom(filters, candidate)
-        activity_bonus = self._activity_overlap_bonus(filters, candidate)
-        return (
-            candidate.free_hours_per_week,
-            bench_bonus,
-            proficiency_bonus + activity_bonus,
-            MAX_UTILISATION_PERCENT - candidate.utilisation_percent,
-        )
-
-    def _proficiency_headroom(
-        self,
-        filters: TeamSlotFilters,
-        candidate: TeamSearchCandidate,
-    ) -> int:
-        if filters.min_proficiency is None:
-            return 0
-        for skill in candidate.skills:
-            if filters.skill_name is not None:
-                if skill.name.casefold() != filters.skill_name.casefold():
-                    continue
-            if filters.skill_category is not None and skill.category != filters.skill_category:
-                continue
-            return (
-                _PROFICIENCY_ORDER[skill.proficiency]
-                - _PROFICIENCY_ORDER[filters.min_proficiency]
-            )
-        return 0
-
-    @staticmethod
-    def _activity_overlap_bonus(
-        filters: TeamSlotFilters,
-        candidate: TeamSearchCandidate,
-    ) -> int:
-        if not filters.activity_tags:
-            return 0
-        candidate_tags = {tag.casefold() for tag in candidate.recent_activity_tags}
-        overlap = sum(
-            1 for tag in filters.activity_tags if tag.value.casefold() in candidate_tags
-        )
-        return overlap
 
     def _suggested_allocation_percent(
         self,
@@ -278,6 +284,15 @@ class TeamAssignmentService:
         )
 
     @staticmethod
+    def _empty_team_gap_detail(slot: TeamSlotSpec) -> str:
+        if slot.filters.work_status is not None:
+            return (
+                f"No active engineer on your team matches work status "
+                f"{slot.filters.work_status.value}."
+            )
+        return "No active engineers are available on your team for this slot."
+
+    @staticmethod
     def _skill_gap_detail(slot: TeamSlotSpec) -> str:
         parts: list[str] = []
         if slot.filters.skill_name is not None:
@@ -287,12 +302,18 @@ class TeamAssignmentService:
                 else ""
             )
             parts.append(f"{slot.filters.skill_name}{proficiency}")
-        if slot.filters.skill_category is not None:
-            parts.append(f"{slot.filters.skill_category.value} skills")
-        if slot.filters.department is not None:
-            parts.append(f"department {slot.filters.department}")
-        detail = ", ".join(parts) if parts else "the required criteria"
-        return f"No engineer on your team matches {detail}. Consider hire or training."
+        elif slot.filters.skill_category is not None:
+            proficiency = (
+                f" at {slot.filters.min_proficiency.value}+"
+                if slot.filters.min_proficiency is not None
+                else ""
+            )
+            parts.append(f"{slot.filters.skill_category.value} skills{proficiency}")
+        detail = ", ".join(parts) if parts else "the required skills"
+        return (
+            f"No engineer on your team has {detail}. "
+            "Consider hire or training."
+        )
 
     def _availability_gap_detail(
         self,
@@ -311,10 +332,10 @@ class TeamAssignmentService:
         allocation_part = self._allocation_summary(candidate)
         if allocation_part:
             return (
-                f"{candidate.full_name} has the required skills but {capacity_part}. "
+                f"{candidate.full_name} is the closest match but {capacity_part}. "
                 f"{allocation_part}"
             )
-        return f"{candidate.full_name} has the required skills but {capacity_part}."
+        return f"{candidate.full_name} is the closest match but {capacity_part}."
 
     @staticmethod
     def _allocation_summary(candidate: TeamSearchCandidate) -> str:

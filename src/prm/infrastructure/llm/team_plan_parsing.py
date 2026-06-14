@@ -7,16 +7,20 @@ from typing import TypeVar
 from prm.domain.dtos import TeamPlan, TeamSlotFilters, TeamSlotSpec
 from prm.domain.enums import ActivityTag, ProficiencyLevel, ResourceWorkStatus, SkillCategory
 from prm.domain.exceptions import LlmUnavailableError
-from prm.infrastructure.llm.parsing import extract_json_text
+from prm.infrastructure.llm.parsing import extract_json_object
 
 _EnumT = TypeVar("_EnumT", bound=StrEnum)
 
 
 def parse_team_plan_response(raw_text: str) -> TeamPlan:
+    json_text = extract_json_object(raw_text)
     try:
-        payload = json.loads(extract_json_text(raw_text))
+        payload = json.loads(json_text)
     except json.JSONDecodeError as exc:
         raise LlmUnavailableError("LLM returned an invalid team plan response.") from exc
+
+    if not isinstance(payload, dict):
+        raise LlmUnavailableError("LLM team plan response must be a JSON object.")
 
     raw_slots = payload.get("team_slots")
     if not isinstance(raw_slots, list) or not raw_slots:
@@ -29,7 +33,9 @@ def parse_team_plan_response(raw_text: str) -> TeamPlan:
             slots.append(parsed)
 
     if not slots:
-        raise LlmUnavailableError("LLM returned no usable team slots.")
+        raise LlmUnavailableError(
+            "LLM returned no usable team slots. Check slot_id, headcount, and filters shape."
+        )
     return TeamPlan(team_slots=tuple(slots))
 
 
@@ -37,52 +43,40 @@ def _parse_slot(item: object) -> TeamSlotSpec | None:
     if not isinstance(item, dict):
         return None
 
-    slot_id = item.get("slot_id")
+    slot_id = _coerce_positive_int(item.get("slot_id"))
     role_label = item.get("role_label")
-    headcount = item.get("headcount")
-    raw_filters = item.get("filters")
+    headcount = _coerce_positive_int(item.get("headcount"))
 
-    if not isinstance(slot_id, int) or slot_id <= 0:
+    if slot_id is None:
         return None
     if not isinstance(role_label, str) or not role_label.strip():
         return None
-    if not isinstance(headcount, int) or headcount <= 0:
-        return None
-
-    filters = _parse_filters(raw_filters)
-    if filters is None:
-        return None
+    if headcount is None:
+        headcount = 1
 
     return TeamSlotSpec(
         slot_id=slot_id,
         role_label=role_label.strip(),
         headcount=headcount,
-        filters=filters,
+        filters=_parse_filters(item.get("filters")),
     )
 
 
-def _parse_filters(raw_filters: object) -> TeamSlotFilters | None:
+def _parse_filters(raw_filters: object) -> TeamSlotFilters:
     if not isinstance(raw_filters, dict):
-        return None
-
-    department = _optional_non_empty_str(raw_filters.get("department"))
-    designation = _optional_non_empty_str(raw_filters.get("designation"))
-    skill_name = _optional_non_empty_str(raw_filters.get("skill_name"))
-    skill_category = _optional_enum(raw_filters.get("skill_category"), SkillCategory)
-    min_proficiency = _optional_enum(raw_filters.get("min_proficiency"), ProficiencyLevel)
-    work_status = _optional_enum(raw_filters.get("work_status"), ResourceWorkStatus)
-    min_free_hours = _optional_positive_int(raw_filters.get("min_free_hours_per_week"))
-    activity_tags = _parse_activity_tags(raw_filters.get("activity_tags"))
+        return TeamSlotFilters()
 
     return TeamSlotFilters(
-        department=department,
-        designation=designation,
-        skill_category=skill_category,
-        skill_name=skill_name,
-        min_proficiency=min_proficiency,
-        min_free_hours_per_week=min_free_hours,
-        activity_tags=activity_tags,
-        work_status=work_status,
+        department=_optional_non_empty_str(raw_filters.get("department")),
+        designation=_optional_non_empty_str(raw_filters.get("designation")),
+        skill_category=_optional_enum(raw_filters.get("skill_category"), SkillCategory),
+        skill_name=_optional_non_empty_str(raw_filters.get("skill_name")),
+        min_proficiency=_optional_enum(raw_filters.get("min_proficiency"), ProficiencyLevel),
+        min_free_hours_per_week=_coerce_positive_int(
+            raw_filters.get("min_free_hours_per_week")
+        ),
+        activity_tags=_parse_activity_tags(raw_filters.get("activity_tags")),
+        work_status=_optional_enum(raw_filters.get("work_status"), ResourceWorkStatus),
     )
 
 
@@ -104,12 +98,22 @@ def _optional_enum(value: object, enum_type: type[_EnumT]) -> _EnumT | None:
         return None
 
 
-def _optional_positive_int(value: object) -> int | None:
+def _coerce_positive_int(value: object) -> int | None:
     if value is None:
         return None
-    if not isinstance(value, int) or value <= 0:
+    if isinstance(value, bool):
         return None
-    return value
+    if isinstance(value, int):
+        return value if value > 0 else None
+    if isinstance(value, float) and value.is_integer():
+        coerced = int(value)
+        return coerced if coerced > 0 else None
+    if isinstance(value, str):
+        stripped = value.strip()
+        if stripped.isdigit():
+            coerced = int(stripped)
+            return coerced if coerced > 0 else None
+    return None
 
 
 def _parse_activity_tags(value: object) -> tuple[ActivityTag, ...]:

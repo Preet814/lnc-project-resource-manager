@@ -16,6 +16,27 @@ def extract_json_text(raw_text: str) -> str:
     return text.strip()
 
 
+def extract_json_object(raw_text: str) -> str:
+    """Return a JSON object substring, tolerating leading or trailing LLM prose."""
+    text = extract_json_text(raw_text)
+    try:
+        json.loads(text)
+    except json.JSONDecodeError:
+        start = text.find("{")
+        if start < 0:
+            return text
+        depth = 0
+        for index in range(start, len(text)):
+            char = text[index]
+            if char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start : index + 1]
+    return text
+
+
 def parse_skill_match_response(
     raw_text: str,
     candidates: tuple[SkillMatchCandidate, ...],

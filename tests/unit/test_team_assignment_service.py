@@ -102,6 +102,8 @@ def _seed_engineer(
     username: str,
     utilisation_percent: int,
     work_status: ResourceWorkStatus,
+    department_name: str = "Engineering",
+    designation_name: str = "SE",
 ) -> int:
     user_id = create_user(
         session,
@@ -110,6 +112,8 @@ def _seed_engineer(
         email=email,
         role=Role.ENGINEER,
         manager_id=manager_user_id,
+        department_name=department_name,
+        designation_name=designation_name,
     )
     set_engineer_status(
         session,
@@ -347,7 +351,113 @@ def test_assign_team_reports_skill_gap() -> None:
     assert result.assignments == ()
     assert len(result.gaps) == 1
     assert result.gaps[0].gap_type == TeamGapType.SKILL_GAP
-    assert "Selenium" in result.gaps[0].detail
+    assert "No active engineers" in result.gaps[0].detail
+
+
+def test_assign_team_second_advanced_spring_slot_reports_availability_gap() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_project(session)
+    spring_lead = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="Ravi Kumar",
+        email="ravi@example.test",
+        username="ravi.kumar",
+        utilisation_percent=50,
+        work_status=ResourceWorkStatus.ALLOCATED,
+    )
+    junior = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="Pooja Rao",
+        email="pooja@example.test",
+        username="pooja.rao",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+    )
+    _assign_skill(
+        session,
+        user_id=spring_lead,
+        skill_name="Spring Boot",
+        proficiency=ProficiencyLevel.ADVANCED,
+    )
+    _assign_skill(
+        session,
+        user_id=junior,
+        skill_name="Spring Boot",
+        proficiency=ProficiencyLevel.BEGINNER,
+    )
+    plan = TeamPlan(
+        team_slots=(
+            TeamSlotSpec(
+                slot_id=1,
+                role_label="Spring Boot Tech Lead",
+                headcount=1,
+                filters=TeamSlotFilters(
+                    skill_name="Spring Boot",
+                    min_proficiency=ProficiencyLevel.ADVANCED,
+                ),
+            ),
+            TeamSlotSpec(
+                slot_id=2,
+                role_label="Spring Boot Architect",
+                headcount=1,
+                filters=TeamSlotFilters(
+                    skill_name="Spring Boot",
+                    min_proficiency=ProficiencyLevel.ADVANCED,
+                ),
+            ),
+        ),
+    )
+
+    result = _assignment_service(session).assign_team(manager_id, project_id, plan)
+
+    assert len(result.assignments) == 1
+    assert result.assignments[0].user_id == spring_lead
+    assert len(result.gaps) == 1
+    assert result.gaps[0].gap_type == TeamGapType.AVAILABILITY_GAP
+    assert "already assigned" in result.gaps[0].detail
+    assert "Ravi Kumar" in result.gaps[0].detail
+
+
+def test_assign_team_does_not_assign_below_required_proficiency() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_project(session)
+    junior = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="Pooja Rao",
+        email="pooja@example.test",
+        username="pooja.rao",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+    )
+    _assign_skill(
+        session,
+        user_id=junior,
+        skill_name="Spring Boot",
+        proficiency=ProficiencyLevel.BEGINNER,
+    )
+    plan = TeamPlan(
+        team_slots=(
+            TeamSlotSpec(
+                slot_id=1,
+                role_label="Spring Boot Architect",
+                headcount=1,
+                filters=TeamSlotFilters(
+                    skill_name="Spring Boot",
+                    min_proficiency=ProficiencyLevel.ADVANCED,
+                ),
+            ),
+        ),
+    )
+
+    result = _assignment_service(session).assign_team(manager_id, project_id, plan)
+
+    assert result.assignments == ()
+    assert len(result.gaps) == 1
+    assert result.gaps[0].gap_type == TeamGapType.SKILL_GAP
+    assert "Spring Boot" in result.gaps[0].detail
 
 
 def test_assign_team_reports_availability_gap_with_allocation_end_date() -> None:
@@ -458,6 +568,42 @@ def test_assign_team_supports_headcount_two() -> None:
 
     assert len(result.assignments) == 2
     assert len({assignment.user_id for assignment in result.assignments}) == 2
+
+
+def test_assign_team_assigns_devops_engineer_by_department_and_hours() -> None:
+    session = _session()
+    manager_id, project_id = _seed_manager_project(session)
+    devops_id = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="Test DevOps",
+        email="test.devops@example.test",
+        username="test.devops",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+        department_name="DevOps",
+        designation_name="SE",
+    )
+    plan = TeamPlan(
+        team_slots=(
+            TeamSlotSpec(
+                slot_id=1,
+                role_label="DevOps Engineer",
+                headcount=1,
+                filters=TeamSlotFilters(
+                    department="DevOps",
+                    designation="SE",
+                    min_free_hours_per_week=20,
+                ),
+            ),
+        ),
+    )
+
+    result = _assignment_service(session).assign_team(manager_id, project_id, plan)
+
+    assert len(result.assignments) == 1
+    assert result.gaps == ()
+    assert result.assignments[0].user_id == devops_id
 
 
 def test_assign_team_requires_project_owner() -> None:

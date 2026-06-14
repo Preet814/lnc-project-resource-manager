@@ -187,7 +187,7 @@ def test_search_always_excludes_inactive_engineers() -> None:
     assert {candidate.user_id for candidate in results} == {active_id}
 
 
-def test_search_filters_by_skill_name_and_proficiency() -> None:
+def test_search_returns_both_engineers_for_skill_preferences() -> None:
     session = _session()
     manager_id, _project_id = _seed_manager_team(session)
     senior_id = _seed_engineer(
@@ -220,16 +220,17 @@ def test_search_filters_by_skill_name_and_proficiency() -> None:
         skill_name="Java",
         proficiency=ProficiencyLevel.BEGINNER,
     )
-
-    results = _service(session).search_candidates(
-        manager_id,
-        TeamSlotFilters(
-            skill_name="Java",
-            min_proficiency=ProficiencyLevel.INTERMEDIATE,
-        ),
+    filters = TeamSlotFilters(
+        skill_name="Java",
+        min_proficiency=ProficiencyLevel.INTERMEDIATE,
     )
+    service = _service(session)
 
-    assert [candidate.user_id for candidate in results] == [senior_id]
+    results = service.search_candidates(manager_id, filters)
+
+    assert {candidate.user_id for candidate in results} == {senior_id, junior_id}
+    best = max(results, key=lambda candidate: service.score_candidate(filters, candidate))
+    assert best.user_id == senior_id
 
 
 def test_search_filters_by_min_free_hours() -> None:
@@ -263,10 +264,7 @@ def test_search_filters_by_min_free_hours() -> None:
 
     results = _service(session).search_candidates(
         manager_id,
-        TeamSlotFilters(
-            skill_name="Java",
-            min_free_hours_per_week=20,
-        ),
+        TeamSlotFilters(min_free_hours_per_week=20),
     )
 
     assert [candidate.user_id for candidate in results] == [bench_id]
@@ -303,18 +301,18 @@ def test_search_work_status_is_hard_filter_only_when_set() -> None:
 
     bench_only = _service(session).search_candidates(
         manager_id,
-        TeamSlotFilters(skill_name="Java", work_status=ResourceWorkStatus.BENCH),
+        TeamSlotFilters(work_status=ResourceWorkStatus.BENCH),
     )
     either_status = _service(session).search_candidates(
         manager_id,
-        TeamSlotFilters(skill_name="Java"),
+        TeamSlotFilters(),
     )
 
     assert [candidate.user_id for candidate in bench_only] == [bench_id]
     assert {candidate.user_id for candidate in either_status} == {bench_id, allocated_id}
 
 
-def test_search_applies_department_designation_and_activity_tags() -> None:
+def test_score_prefers_department_designation_and_activity_tags() -> None:
     session = _session()
     manager_id, _project_id = _seed_manager_team(session)
     match_id = _seed_engineer(
@@ -351,21 +349,21 @@ def test_search_applies_department_designation_and_activity_tags() -> None:
         skill_name="Java",
         proficiency=ProficiencyLevel.ADVANCED,
     )
-
-    results = _service(
+    filters = TeamSlotFilters(
+        department="Engineering",
+        designation="SSE",
+        skill_name="Java",
+        activity_tags=(ActivityTag.BACKEND_API,),
+    )
+    service = _service(
         session,
         tags_by_user={match_id: ["BACKEND_API"], other_id: []},
-    ).search_candidates(
-        manager_id,
-        TeamSlotFilters(
-            department="Engineering",
-            designation="SSE",
-            skill_name="Java",
-            activity_tags=(ActivityTag.BACKEND_API,),
-        ),
     )
+    results = service.search_candidates(manager_id, filters)
+    best = max(results, key=lambda candidate: service.score_candidate(filters, candidate))
 
-    assert [candidate.user_id for candidate in results] == [match_id]
+    assert {candidate.user_id for candidate in results} == {match_id, other_id}
+    assert best.user_id == match_id
 
 
 def test_search_excludes_user_ids_and_other_manager_team() -> None:
@@ -422,3 +420,97 @@ def test_search_excludes_user_ids_and_other_manager_team() -> None:
     )
 
     assert [candidate.user_id for candidate in results] == [team_dev]
+
+
+def test_score_prefers_designation_alias_for_software_engineer() -> None:
+    session = _session()
+    manager_id, _project_id = _seed_manager_team(session)
+    engineer_id = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="SE Dev",
+        email="se.dev@example.test",
+        username="se.dev",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+        designation_name="SE",
+    )
+    _assign_skill(
+        session,
+        user_id=engineer_id,
+        skill_name="Docker",
+        proficiency=ProficiencyLevel.INTERMEDIATE,
+        category=SkillCategory.DEVOPS,
+    )
+    filters = TeamSlotFilters(designation="Software Engineer")
+    service = _service(session)
+    results = service.search_candidates(manager_id, filters)
+    best = max(results, key=lambda candidate: service.score_candidate(filters, candidate))
+
+    assert best.user_id == engineer_id
+
+
+def test_score_prefers_devops_department_without_profile_skills() -> None:
+    session = _session()
+    manager_id, _project_id = _seed_manager_team(session)
+    devops_id = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="DevOps Bench",
+        email="devops@example.test",
+        username="devops.bench",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+        department_name="DevOps",
+        designation_name="SE",
+    )
+    backend_id = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="Backend Bench",
+        email="backend@example.test",
+        username="backend.bench",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+        department_name="Engineering",
+        designation_name="SE",
+    )
+    filters = TeamSlotFilters(
+        department="DevOps",
+        designation="SE",
+        min_free_hours_per_week=20,
+    )
+    service = _service(session)
+    results = service.search_candidates(manager_id, filters)
+    best = max(results, key=lambda candidate: service.score_candidate(filters, candidate))
+
+    assert {candidate.user_id for candidate in results} == {devops_id, backend_id}
+    assert best.user_id == devops_id
+
+
+def test_meets_skill_requirements_rejects_below_min_proficiency() -> None:
+    session = _session()
+    manager_id, _project_id = _seed_manager_team(session)
+    junior_id = _seed_engineer(
+        session,
+        manager_user_id=manager_id,
+        full_name="Junior Dev",
+        email="junior@example.test",
+        username="junior.dev",
+        utilisation_percent=0,
+        work_status=ResourceWorkStatus.BENCH,
+    )
+    _assign_skill(
+        session,
+        user_id=junior_id,
+        skill_name="Spring Boot",
+        proficiency=ProficiencyLevel.BEGINNER,
+    )
+    filters = TeamSlotFilters(
+        skill_name="Spring Boot",
+        min_proficiency=ProficiencyLevel.ADVANCED,
+    )
+    service = _service(session)
+    candidate = service.search_candidates(manager_id, filters)[0]
+
+    assert service.meets_skill_requirements(filters, candidate) is False
