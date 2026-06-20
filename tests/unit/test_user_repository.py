@@ -181,7 +181,15 @@ def test_update_email_verified_persists_flag() -> None:
         repo = SqlAlchemyUserRepository(session)
         admin = repo.find_by_username(TEST_USERNAME)
         assert admin is not None
-        assert admin.email_verified is False
+        assert admin.email_verified is True
+
+        updated = repo.update_email_verified(admin.id, email_verified=False)
+        session.commit()
+
+        assert updated.email_verified is False
+        reloaded = repo.find_by_id(admin.id)
+        assert reloaded is not None
+        assert reloaded.email_verified is False
 
         updated = repo.update_email_verified(admin.id, email_verified=True)
         session.commit()
