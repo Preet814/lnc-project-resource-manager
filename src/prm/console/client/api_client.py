@@ -1127,7 +1127,7 @@ class PrmApiClient:
             full_name=body["full_name"],
             role=Role(body["role"]),
             force_password_change=body["force_password_change"],
-            email_verified=body.get("email_verified", True),
+            email_verified=body.get("email_verified", False),
             expires_at=datetime.fromisoformat(body["expires_at"].replace("Z", "+00:00")),
         )
 

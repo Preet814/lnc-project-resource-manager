@@ -63,7 +63,7 @@ class JwtTokenService:
             username = str(claims["username"])
             role = Role(str(claims["role"]))
             force_password_change = bool(claims["force_password_change"])
-            email_verified = bool(claims.get("email_verified", True))
+            email_verified = bool(claims.get("email_verified", False))
             exp = claims["exp"]
             expires_at = datetime.fromtimestamp(exp, tz=UTC)
         except (KeyError, TypeError, ValueError) as exc:

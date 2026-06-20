@@ -48,7 +48,10 @@ def _main_loop(client: PrmApiClient, session: UserSession) -> None:
             continue
 
         if not session.email_verified:
-            verify_email.run(client, session)
+            if verify_email.run(client, session) == "logout":
+                clear_screen()
+                print_banner("LOGGED OUT", subtitle="Returning to login screen.")
+                print_success("You have been logged out.")
             continue
 
         if router.run_role_menu(client, session) == "logout":

@@ -9,11 +9,23 @@ from prm.console.ui import (
     print_error,
     print_success,
     read_line,
-    read_save_or_back,
 )
 
 
-def run(client: PrmApiClient, session: UserSession) -> None:
+def _read_verify_action() -> str:
+    while True:
+        action = read_line("Enter action [S] Send / [C] Confirm / [B] Back to login: ").strip().upper()
+        if action in {"S", "SEND"}:
+            return "S"
+        if action in {"C", "CONFIRM"}:
+            return "C"
+        if action in {"B", "BACK"}:
+            return "B"
+        print_error("Please enter S to send code, C to confirm, or B to go back.")
+
+
+def run(client: PrmApiClient, session: UserSession) -> str | None:
+    """Verify email via OTP. Returns ``logout`` when user chooses to return to login."""
     while not session.email_verified:
         clear_screen()
         print_banner(
@@ -24,14 +36,13 @@ def run(client: PrmApiClient, session: UserSession) -> None:
         print()
         print("[S] Send / resend code")
         print("[C] Confirm code")
-        print("[B] Back (logout required to switch user)")
+        print("[B] Back to login")
         print()
-        action = read_save_or_back().strip().upper()
+        action = _read_verify_action()
 
         if action == "B":
-            print_error("Complete email verification to continue.")
-            pause()
-            continue
+            session.clear()
+            return "logout"
 
         if action == "S":
             try:
@@ -44,11 +55,7 @@ def run(client: PrmApiClient, session: UserSession) -> None:
             pause()
             continue
 
-        if action != "C":
-            print_error("Choose S to send code or C to confirm.")
-            pause()
-            continue
-
+        # action == "C"
         otp = read_line("Enter verification code: ").strip()
         if not otp:
             print_error("Verification code is required.")
@@ -73,3 +80,4 @@ def run(client: PrmApiClient, session: UserSession) -> None:
         )
         print_success("Email verified successfully. ✓")
         pause()
+    return None
