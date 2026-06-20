@@ -49,6 +49,7 @@ class LoginResult:
     full_name: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime
 
 

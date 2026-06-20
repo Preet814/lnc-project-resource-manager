@@ -11,6 +11,7 @@ from prm.application.allocation_service import AllocationService
 from prm.application.allocation_view_service import AllocationViewService
 from prm.application.auth_service import AuthService
 from prm.application.authorization_service import AuthorizationService
+from prm.application.email_verification_service import EmailVerificationService
 from prm.application.engineer_allocation_service import EngineerAllocationService
 from prm.application.engineer_timesheet_service import EngineerTimesheetService
 from prm.application.manager_project_service import ManagerProjectService
@@ -35,6 +36,7 @@ from prm.domain.enums import Role
 from prm.domain.exceptions import UnauthorizedError, ValidationError
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
+    SqlAlchemyEmailVerificationOtpRepository,
     SqlAlchemyMilestoneRepository,
     SqlAlchemyPermissionRepository,
     SqlAlchemyProjectHealthSnapshotRepository,
@@ -47,6 +49,7 @@ from prm.infrastructure.db.repositories import (
 )
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.llm.factory import create_llm_client_from_settings
+from prm.infrastructure.email.factory import create_email_sender
 from prm.infrastructure.security.jwt import JwtTokenPayload, JwtTokenService
 from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
@@ -72,7 +75,35 @@ def get_auth_service(
             secret_key=settings.jwt_secret_key,
             expire_minutes=settings.jwt_expire_minutes,
         ),
+        email_verification_required=settings.email_verification_required,
     )
+
+
+def get_email_verification_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EmailVerificationService:
+    return EmailVerificationService(
+        user_repository=SqlAlchemyUserRepository(db),
+        otp_repository=SqlAlchemyEmailVerificationOtpRepository(db),
+        email_sender=create_email_sender(settings),
+        token_service=JwtTokenService(
+            secret_key=settings.jwt_secret_key,
+            expire_minutes=settings.jwt_expire_minutes,
+        ),
+        otp_secret=settings.jwt_secret_key,
+        email_verification_required=settings.email_verification_required,
+    )
+
+
+def _assert_onboarded(
+    current_user: JwtTokenPayload,
+    settings: Settings,
+) -> None:
+    if current_user.force_password_change:
+        raise UnauthorizedError("Password change is required before using this feature.")
+    if settings.email_verification_required and not current_user.email_verified:
+        raise UnauthorizedError("Email verification is required before using this feature.")
 
 
 def get_current_user(

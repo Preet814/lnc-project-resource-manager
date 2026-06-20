@@ -19,11 +19,14 @@ class AuthService:
         password_hasher: PasswordHasher,
         token_service: TokenService,
         authorization: AuthorizationService | None = None,
+        *,
+        email_verification_required: bool = True,
     ) -> None:
         self._users = user_repository
         self._hasher = password_hasher
         self._tokens = token_service
         self._authorization = authorization or AuthorizationService()
+        self._email_verification_required = email_verification_required
 
     def login(self, username: str, password: str) -> LoginResult:
         user = self._users.find_by_username(username)
@@ -31,23 +34,7 @@ class AuthService:
             raise AuthenticationError(_INVALID_CREDENTIALS_MESSAGE)
 
         self._authorization.assert_active(user)
-
-        auth_token = self._tokens.create_access_token(
-            user_id=user.id,
-            username=user.username,
-            role=user.role,
-            force_password_change=user.force_password_change,
-        )
-        return LoginResult(
-            access_token=auth_token.token,
-            token_type="bearer",
-            user_id=user.id,
-            username=user.username,
-            full_name=user.full_name,
-            role=user.role,
-            force_password_change=user.force_password_change,
-            expires_at=auth_token.expires_at,
-        )
+        return self._login_result_for_user(user)
 
     def change_password(
         self,
@@ -72,21 +59,30 @@ class AuthService:
             password_hash=self._hasher.hash(new_password),
             force_password_change=False,
         )
+        return updated, self._login_result_for_user(updated)
 
+    def _login_result_for_user(self, user: User) -> LoginResult:
+        email_verified = self._effective_email_verified(user)
         auth_token = self._tokens.create_access_token(
-            user_id=updated.id,
-            username=updated.username,
-            role=updated.role,
-            force_password_change=False,
+            user_id=user.id,
+            username=user.username,
+            role=user.role,
+            force_password_change=user.force_password_change,
+            email_verified=email_verified,
         )
-        login_result = LoginResult(
+        return LoginResult(
             access_token=auth_token.token,
             token_type="bearer",
-            user_id=updated.id,
-            username=updated.username,
-            full_name=updated.full_name,
-            role=updated.role,
-            force_password_change=False,
+            user_id=user.id,
+            username=user.username,
+            full_name=user.full_name,
+            role=user.role,
+            force_password_change=user.force_password_change,
+            email_verified=email_verified,
             expires_at=auth_token.expires_at,
         )
-        return updated, login_result
+
+    def _effective_email_verified(self, user: User) -> bool:
+        if not self._email_verification_required:
+            return True
+        return user.email_verified

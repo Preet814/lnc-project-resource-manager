@@ -47,11 +47,16 @@ class LlmApiKeyProtector(Protocol):
     def decrypt(self, encrypted: str) -> str: ...
 
 
+class EmailSender(Protocol):
+    def send(self, *, to: str, subject: str, body: str) -> None: ...
+
+
 class TokenPayload(Protocol):
     user_id: int
     username: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime
 
 
@@ -63,6 +68,7 @@ class TokenService(Protocol):
         username: str,
         role: Role,
         force_password_change: bool,
+        email_verified: bool,
     ) -> AuthToken: ...
 
     def decode_access_token(self, token: str) -> TokenPayload: ...
@@ -128,6 +134,8 @@ class UserRepository(Protocol):
         password_hash: str,
         force_password_change: bool,
     ) -> User: ...
+
+    def update_email_verified(self, user_id: int, *, email_verified: bool) -> User: ...
 
     def update_account_status(
         self,

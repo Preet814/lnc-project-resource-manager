@@ -5,9 +5,20 @@ from typing import Annotated
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from prm.api.deps import get_auth_service, get_current_user, get_db_session
-from prm.api.schemas.auth import ChangePasswordRequest, LoginRequest, LoginResponse
+from prm.api.deps import (
+    get_auth_service,
+    get_current_user,
+    get_db_session,
+    get_email_verification_service,
+)
+from prm.api.schemas.auth import (
+    ChangePasswordRequest,
+    LoginRequest,
+    LoginResponse,
+    VerifyEmailConfirmRequest,
+)
 from prm.application.auth_service import AuthService
+from prm.application.email_verification_service import EmailVerificationService
 from prm.domain.dtos import LoginResult
 from prm.infrastructure.security.jwt import JwtTokenPayload
 
@@ -23,6 +34,7 @@ def _to_login_response(result: LoginResult) -> LoginResponse:
         full_name=result.full_name,
         role=result.role,
         force_password_change=result.force_password_change,
+        email_verified=result.email_verified,
         expires_at=result.expires_at,
     )
 
@@ -48,5 +60,27 @@ def change_password(
         new_password=body.new_password,
         confirm_password=body.confirm_password,
     )
+    db.commit()
+    return _to_login_response(result)
+
+
+@router.post("/verify-email/send-otp", status_code=204)
+def send_email_verification_otp(
+    current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    service: Annotated[EmailVerificationService, Depends(get_email_verification_service)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> None:
+    service.send_otp(current_user.user_id)
+    db.commit()
+
+
+@router.post("/verify-email/confirm", response_model=LoginResponse)
+def confirm_email_verification_otp(
+    body: VerifyEmailConfirmRequest,
+    current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    service: Annotated[EmailVerificationService, Depends(get_email_verification_service)],
+    db: Annotated[Session, Depends(get_db_session)],
+) -> LoginResponse:
+    result = service.confirm_otp(current_user.user_id, otp=body.otp)
     db.commit()
     return _to_login_response(result)
