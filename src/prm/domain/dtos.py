@@ -89,6 +89,7 @@ class EngineerSummary:
     designation: str
     work_status: ResourceWorkStatus
     is_active: bool
+    email_verified: bool
 
     def is_on_bench(self) -> bool:
         return self.work_status == ResourceWorkStatus.BENCH

@@ -81,6 +81,7 @@ class LoginResult:
     full_name: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime
 
 
@@ -150,6 +151,23 @@ class PrmApiClient:
                 "POST",
                 "/auth/change-password",
                 json={"new_password": new_password, "confirm_password": confirm_password},
+                headers=self._auth_header(access_token),
+            )
+        )
+
+    def send_email_verification_otp(self, access_token: str) -> None:
+        self._request(
+            "POST",
+            "/auth/verify-email/send-otp",
+            headers=self._auth_header(access_token),
+        )
+
+    def confirm_email_verification_otp(self, access_token: str, *, otp: str) -> LoginResult:
+        return self._parse_login(
+            self._request(
+                "POST",
+                "/auth/verify-email/confirm",
+                json={"otp": otp},
                 headers=self._auth_header(access_token),
             )
         )
@@ -265,6 +283,7 @@ class PrmApiClient:
                     designation=item["designation"],
                     work_status=ResourceWorkStatus(item["work_status"]),
                     is_active=item["is_active"],
+                    email_verified=item.get("email_verified", False),
                 )
                 for item in body["engineers"]
             ),
@@ -1108,6 +1127,7 @@ class PrmApiClient:
             full_name=body["full_name"],
             role=Role(body["role"]),
             force_password_change=body["force_password_change"],
+            email_verified=body.get("email_verified", True),
             expires_at=datetime.fromisoformat(body["expires_at"].replace("Z", "+00:00")),
         )
 

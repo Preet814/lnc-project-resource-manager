@@ -51,6 +51,7 @@ def run(client: PrmApiClient, session: UserSession) -> None:
             full_name=result.full_name,
             role=result.role,
             force_password_change=result.force_password_change,
+            email_verified=result.email_verified,
         )
         print_success("Password updated. Welcome! ✓")
         pause()

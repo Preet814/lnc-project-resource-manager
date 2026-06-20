@@ -2,7 +2,7 @@
 
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from prm.domain.enums import ProficiencyLevel, ResourceWorkStatus, SkillCategory
 
@@ -10,14 +10,14 @@ from prm.domain.enums import ProficiencyLevel, ResourceWorkStatus, SkillCategory
 class CreateEmployeeRequest(BaseModel):
     user_id: int
     full_name: str = Field(min_length=1)
-    email: str = Field(min_length=1)
+    email: EmailStr
     department: str = Field(min_length=1)
     designation: str = Field(min_length=1)
 
 
 class UpdateEmployeeRequest(BaseModel):
     full_name: str | None = Field(default=None, min_length=1)
-    email: str | None = Field(default=None, min_length=1)
+    email: EmailStr | None = None
     department: str | None = Field(default=None, min_length=1)
     designation: str | None = Field(default=None, min_length=1)
 
@@ -47,6 +47,7 @@ class EngineerSummaryResponse(BaseModel):
     designation: str
     work_status: ResourceWorkStatus
     is_active: bool
+    email_verified: bool
 
 
 class EngineerListResponse(BaseModel):

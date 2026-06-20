@@ -20,6 +20,7 @@ def test_create_and_decode_access_token_roundtrip() -> None:
         username=TEST_USERNAME,
         role=Role.ADMIN,
         force_password_change=True,
+        email_verified=False,
     )
 
     assert auth_token.token
@@ -31,6 +32,7 @@ def test_create_and_decode_access_token_roundtrip() -> None:
     assert payload.username == TEST_USERNAME
     assert payload.role == Role.ADMIN
     assert payload.force_password_change is True
+    assert payload.email_verified is False
 
 
 def test_decode_expired_token_raises_authentication_error() -> None:
@@ -40,6 +42,7 @@ def test_decode_expired_token_raises_authentication_error() -> None:
         "username": TEST_USERNAME,
         "role": Role.ADMIN.value,
         "force_password_change": False,
+        "email_verified": True,
         "exp": expired_at,
     }
     token = jwt.encode(claims, SECRET, algorithm=JWT_ALGORITHM)

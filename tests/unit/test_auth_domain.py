@@ -23,6 +23,7 @@ def _sample_user(*, force_password_change: bool = True) -> User:
         manager_id=None,
         account_status=UserAccountStatus.ACTIVE,
         force_password_change=force_password_change,
+        email_verified=False,
         created_at=now,
         updated_at=now,
     )
@@ -50,6 +51,7 @@ def test_user_is_active() -> None:
         manager_id=None,
         account_status=UserAccountStatus.INACTIVE,
         force_password_change=False,
+        email_verified=True,
         created_at=now,
         updated_at=now,
     )

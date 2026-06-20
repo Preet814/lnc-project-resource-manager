@@ -23,6 +23,8 @@ def _apply_unit_test_env() -> None:
     os.environ.setdefault("GROQ_MODEL", "llama-3.3-70b-versatile")
     os.environ.setdefault("GEMMA_BASE_URL", "http://164.52.211.238")
     os.environ.setdefault("GEMMA_MODEL", "gemma3:12b-it-q8_0")
+    os.environ.setdefault("EMAIL_VERIFICATION_REQUIRED", "false")
+    os.environ.setdefault("SMTP_ENABLED", "false")
 
 
 def _clear_settings_caches() -> None:

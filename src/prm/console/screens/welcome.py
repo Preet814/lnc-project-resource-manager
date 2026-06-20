@@ -55,9 +55,12 @@ def run(client: PrmApiClient, session: UserSession) -> str:
             full_name=result.full_name,
             role=result.role,
             force_password_change=result.force_password_change,
+            email_verified=result.email_verified,
         )
         if result.force_password_change:
             print_success("Login successful. You must change your password to continue.")
+        elif not result.email_verified:
+            print_success("Login successful. Verify your email address to continue.")
         else:
             print_success(f"Welcome, {result.full_name}!")
         pause()

@@ -4,7 +4,7 @@ import sys
 
 from prm.console.client import ApiError, PrmApiClient
 from prm.console.config import ConsoleConfig
-from prm.console.screens import change_password, router, welcome
+from prm.console.screens import change_password, router, verify_email, welcome
 from prm.console.session import UserSession
 from prm.console.ui import clear_screen, print_banner, print_success
 
@@ -45,6 +45,10 @@ def _main_loop(client: PrmApiClient, session: UserSession) -> None:
 
         if session.force_password_change:
             change_password.run(client, session)
+            continue
+
+        if not session.email_verified:
+            verify_email.run(client, session)
             continue
 
         if router.run_role_menu(client, session) == "logout":

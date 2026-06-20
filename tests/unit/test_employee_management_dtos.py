@@ -14,6 +14,7 @@ def test_employee_summary_work_status_helpers() -> None:
         designation="SE",
         work_status=ResourceWorkStatus.BENCH,
         is_active=True,
+        email_verified=True,
     )
     allocated = EngineerSummary(
         id=2,
@@ -22,6 +23,7 @@ def test_employee_summary_work_status_helpers() -> None:
         designation="SSE",
         work_status=ResourceWorkStatus.ALLOCATED,
         is_active=True,
+        email_verified=False,
     )
 
     assert bench.is_on_bench() is True
@@ -32,9 +34,9 @@ def test_employee_summary_work_status_helpers() -> None:
 
 def test_employee_list_result_stores_counts() -> None:
     employees = (
-        EngineerSummary(1, "Ravi Kumar", "Backend", "SSE", ResourceWorkStatus.ALLOCATED, True),
-        EngineerSummary(2, "Priya Sharma", "Frontend", "SE", ResourceWorkStatus.BENCH, True),
-        EngineerSummary(3, "Anil Mehta", "DevOps", "SE", ResourceWorkStatus.BENCH, True),
+        EngineerSummary(1, "Ravi Kumar", "Backend", "SSE", ResourceWorkStatus.ALLOCATED, True, True),
+        EngineerSummary(2, "Priya Sharma", "Frontend", "SE", ResourceWorkStatus.BENCH, True, False),
+        EngineerSummary(3, "Anil Mehta", "DevOps", "SE", ResourceWorkStatus.BENCH, True, False),
     )
     result = EngineerListResult(
         engineers=employees,

@@ -191,31 +191,37 @@ def get_system_config_service(
 
 def require_admin(
     current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JwtTokenPayload:
     if current_user.role != Role.ADMIN:
         raise UnauthorizedError(
             f"Role {current_user.role.value} is not permitted for this action."
         )
+    _assert_onboarded(current_user, settings)
     return current_user
 
 
 def require_manager(
     current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JwtTokenPayload:
     if current_user.role != Role.MANAGER:
         raise UnauthorizedError(
             f"Role {current_user.role.value} is not permitted for this action."
         )
+    _assert_onboarded(current_user, settings)
     return current_user
 
 
 def require_engineer(
     current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JwtTokenPayload:
     if current_user.role != Role.ENGINEER:
         raise UnauthorizedError(
             f"Role {current_user.role.value} is not permitted for this action."
         )
+    _assert_onboarded(current_user, settings)
     return current_user
 
 
@@ -225,8 +231,10 @@ def require_permission(permission_code: str):
     def _checker(
         current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
         permission_service: Annotated[PermissionService, Depends(get_permission_service)],
+        settings: Annotated[Settings, Depends(get_settings)],
     ) -> JwtTokenPayload:
         permission_service.assert_permission(current_user.user_id, permission_code)
+        _assert_onboarded(current_user, settings)
         return current_user
 
     return _checker

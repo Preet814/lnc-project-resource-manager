@@ -48,6 +48,7 @@ class EngineerSummary:
     designation: str
     work_status: ResourceWorkStatus
     is_active: bool
+    email_verified: bool
 
 
 @dataclass(frozen=True)

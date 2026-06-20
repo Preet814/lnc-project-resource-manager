@@ -13,6 +13,7 @@ class UserSession:
     full_name: str
     role: Role
     force_password_change: bool
+    email_verified: bool
 
     @classmethod
     def empty(cls) -> "UserSession":
@@ -23,6 +24,7 @@ class UserSession:
             full_name="",
             role=Role.ADMIN,
             force_password_change=False,
+            email_verified=True,
         )
 
     @property
@@ -38,6 +40,7 @@ class UserSession:
         full_name: str,
         role: Role,
         force_password_change: bool,
+        email_verified: bool,
     ) -> None:
         self.access_token = access_token
         self.user_id = user_id
@@ -45,6 +48,7 @@ class UserSession:
         self.full_name = full_name
         self.role = role
         self.force_password_change = force_password_change
+        self.email_verified = email_verified
 
     def clear(self) -> None:
         empty = self.empty()
@@ -54,3 +58,4 @@ class UserSession:
         self.full_name = empty.full_name
         self.role = empty.role
         self.force_password_change = empty.force_password_change
+        self.email_verified = empty.email_verified
