@@ -47,6 +47,12 @@ TIMESHEET_ENGINEER_FREEZE_SUBJECT = "PRM: Timesheet submission restricted"
 TIMESHEET_MANAGER_FREEZE_SUBJECT = "PRM: Team member timesheet submission restricted"
 TIMESHEET_ENGINEER_RESTORE_SUBJECT = "PRM: Timesheet submission access restored"
 
+DEFAULT_PROJECT_AT_RISK_REMINDER_DAYS = 7
+PROJECT_AT_RISK_EMAIL_SUBJECT = 'PRM: Project "{name}" is at risk'
+PROJECT_AT_RISK_HEALTH_LABEL_ON_TRACK = "Green (ON TRACK)"
+PROJECT_AT_RISK_HEALTH_LABEL_ATTENTION = "Amber (ATTENTION)"
+PROJECT_AT_RISK_HEALTH_LABEL_AT_RISK = "Red (AT RISK)"
+
 # RBAC lookup values seeded into departments / designations tables.
 SEEDED_DEPARTMENTS = (
     "IT",

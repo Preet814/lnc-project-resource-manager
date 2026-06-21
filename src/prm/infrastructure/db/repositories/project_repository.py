@@ -23,6 +23,7 @@ def _to_domain(model: ProjectModel) -> Project:
         total_story_points=model.total_story_points,
         health_status=model.health_status,
         health_computed_at=model.health_computed_at,
+        last_at_risk_email_sent_at=model.last_at_risk_email_sent_at,
     )
 
 
@@ -129,6 +130,30 @@ class SqlAlchemyProjectRepository:
 
         model.health_status = health_status
         model.health_computed_at = health_computed_at
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)
+
+    def update_last_at_risk_email_sent(
+        self,
+        project_id: int,
+        sent_at: datetime,
+    ) -> Project:
+        model = self._session.get(ProjectModel, project_id)
+        if model is None:
+            raise NotFoundError(f"Project {project_id} not found.")
+
+        model.last_at_risk_email_sent_at = sent_at
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)
+
+    def clear_last_at_risk_email_sent(self, project_id: int) -> Project:
+        model = self._session.get(ProjectModel, project_id)
+        if model is None:
+            raise NotFoundError(f"Project {project_id} not found.")
+
+        model.last_at_risk_email_sent_at = None
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)

@@ -20,6 +20,7 @@ class Project:
     total_story_points: int
     health_status: ProjectHealthStatus
     health_computed_at: datetime | None
+    last_at_risk_email_sent_at: datetime | None = None
 
     def is_owned_by(self, manager_user_id: int) -> bool:
         return self.manager_user_id == manager_user_id

@@ -16,6 +16,7 @@ from prm.domain.constants import (
     DEFAULT_GROQ_MODEL,
     DEFAULT_MAX_WEEKLY_HOURS,
     DEFAULT_SCHEDULER_INTERVAL_HOURS,
+    DEFAULT_PROJECT_AT_RISK_REMINDER_DAYS,
     DEFAULT_TIMESHEET_FREEZE_CRON,
     DEFAULT_TIMESHEET_REMINDER_CRON,
     DEFAULT_TIMESHEET_WEDNESDAY_CRON,
@@ -74,6 +75,9 @@ class Settings(BaseSettings):
     timesheet_reminder_cron: str = DEFAULT_TIMESHEET_REMINDER_CRON
     timesheet_freeze_cron: str = DEFAULT_TIMESHEET_FREEZE_CRON
     timesheet_wednesday_cron: str = DEFAULT_TIMESHEET_WEDNESDAY_CRON
+
+    project_at_risk_notifications_enabled: bool = True
+    project_at_risk_reminder_days: int = DEFAULT_PROJECT_AT_RISK_REMINDER_DAYS
 
     @field_validator("gemini_base_url")
     @classmethod

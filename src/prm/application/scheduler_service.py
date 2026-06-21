@@ -3,6 +3,9 @@
 from datetime import UTC, date, datetime, timedelta
 
 from prm.application.health_rule_engine import HealthRuleEngine
+from prm.application.project_at_risk_notification_service import (
+    ProjectAtRiskNotificationService,
+)
 from prm.application.timesheet_week_policy import allocation_covers_week
 from prm.application.protocols import (
     AllocationRepository,
@@ -41,6 +44,7 @@ class SchedulerService:
         health_engine: HealthRuleEngine,
         *,
         missed_lookback_weeks: int = SCHEDULER_MISSED_LOOKBACK_WEEKS,
+        at_risk_notifier: ProjectAtRiskNotificationService | None = None,
     ) -> None:
         self._users = user_repository
         self._allocations = allocation_repository
@@ -52,6 +56,7 @@ class SchedulerService:
         self._utilisation = utilisation
         self._health_engine = health_engine
         self._missed_lookback_weeks = missed_lookback_weeks
+        self._at_risk_notifier = at_risk_notifier
 
     def run_all_jobs(self, as_of: date | None = None) -> SchedulerRunResult:
         reference = as_of or date.today()
@@ -75,10 +80,11 @@ class SchedulerService:
         evaluated = 0
         computed_at = datetime.now(UTC)
         for project in self._projects.list_all(status=ProjectStatus.ACTIVE):
+            previous_status = project.health_status
             evaluation = self._health_engine.evaluate(
                 self._build_health_input(project.id, as_of)
             )
-            self._projects.update_health(
+            updated = self._projects.update_health(
                 project.id,
                 health_status=evaluation.status,
                 health_computed_at=computed_at,
@@ -89,6 +95,13 @@ class SchedulerService:
                 risk_flags=evaluation.risk_flags,
                 computed_at=computed_at,
             )
+            if self._at_risk_notifier is not None:
+                self._at_risk_notifier.maybe_notify_at_risk(
+                    updated,
+                    previous_status=previous_status,
+                    new_status=evaluation.status,
+                    as_of=computed_at,
+                )
             evaluated += 1
         return evaluated
 

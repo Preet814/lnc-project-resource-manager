@@ -283,6 +283,14 @@ class ProjectRepository(Protocol):
         health_computed_at: datetime,
     ) -> Project: ...
 
+    def update_last_at_risk_email_sent(
+        self,
+        project_id: int,
+        sent_at: datetime,
+    ) -> Project: ...
+
+    def clear_last_at_risk_email_sent(self, project_id: int) -> Project: ...
+
 
 class ProjectHealthSnapshotRepository(Protocol):
     def find_latest_for_project(self, project_id: int) -> ProjectHealthSnapshot | None: ...
