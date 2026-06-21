@@ -358,3 +358,46 @@ def test_flag_missed_timesheets_skips_current_week() -> None:
         assert created == 1
         assert last_completed_week is not None
         assert last_completed_week.status == TimesheetWeekStatus.MISSED
+
+
+class _RecordingAtRiskNotifier:
+    def __init__(self) -> None:
+        self.calls: list[tuple[int, ProjectHealthStatus, ProjectHealthStatus, datetime]] = []
+
+    def maybe_notify_at_risk(
+        self,
+        project,
+        *,
+        previous_status: ProjectHealthStatus,
+        new_status: ProjectHealthStatus,
+        as_of: datetime,
+    ) -> bool:
+        self.calls.append((project.id, previous_status, new_status, as_of))
+        return False
+
+
+def test_scheduler_health_triggers_notifier() -> None:
+    with _session() as session:
+        _, _, project_id = _seed_manager_and_engineer(session)
+        session.add(
+            MilestoneModel(
+                project_id=project_id,
+                title="Backend API",
+                due_date=date(2026, 5, 15),
+                status=MilestoneStatus.IN_PROGRESS,
+                sequence_order=1,
+            )
+        )
+        session.commit()
+        notifier = _RecordingAtRiskNotifier()
+        service = _service(session)
+        service._at_risk_notifier = notifier
+
+        service.recompute_project_health(date(2026, 5, 20))
+
+        assert len(notifier.calls) == 1
+        call_project_id, previous_status, new_status, as_of = notifier.calls[0]
+        assert call_project_id == project_id
+        assert previous_status == ProjectHealthStatus.ON_TRACK
+        assert new_status == ProjectHealthStatus.AT_RISK
+        assert as_of.tzinfo is not None

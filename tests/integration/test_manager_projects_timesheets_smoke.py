@@ -11,6 +11,9 @@ from tests.integration.support import (
     api_url as _api_url,
 )
 from tests.integration.support import (
+    manager_headers as _manager_headers,
+)
+from tests.integration.support import (
     request_or_skip as _request_or_skip,
 )
 
@@ -24,7 +27,7 @@ def _unique_username(prefix: str) -> str:
 
 def _create_manager(headers: dict[str, str], *, prefix: str) -> dict:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),
@@ -45,7 +48,7 @@ def _create_manager(headers: dict[str, str], *, prefix: str) -> dict:
 
 def _create_employee(headers: dict[str, str], *, prefix: str) -> dict:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),
@@ -111,17 +114,6 @@ def _create_project(headers: dict[str, str], *, manager_user_id: int, prefix: st
     )
     assert create_project.status_code == 201
     return create_project.json()
-
-
-def _manager_headers(*, username: str) -> dict[str, str]:
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": TEMP_PASSWORD},
-    )
-    assert login.status_code == 200
-    assert login.json()["role"] == "MANAGER"
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
 
 
 @pytest.mark.integration

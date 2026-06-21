@@ -12,17 +12,22 @@ from tests.integration.support import (
     api_url as _api_url,
 )
 from tests.integration.support import (
+    engineer_headers as _engineer_headers,
+)
+from tests.integration.support import (
+    manager_headers as _manager_headers,
+)
+from tests.integration.support import (
     request_or_skip as _request_or_skip,
 )
 
 TEMP_PASSWORD = "TempPass1"
 
 
-def _completed_week_start() -> str:
-    """Monday of the most recently completed week (never a future week)."""
+def _current_week_start() -> str:
+    """Monday of the current ISO week (open for engineer submission)."""
     today = date.today()
-    this_monday = today - timedelta(days=today.weekday())
-    return (this_monday - timedelta(days=7)).isoformat()
+    return (today - timedelta(days=today.weekday())).isoformat()
 
 
 def _unique_username(prefix: str) -> str:
@@ -31,7 +36,7 @@ def _unique_username(prefix: str) -> str:
 
 def _create_manager(headers: dict[str, str], *, prefix: str) -> dict:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),
@@ -52,7 +57,7 @@ def _create_manager(headers: dict[str, str], *, prefix: str) -> dict:
 
 def _create_employee_user(headers: dict[str, str], *, prefix: str) -> dict:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),
@@ -129,28 +134,6 @@ def _create_project(headers: dict[str, str], *, manager_user_id: int, prefix: st
     return create_project.json()
 
 
-def _engineer_headers(*, username: str) -> dict[str, str]:
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": TEMP_PASSWORD},
-    )
-    assert login.status_code == 200
-    assert login.json()["role"] == "ENGINEER"
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
-
-
-def _manager_headers(*, username: str) -> dict[str, str]:
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": TEMP_PASSWORD},
-    )
-    assert login.status_code == 200
-    assert login.json()["role"] == "MANAGER"
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
-
-
 @pytest.mark.integration
 def test_employee_timesheets_smoke() -> None:
     """Employee can view allocations, submit a week, and read timesheet history."""
@@ -161,7 +144,7 @@ def test_employee_timesheets_smoke() -> None:
     employee = _create_employee_profile(
         admin_headers,
         user_id=employee_user["id"],
-        email=f"{employee_user['username']}@example.test",
+        email=f"{employee_user['username']}@example.com",
     )
     _assign_manager(
         admin_headers,
@@ -175,7 +158,7 @@ def test_employee_timesheets_smoke() -> None:
     )
     manager_headers = _manager_headers(username=manager["username"])
     employee_headers = _engineer_headers(username=employee_user["username"])
-    week_start = _completed_week_start()
+    week_start = _current_week_start()
 
     allocated = _request_or_skip(
         "post",

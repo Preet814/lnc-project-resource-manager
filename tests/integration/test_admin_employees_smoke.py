@@ -23,7 +23,7 @@ def _unique_username(prefix: str) -> str:
 
 def _create_employee_user(headers: dict[str, str], *, prefix: str) -> dict:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),

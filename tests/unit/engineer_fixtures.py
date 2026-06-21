@@ -3,7 +3,7 @@
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON, create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -115,6 +115,23 @@ def set_engineer_status(
         utilisation_percent=utilisation_percent,
         work_status=work_status,
     )
+    session.flush()
+
+
+def mark_user_onboarded(
+    session: Session,
+    *,
+    username: str,
+    password: str | None = None,
+) -> None:
+    """Clear onboarding gates so route tests can call protected endpoints."""
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    if model is None:
+        raise AssertionError(f"User {username!r} not found.")
+    if password is not None:
+        model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
+    model.email_verified = True
     session.flush()
 
 

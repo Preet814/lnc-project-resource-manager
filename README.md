@@ -440,6 +440,15 @@ Managers can restore frozen submission access from the console (Team timesheets 
 
 MISSED timesheet rows are **no longer** created on every interval tick; they are created on the Wednesday cron only.
 
+**Project at-risk notifications** (when `PROJECT_AT_RISK_NOTIFICATIONS_ENABLED=true`):
+
+On each interval tick, after project health is recomputed, the scheduler emails the **project manager** when an **ACTIVE** project becomes or remains **`AT_RISK`**. Each email includes project milestones, health status, risk flags, and bench engineers on the manager's team (with skills). A **7-day cooldown** per project prevents duplicate emails while still at risk; `PROJECT_AT_RISK_REMINDER_DAYS` controls the weekly reminder interval. Only managers with **verified email** receive notifications. When health improves, the cooldown timestamp is cleared so a future at-risk episode sends immediately.
+
+```bash
+# One-shot health evaluation + at-risk emails (same logic as the interval tick)
+docker compose exec api python scripts/run_project_at_risk_notifications.py
+```
+
 **Interval:** bootstrap default from `.env` (`BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, default 4). Runtime value lives in `system_configuration.scheduler_interval_hours`. Admin updates via `PATCH /admin/config/scheduler-interval` or the console — APScheduler is **rescheduled immediately** (no API restart).
 
 ```bash
@@ -461,6 +470,8 @@ Look for log lines such as `Background scheduler started` and `Scheduler tick co
 | `SCHEDULER_RUN_ON_STARTUP` | `.env` | Run one tick immediately when API starts |
 | `TIMESHEET_NOTIFICATIONS_ENABLED` | `.env` | Enable IST cron emails and Tuesday submit freeze |
 | `APP_TIMEZONE` | `.env` | Timezone for timesheet notification cron (default `Asia/Kolkata`) |
+| `PROJECT_AT_RISK_NOTIFICATIONS_ENABLED` | `.env` | Email managers when project health is `AT_RISK` |
+| `PROJECT_AT_RISK_REMINDER_DAYS` | `.env` | Weekly reminder interval while still at risk (default 7) |
 
 Integration smoke (API + DB):
 

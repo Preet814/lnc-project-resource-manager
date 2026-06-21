@@ -6,6 +6,7 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
+from prm.api.settings import get_settings
 from prm.domain.enums import Role, UserAccountStatus
 from prm.infrastructure.db.models import EmailVerificationOtpModel
 from prm.infrastructure.db.rbac_seed import (
@@ -120,7 +121,11 @@ def test_change_password_returns_400_when_passwords_mismatch(client: TestClient)
     assert "do not match" in response.json()["detail"]
 
 
-def test_login_returns_email_verified_false_for_unverified_engineer() -> None:
+def test_login_returns_email_verified_false_for_unverified_engineer(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setenv("EMAIL_VERIFICATION_REQUIRED", "true")
+    get_settings.cache_clear()
     engine = create_sqlite_engine()
     create_route_tables(engine)
     EmailVerificationOtpModel.__table__.create(engine, checkfirst=True)
@@ -158,3 +163,4 @@ def test_login_returns_email_verified_false_for_unverified_engineer() -> None:
     body = response.json()
     assert body["email_verified"] is False
     assert body["force_password_change"] is False
+    get_settings.cache_clear()

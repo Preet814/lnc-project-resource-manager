@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 
 from prm.application.protocols import (
     EmailSender,
@@ -79,8 +79,14 @@ class ProjectAtRiskNotificationService:
             subject=PROJECT_AT_RISK_EMAIL_SUBJECT.format(name=project.name),
             body=self._build_email_body(project, manager_name=manager.full_name),
         )
-        self._projects.update_last_at_risk_email_sent(project.id, as_of)
+        self._projects.update_last_at_risk_email_sent(project.id, self._as_utc(as_of))
         return True
+
+    @staticmethod
+    def _as_utc(value: datetime) -> datetime:
+        if value.tzinfo is None:
+            return value.replace(tzinfo=UTC)
+        return value.astimezone(UTC)
 
     def _should_send(
         self,
@@ -93,8 +99,9 @@ class ProjectAtRiskNotificationService:
             return True
         if project.last_at_risk_email_sent_at is None:
             return True
-        reminder_due = project.last_at_risk_email_sent_at + timedelta(days=self._reminder_days)
-        return reminder_due <= as_of
+        last_sent = self._as_utc(project.last_at_risk_email_sent_at)
+        reminder_due = last_sent + timedelta(days=self._reminder_days)
+        return reminder_due <= self._as_utc(as_of)
 
     def _build_email_body(self, project: Project, *, manager_name: str) -> str:
         lines = [
