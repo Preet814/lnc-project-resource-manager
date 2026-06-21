@@ -422,11 +422,20 @@ curl -s http://localhost:8000/engineer/timesheets/2026-06-01 \
 
 ### Background scheduler (BRD §4.1)
 
-The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`). Each tick runs three jobs in order:
+The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`). Each interval tick runs two jobs in order:
 
 1. Recompute employee utilisation and `BENCH` / `ALLOCATED` status
 2. Evaluate **ACTIVE** project health (`ON_TRACK` / `ATTENTION` / `AT_RISK`) and store risk flags
-3. Flag **MISSED** timesheet weeks for closed weeks with allocations (lookback: 52 weeks)
+
+**Timesheet notifications** (when `TIMESHEET_NOTIFICATIONS_ENABLED=true`, cron in `APP_TIMEZONE`, default `Asia/Kolkata`):
+
+| Cron (`.env`) | Schedule | Action |
+|---------------|----------|--------|
+| `TIMESHEET_REMINDER_CRON` | Mon/Tue/Wed 09:00 | Email engineers missing the last completed week (verified emails only) |
+| `TIMESHEET_FREEZE_CRON` | Tue 17:30 | Submission freeze for the last completed week (enforced at submit time) |
+| `TIMESHEET_WEDNESDAY_CRON` | Wed 09:00 | Manager digest email + create `MISSED` rows for still-missing engineers |
+
+MISSED timesheet rows are **no longer** created on every interval tick; they are created on the Wednesday cron only.
 
 **Interval:** bootstrap default from `.env` (`BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, default 4). Runtime value lives in `system_configuration.scheduler_interval_hours`. Admin updates via `PATCH /admin/config/scheduler-interval` or the console — APScheduler is **rescheduled immediately** (no API restart).
 
@@ -447,6 +456,8 @@ Look for log lines such as `Background scheduler started` and `Scheduler tick co
 | `max_weekly_hours` | DB via Admin API | Applies on next request / scheduler tick |
 | `SCHEDULER_ENABLED` | `.env` | Disable background jobs without code changes |
 | `SCHEDULER_RUN_ON_STARTUP` | `.env` | Run one tick immediately when API starts |
+| `TIMESHEET_NOTIFICATIONS_ENABLED` | `.env` | Enable IST cron emails and Tuesday submit freeze |
+| `APP_TIMEZONE` | `.env` | Timezone for timesheet notification cron (default `Asia/Kolkata`) |
 
 Integration smoke (API + DB):
 

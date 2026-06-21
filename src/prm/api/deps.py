@@ -242,6 +242,7 @@ def require_permission(permission_code: str):
 
 def get_engineer_timesheet_service(
     db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> EngineerTimesheetService:
     return EngineerTimesheetService(
         user_repository=SqlAlchemyUserRepository(db),
@@ -249,6 +250,8 @@ def get_engineer_timesheet_service(
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
         config_repository=SqlAlchemySystemConfigurationRepository(db),
+        timesheet_notifications_enabled=settings.timesheet_notifications_enabled,
+        app_timezone=settings.app_timezone,
     )
 
 

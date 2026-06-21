@@ -9,7 +9,11 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from prm.scheduler.factory import create_scheduler_service
+from prm.api.settings import get_settings
+from prm.scheduler.factory import (
+    create_scheduler_service,
+    create_timesheet_notification_service,
+)
 from tests.integration.support import (
     admin_headers as _admin_headers,
 )
@@ -163,6 +167,9 @@ def _run_scheduler_once() -> None:
         engine = create_engine(_database_url(), pool_pre_ping=True)
         with Session(engine) as session:
             create_scheduler_service(session).run_all_jobs()
+            settings = get_settings()
+            notification_service = create_timesheet_notification_service(session, settings)
+            notification_service.flag_missed_for_last_completed_week(date.today())
             session.commit()
     except SQLAlchemyError as exc:
         pytest.skip(f"Cannot run scheduler against database: {exc}")
@@ -178,7 +185,7 @@ def test_api_health_with_scheduler_enabled_smoke() -> None:
 
 @pytest.mark.integration
 def test_scheduler_updates_health_and_missed_timesheets_smoke() -> None:
-    """Scheduler tick persists project health and MISSED employee timesheet weeks."""
+    """Scheduler tick persists project health; MISSED weeks come from notification job."""
     admin_headers = _admin_headers()
     prefix = uuid.uuid4().hex[:8]
     manager = _create_manager(admin_headers, prefix=f"mgr_{prefix}")

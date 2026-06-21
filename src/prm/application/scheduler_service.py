@@ -3,6 +3,7 @@
 from datetime import UTC, date, datetime, timedelta
 
 from prm.application.health_rule_engine import HealthRuleEngine
+from prm.application.timesheet_week_policy import allocation_covers_week
 from prm.application.protocols import (
     AllocationRepository,
     MilestoneRepository,
@@ -20,7 +21,6 @@ from prm.domain.dtos import (
     HealthTimesheetFact,
     SchedulerRunResult,
 )
-from prm.domain.entities.allocation import Allocation
 from prm.domain.enums import ProjectStatus, ResourceWorkStatus, TimesheetWeekStatus
 from prm.domain.week_calendar import last_completed_week_start, week_end
 
@@ -57,11 +57,10 @@ class SchedulerService:
         reference = as_of or date.today()
         engineers_synced = self.recompute_utilisation_and_status(reference)
         projects_evaluated = self.recompute_project_health(reference)
-        missed_weeks_created = self.flag_missed_timesheets(reference)
         return SchedulerRunResult(
             engineers_synced=engineers_synced,
             projects_evaluated=projects_evaluated,
-            missed_weeks_created=missed_weeks_created,
+            missed_weeks_created=0,
         )
 
     def recompute_utilisation_and_status(self, as_of: date) -> int:
@@ -110,7 +109,7 @@ class SchedulerService:
                 if period_end >= as_of:
                     continue
                 if not any(
-                    self._allocation_covers_week(allocation, week_start, period_end)
+                    allocation_covers_week(allocation, week_start, period_end)
                     for allocation in allocations
                 ):
                     continue
@@ -207,15 +206,3 @@ class SchedulerService:
         if config is None:
             return DEFAULT_MAX_WEEKLY_HOURS
         return config.get_max_weekly_hours()
-
-    @staticmethod
-    def _allocation_covers_week(
-        allocation: Allocation,
-        week_start: date,
-        period_end: date,
-    ) -> bool:
-        if allocation.from_date > period_end:
-            return False
-        if allocation.to_date is not None and week_start > allocation.to_date:
-            return False
-        return True

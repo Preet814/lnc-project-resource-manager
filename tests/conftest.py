@@ -25,6 +25,7 @@ def _apply_unit_test_env() -> None:
     os.environ.setdefault("GEMMA_MODEL", "gemma3:12b-it-q8_0")
     os.environ.setdefault("EMAIL_VERIFICATION_REQUIRED", "false")
     os.environ.setdefault("SMTP_ENABLED", "false")
+    os.environ.setdefault("TIMESHEET_NOTIFICATIONS_ENABLED", "false")
 
 
 def _clear_settings_caches() -> None:
