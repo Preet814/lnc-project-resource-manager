@@ -17,6 +17,7 @@ from tests.unit.engineer_fixtures import (
     build_test_client,
     create_sqlite_engine,
     create_user,
+    mark_user_onboarded,
 )
 
 MANAGER_USERNAME = "test_manager"
@@ -58,6 +59,7 @@ def client() -> Generator[TestClient, None, None]:
             full_name=TEST_FULL_NAME,
             email=TEST_EMAIL,
         )
+        mark_user_onboarded(setup, username=TEST_USERNAME, password=TEST_PASSWORD)
         seed_default_system_configuration(setup)
         manager_id = create_user(
             setup,

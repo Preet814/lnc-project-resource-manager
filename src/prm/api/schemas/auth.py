@@ -17,6 +17,10 @@ class ChangePasswordRequest(BaseModel):
     confirm_password: str = Field(min_length=1)
 
 
+class VerifyEmailConfirmRequest(BaseModel):
+    otp: str = Field(min_length=4, max_length=12)
+
+
 class LoginResponse(BaseModel):
     access_token: str
     token_type: str
@@ -25,4 +29,5 @@ class LoginResponse(BaseModel):
     full_name: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime

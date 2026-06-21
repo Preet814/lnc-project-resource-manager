@@ -149,6 +149,15 @@ class EngineerTimesheetWeekDetailResponse(BaseModel):
     status: TimesheetWeekStatus
     total_hours: int
     entries: list[EngineerTimesheetEntryResponse]
+    submission_frozen: bool = False
+    submission_restored: bool = False
+    can_restore: bool = False
+
+
+class RestoreTimesheetSubmissionResponse(BaseModel):
+    user_id: int
+    week_start_date: date
+    restored_at: datetime
 
 
 class SkillMatchRequest(BaseModel):

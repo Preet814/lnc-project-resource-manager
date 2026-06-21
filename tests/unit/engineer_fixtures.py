@@ -3,7 +3,7 @@
 from collections.abc import Generator
 
 from fastapi.testclient import TestClient
-from sqlalchemy import JSON, create_engine
+from sqlalchemy import JSON, create_engine, select
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import StaticPool
@@ -24,6 +24,7 @@ from prm.infrastructure.db.models import (
     SkillModel,
     SystemConfigurationModel,
     TimesheetEntryModel,
+    TimesheetSubmissionRestoreModel,
     TimesheetWeekModel,
     UserModel,
     UserSkillModel,
@@ -117,6 +118,23 @@ def set_engineer_status(
     session.flush()
 
 
+def mark_user_onboarded(
+    session: Session,
+    *,
+    username: str,
+    password: str | None = None,
+) -> None:
+    """Clear onboarding gates so route tests can call protected endpoints."""
+    model = session.scalar(select(UserModel).where(UserModel.username == username))
+    if model is None:
+        raise AssertionError(f"User {username!r} not found.")
+    if password is not None:
+        model.password_hash = BcryptPasswordHasher().hash(password)
+    model.force_password_change = False
+    model.email_verified = True
+    session.flush()
+
+
 def create_allocation_tables(session: Session) -> None:
     AllocationModel.__table__.create(session.get_bind(), checkfirst=True)
 
@@ -125,6 +143,7 @@ def create_timesheet_tables(session: Session) -> None:
     TimesheetWeekModel.__table__.create(session.get_bind(), checkfirst=True)
     TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
     TimesheetEntryModel.__table__.create(session.get_bind(), checkfirst=True)
+    TimesheetSubmissionRestoreModel.__table__.create(session.get_bind(), checkfirst=True)
 
 
 def create_skill_tables(session: Session) -> None:
@@ -157,6 +176,7 @@ def create_route_tables(
         TimesheetWeekModel.__table__.create(engine, checkfirst=True)
         TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
         TimesheetEntryModel.__table__.create(engine, checkfirst=True)
+        TimesheetSubmissionRestoreModel.__table__.create(engine, checkfirst=True)
     if include_skill:
         SkillModel.__table__.create(engine, checkfirst=True)
         UserSkillModel.__table__.create(engine, checkfirst=True)

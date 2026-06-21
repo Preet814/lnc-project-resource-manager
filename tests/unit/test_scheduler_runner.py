@@ -5,6 +5,7 @@ from datetime import date
 from sqlalchemy import JSON
 from sqlalchemy.orm import Session, sessionmaker
 
+from prm.api.settings import Settings
 from prm.domain.enums import ProjectStatus, Role
 from prm.infrastructure.db.models import (
     ProjectHealthSnapshotModel,
@@ -164,4 +165,56 @@ def test_registry_reschedule_interval_hours_updates_registered_runner() -> None:
         assert job.trigger.interval.total_seconds() == 8 * 3600
     finally:
         unregister_runner()
+        runner.shutdown()
+
+
+def test_runner_registers_timesheet_cron_jobs_when_notifications_enabled() -> None:
+    factory = _session_factory()
+    settings = Settings(
+        bootstrap_admin_username="admin",
+        bootstrap_admin_password="AdminPass1",
+        bootstrap_admin_full_name="Admin User",
+        bootstrap_admin_email="admin@example.test",
+        jwt_secret_key="runner-test-secret",
+        timesheet_notifications_enabled=True,
+    )
+    runner = SchedulerRunner(
+        factory,
+        settings=settings,
+        read_interval_hours=lambda: 4,
+        run_jobs=lambda: None,
+    )
+    runner.start(run_on_startup=False)
+
+    try:
+        assert runner._scheduler.get_job("timesheet_reminder") is not None
+        assert runner._scheduler.get_job("timesheet_freeze") is not None
+        assert runner._scheduler.get_job("timesheet_wednesday") is not None
+    finally:
+        runner.shutdown()
+
+
+def test_runner_skips_timesheet_cron_jobs_when_notifications_disabled() -> None:
+    factory = _session_factory()
+    settings = Settings(
+        bootstrap_admin_username="admin",
+        bootstrap_admin_password="AdminPass1",
+        bootstrap_admin_full_name="Admin User",
+        bootstrap_admin_email="admin@example.test",
+        jwt_secret_key="runner-test-secret",
+        timesheet_notifications_enabled=False,
+    )
+    runner = SchedulerRunner(
+        factory,
+        settings=settings,
+        read_interval_hours=lambda: 4,
+        run_jobs=lambda: None,
+    )
+    runner.start(run_on_startup=False)
+
+    try:
+        assert runner._scheduler.get_job("timesheet_reminder") is None
+        assert runner._scheduler.get_job("timesheet_freeze") is None
+        assert runner._scheduler.get_job("timesheet_wednesday") is None
+    finally:
         runner.shutdown()

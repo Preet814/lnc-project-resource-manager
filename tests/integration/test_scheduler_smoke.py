@@ -9,12 +9,22 @@ from sqlalchemy import create_engine
 from sqlalchemy.exc import SQLAlchemyError
 from sqlalchemy.orm import Session
 
-from prm.scheduler.factory import create_scheduler_service
+from prm.api.settings import get_settings
+from prm.scheduler.factory import (
+    create_scheduler_service,
+    create_timesheet_notification_service,
+)
 from tests.integration.support import (
     admin_headers as _admin_headers,
 )
 from tests.integration.support import (
     api_url as _api_url,
+)
+from tests.integration.support import (
+    engineer_headers as _engineer_headers,
+)
+from tests.integration.support import (
+    manager_headers as _manager_headers,
 )
 from tests.integration.support import (
     request_or_skip as _request_or_skip,
@@ -46,7 +56,7 @@ def _unique_username(prefix: str) -> str:
 
 def _create_manager(headers: dict[str, str], *, prefix: str) -> dict:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),
@@ -67,7 +77,7 @@ def _create_manager(headers: dict[str, str], *, prefix: str) -> dict:
 
 def _create_employee(headers: dict[str, str], *, prefix: str) -> tuple[dict, dict]:
     username = _unique_username(prefix)
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     create_user = _request_or_skip(
         "post",
         _api_url("/admin/users"),
@@ -136,33 +146,14 @@ def _create_project(headers: dict[str, str], *, manager_user_id: int, prefix: st
     return create_project.json()
 
 
-def _manager_headers(*, username: str) -> dict[str, str]:
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": TEMP_PASSWORD},
-    )
-    assert login.status_code == 200
-    assert login.json()["role"] == "MANAGER"
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
-
-
-def _engineer_headers(*, username: str) -> dict[str, str]:
-    login = _request_or_skip(
-        "post",
-        _api_url("/auth/login"),
-        json={"username": username, "password": TEMP_PASSWORD},
-    )
-    assert login.status_code == 200
-    assert login.json()["role"] == "ENGINEER"
-    return {"Authorization": f"Bearer {login.json()['access_token']}"}
-
-
 def _run_scheduler_once() -> None:
     try:
         engine = create_engine(_database_url(), pool_pre_ping=True)
         with Session(engine) as session:
             create_scheduler_service(session).run_all_jobs()
+            settings = get_settings()
+            notification_service = create_timesheet_notification_service(session, settings)
+            notification_service.flag_missed_for_last_completed_week(date.today())
             session.commit()
     except SQLAlchemyError as exc:
         pytest.skip(f"Cannot run scheduler against database: {exc}")
@@ -178,7 +169,7 @@ def test_api_health_with_scheduler_enabled_smoke() -> None:
 
 @pytest.mark.integration
 def test_scheduler_updates_health_and_missed_timesheets_smoke() -> None:
-    """Scheduler tick persists project health and MISSED employee timesheet weeks."""
+    """Scheduler tick persists project health; MISSED weeks come from notification job."""
     admin_headers = _admin_headers()
     prefix = uuid.uuid4().hex[:8]
     manager = _create_manager(admin_headers, prefix=f"mgr_{prefix}")

@@ -76,14 +76,16 @@ def _view_all_employees(client: PrmApiClient, session: UserSession) -> None:
             pause()
             return
 
-        print(f"{'ID':<5}{'Name':<16}{'Department':<14}{'Designation':<16}{'Status'}")
+        print(f"{'ID':<5}{'Name':<16}{'Department':<14}{'Designation':<12}{'Status':<10}{'Email OK'}")
         print_divider(68)
         for engineer in result.engineers:
+            verified = "Yes" if engineer.email_verified else "No"
             print(
                 f"{engineer.id:<5}{engineer.full_name:<16}"
                 f"{display_value(engineer.department):<14}"
-                f"{display_value(engineer.designation):<16}"
-                f"{engineer.work_status.value}"
+                f"{display_value(engineer.designation):<12}"
+                f"{engineer.work_status.value:<10}"
+                f"{verified}"
             )
         print_divider(68)
         print(

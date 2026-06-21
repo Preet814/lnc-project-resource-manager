@@ -69,6 +69,7 @@ class UserProfileService:
                 designation=engineer.designation_name or "",
                 work_status=engineer.work_status or ResourceWorkStatus.BENCH,
                 is_active=engineer.is_active(),
+                email_verified=engineer.email_verified,
             )
             for engineer in engineers
         )

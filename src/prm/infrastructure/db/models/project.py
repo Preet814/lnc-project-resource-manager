@@ -35,6 +35,9 @@ class ProjectModel(Base):
         project_health_status_enum, nullable=False, default=ProjectHealthStatus.ON_TRACK
     )
     health_computed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    last_at_risk_email_sent_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     manager = relationship("UserModel", back_populates="managed_projects")
     milestones = relationship(

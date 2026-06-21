@@ -383,6 +383,7 @@ curl -s "http://localhost:8000/manager/timesheets/2?week_start_date=2026-05-12" 
 | `GET /manager/projects/{project_id}` | Manager JWT | Project health detail |
 | `GET /manager/timesheets` | Manager JWT | Team timesheets for week (incl. MISSED) |
 | `GET /manager/timesheets/{employee_id}` | Manager JWT | Employee timesheet detail for week |
+| `POST /manager/timesheets/{employee_id}/restore-submission` | Manager JWT | Restore frozen timesheet submission for last completed week |
 
 ### Employee timesheets and allocations (BRD Screen 5)
 
@@ -422,11 +423,31 @@ curl -s http://localhost:8000/engineer/timesheets/2026-06-01 \
 
 ### Background scheduler (BRD §4.1)
 
-The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`). Each tick runs three jobs in order:
+The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`). Each interval tick runs two jobs in order:
 
 1. Recompute employee utilisation and `BENCH` / `ALLOCATED` status
 2. Evaluate **ACTIVE** project health (`ON_TRACK` / `ATTENTION` / `AT_RISK`) and store risk flags
-3. Flag **MISSED** timesheet weeks for closed weeks with allocations (lookback: 52 weeks)
+
+**Timesheet notifications** (when `TIMESHEET_NOTIFICATIONS_ENABLED=true`, cron in `APP_TIMEZONE`, default `Asia/Kolkata`):
+
+| Cron (`.env`) | Schedule | Action |
+|---------------|----------|--------|
+| `TIMESHEET_REMINDER_CRON` | Mon/Tue/Wed 09:00 | Email engineers missing the last completed week (verified emails only) |
+| `TIMESHEET_FREEZE_CRON` | Tue 17:30 | Submission freeze for the last completed week (enforced at submit time) |
+| `TIMESHEET_WEDNESDAY_CRON` | Wed 09:00 | Freeze notification emails (engineer + manager), manager digest, `MISSED` rows |
+
+Managers can restore frozen submission access from the console (Team timesheets → employee detail → Restore) or `POST /manager/timesheets/{user_id}/restore-submission`.
+
+MISSED timesheet rows are **no longer** created on every interval tick; they are created on the Wednesday cron only.
+
+**Project at-risk notifications** (when `PROJECT_AT_RISK_NOTIFICATIONS_ENABLED=true`):
+
+On each interval tick, after project health is recomputed, the scheduler emails the **project manager** when an **ACTIVE** project becomes or remains **`AT_RISK`**. Each email includes project milestones, health status, risk flags, and bench engineers on the manager's team (with skills). A **7-day cooldown** per project prevents duplicate emails while still at risk; `PROJECT_AT_RISK_REMINDER_DAYS` controls the weekly reminder interval. Only managers with **verified email** receive notifications. When health improves, the cooldown timestamp is cleared so a future at-risk episode sends immediately.
+
+```bash
+# One-shot health evaluation + at-risk emails (same logic as the interval tick)
+docker compose exec api python scripts/run_project_at_risk_notifications.py
+```
 
 **Interval:** bootstrap default from `.env` (`BOOTSTRAP_SCHEDULER_INTERVAL_HOURS`, default 4). Runtime value lives in `system_configuration.scheduler_interval_hours`. Admin updates via `PATCH /admin/config/scheduler-interval` or the console — APScheduler is **rescheduled immediately** (no API restart).
 
@@ -447,6 +468,10 @@ Look for log lines such as `Background scheduler started` and `Scheduler tick co
 | `max_weekly_hours` | DB via Admin API | Applies on next request / scheduler tick |
 | `SCHEDULER_ENABLED` | `.env` | Disable background jobs without code changes |
 | `SCHEDULER_RUN_ON_STARTUP` | `.env` | Run one tick immediately when API starts |
+| `TIMESHEET_NOTIFICATIONS_ENABLED` | `.env` | Enable IST cron emails and Tuesday submit freeze |
+| `APP_TIMEZONE` | `.env` | Timezone for timesheet notification cron (default `Asia/Kolkata`) |
+| `PROJECT_AT_RISK_NOTIFICATIONS_ENABLED` | `.env` | Email managers when project health is `AT_RISK` |
+| `PROJECT_AT_RISK_REMINDER_DAYS` | `.env` | Weekly reminder interval while still at risk (default 7) |
 
 Integration smoke (API + DB):
 

@@ -223,13 +223,12 @@ def test_update_health_persists_status_and_computed_at() -> None:
         session.commit()
 
         assert updated.health_status == ProjectHealthStatus.AT_RISK
-        # SQLite in-memory tests store datetimes without tzinfo
-        assert updated.health_computed_at == computed_at.replace(tzinfo=None)
+        assert updated.health_computed_at == computed_at
 
         found = repo.find_by_id(project_id)
         assert found is not None
         assert found.health_status == ProjectHealthStatus.AT_RISK
-        assert found.health_computed_at == computed_at.replace(tzinfo=None)
+        assert found.health_computed_at == computed_at
 
 
 def test_update_health_raises_when_project_missing() -> None:

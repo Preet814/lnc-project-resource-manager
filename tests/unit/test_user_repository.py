@@ -171,7 +171,49 @@ def test_create_persists_user_with_force_password_change() -> None:
         assert created.id == loaded.id
         assert loaded.role == Role.MANAGER
         assert loaded.force_password_change is True
+        assert loaded.email_verified is False
         assert loaded.account_status == UserAccountStatus.ACTIVE
+
+
+def test_update_email_verified_persists_flag() -> None:
+    with _session() as session:
+        _seed(session)
+        repo = SqlAlchemyUserRepository(session)
+        admin = repo.find_by_username(TEST_USERNAME)
+        assert admin is not None
+        assert admin.email_verified is True
+
+        updated = repo.update_email_verified(admin.id, email_verified=False)
+        session.commit()
+
+        assert updated.email_verified is False
+        reloaded = repo.find_by_id(admin.id)
+        assert reloaded is not None
+        assert reloaded.email_verified is False
+
+        updated = repo.update_email_verified(admin.id, email_verified=True)
+        session.commit()
+
+        assert updated.email_verified is True
+        reloaded = repo.find_by_id(admin.id)
+        assert reloaded is not None
+        assert reloaded.email_verified is True
+
+
+def test_update_profile_email_resets_email_verified() -> None:
+    with _session() as session:
+        _seed(session)
+        repo = SqlAlchemyUserRepository(session)
+        admin = repo.find_by_username(TEST_USERNAME)
+        assert admin is not None
+        repo.update_email_verified(admin.id, email_verified=True)
+        session.commit()
+
+        updated = repo.update_profile(admin.id, email="verified.admin@example.test")
+        session.commit()
+
+        assert updated.email == "verified.admin@example.test"
+        assert updated.email_verified is False
 
 
 def test_update_account_status_changes_status() -> None:

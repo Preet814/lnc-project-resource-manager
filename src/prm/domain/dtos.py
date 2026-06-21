@@ -49,6 +49,7 @@ class LoginResult:
     full_name: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime
 
 
@@ -88,6 +89,7 @@ class EngineerSummary:
     designation: str
     work_status: ResourceWorkStatus
     is_active: bool
+    email_verified: bool
 
     def is_on_bench(self) -> bool:
         return self.work_status == ResourceWorkStatus.BENCH
@@ -355,6 +357,18 @@ class EngineerTimesheetWeekDetail:
     status: TimesheetWeekStatus
     total_hours: int
     entries: tuple[EngineerTimesheetEntryDetail, ...]
+    submission_frozen: bool = False
+    submission_restored: bool = False
+    can_restore: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreTimesheetSubmissionResult:
+    """Outcome when a manager restores frozen submission access."""
+
+    user_id: int
+    week_start_date: date
+    restored_at: datetime
 
 
 @dataclass(frozen=True, slots=True)
@@ -506,11 +520,13 @@ class SkillMatchListResult:
 
 @dataclass(frozen=True, slots=True)
 class TeamSlotFilters:
-    """Optional search filters for one team slot; null/empty means do not filter.
+    """Optional slot preferences from LLM parsing; null/empty means no preference.
 
     Active employees on the manager's team are always required in code — never
-    controlled by this DTO. work_status is a hard filter only when set; when
-    null, bench vs allocated is handled as a preference during assignment.
+    controlled by this DTO. Hard filters when set: work_status,
+    min_free_hours_per_week, and explicit skill_name / skill_category (with
+    optional min_proficiency). Department, designation, and activity_tags are
+    soft preferences used in scoring only.
     """
 
     department: str | None = None

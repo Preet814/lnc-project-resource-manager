@@ -20,6 +20,7 @@ class JwtTokenPayload:
     username: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime
 
 
@@ -37,6 +38,7 @@ class JwtTokenService:
         username: str,
         role: Role,
         force_password_change: bool,
+        email_verified: bool,
     ) -> AuthToken:
         expires_at = datetime.now(UTC) + timedelta(minutes=self._expire_minutes)
         claims = {
@@ -44,6 +46,7 @@ class JwtTokenService:
             "username": username,
             "role": role.value,
             "force_password_change": force_password_change,
+            "email_verified": email_verified,
             "exp": expires_at,
         }
         encoded = jwt.encode(claims, self._secret_key, algorithm=JWT_ALGORITHM)
@@ -60,6 +63,7 @@ class JwtTokenService:
             username = str(claims["username"])
             role = Role(str(claims["role"]))
             force_password_change = bool(claims["force_password_change"])
+            email_verified = bool(claims.get("email_verified", False))
             exp = claims["exp"]
             expires_at = datetime.fromtimestamp(exp, tz=UTC)
         except (KeyError, TypeError, ValueError) as exc:
@@ -70,5 +74,6 @@ class JwtTokenService:
             username=username,
             role=role,
             force_password_change=force_password_change,
+            email_verified=email_verified,
             expires_at=expires_at,
         )

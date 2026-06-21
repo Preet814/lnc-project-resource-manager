@@ -45,6 +45,7 @@ def seed_bootstrap_admin(
         designation_id=default_designation_id(session, name="System Administrator"),
         account_status=UserAccountStatus.ACTIVE,
         force_password_change=True,
+        email_verified=True,
     )
     session.add(admin)
     session.commit()
@@ -124,6 +125,22 @@ def seed_bootstrap_admin_from_settings(
     )
 
 
+def ensure_bootstrap_admin_email_verified(
+    session: Session,
+    settings: Settings | None = None,
+) -> bool:
+    """Mark the configured bootstrap admin as email-verified (runs on every startup)."""
+    config = settings or get_settings()
+    admin = session.scalar(
+        select(UserModel).where(UserModel.username == config.bootstrap_admin_username)
+    )
+    if admin is None or admin.email_verified:
+        return False
+    admin.email_verified = True
+    session.commit()
+    return True
+
+
 def main() -> None:
     settings = get_settings()
     session_factory = get_session_factory()
@@ -137,6 +154,11 @@ def main() -> None:
         else:
             print(
                 f"Bootstrap admin '{settings.bootstrap_admin_username}' already exists; skipped."
+            )
+
+        if ensure_bootstrap_admin_email_verified(session, settings):
+            print(
+                f"Marked bootstrap admin '{settings.bootstrap_admin_username}' as email-verified."
             )
 
         config_created = seed_default_system_configuration_from_settings(session, settings)

@@ -21,6 +21,7 @@ def _engineer(*, work_status: ResourceWorkStatus, utilisation: int) -> User:
         manager_id=None,
         account_status=UserAccountStatus.ACTIVE,
         force_password_change=False,
+        email_verified=True,
         created_at=datetime(2026, 1, 1, tzinfo=UTC),
         updated_at=datetime(2026, 1, 1, tzinfo=UTC),
         department_name="Backend",

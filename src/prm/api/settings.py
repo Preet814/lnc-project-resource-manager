@@ -7,6 +7,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from prm import __version__
 from prm.domain.constants import (
+    DEFAULT_APP_TIMEZONE,
     DEFAULT_GEMINI_BASE_URL,
     DEFAULT_GEMINI_MODEL,
     DEFAULT_GEMMA_BASE_URL,
@@ -15,6 +16,10 @@ from prm.domain.constants import (
     DEFAULT_GROQ_MODEL,
     DEFAULT_MAX_WEEKLY_HOURS,
     DEFAULT_SCHEDULER_INTERVAL_HOURS,
+    DEFAULT_PROJECT_AT_RISK_REMINDER_DAYS,
+    DEFAULT_TIMESHEET_FREEZE_CRON,
+    DEFAULT_TIMESHEET_REMINDER_CRON,
+    DEFAULT_TIMESHEET_WEDNESDAY_CRON,
 )
 from prm.domain.enums import LLMProvider
 from prm.infrastructure.llm.validation import validate_llm_base_url, validate_llm_model
@@ -55,6 +60,24 @@ class Settings(BaseSettings):
     groq_model: str = DEFAULT_GROQ_MODEL
     gemma_base_url: str = DEFAULT_GEMMA_BASE_URL
     gemma_model: str = DEFAULT_GEMMA_MODEL
+
+    smtp_enabled: bool = False
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = ""
+    smtp_from: str = ""
+    smtp_use_tls: bool = True
+    email_verification_required: bool = True
+
+    timesheet_notifications_enabled: bool = True
+    app_timezone: str = DEFAULT_APP_TIMEZONE
+    timesheet_reminder_cron: str = DEFAULT_TIMESHEET_REMINDER_CRON
+    timesheet_freeze_cron: str = DEFAULT_TIMESHEET_FREEZE_CRON
+    timesheet_wednesday_cron: str = DEFAULT_TIMESHEET_WEDNESDAY_CRON
+
+    project_at_risk_notifications_enabled: bool = True
+    project_at_risk_reminder_days: int = DEFAULT_PROJECT_AT_RISK_REMINDER_DAYS
 
     @field_validator("gemini_base_url")
     @classmethod

@@ -47,11 +47,16 @@ class LlmApiKeyProtector(Protocol):
     def decrypt(self, encrypted: str) -> str: ...
 
 
+class EmailSender(Protocol):
+    def send(self, *, to: str, subject: str, body: str) -> None: ...
+
+
 class TokenPayload(Protocol):
     user_id: int
     username: str
     role: Role
     force_password_change: bool
+    email_verified: bool
     expires_at: datetime
 
 
@@ -63,6 +68,7 @@ class TokenService(Protocol):
         username: str,
         role: Role,
         force_password_change: bool,
+        email_verified: bool,
     ) -> AuthToken: ...
 
     def decode_access_token(self, token: str) -> TokenPayload: ...
@@ -128,6 +134,8 @@ class UserRepository(Protocol):
         password_hash: str,
         force_password_change: bool,
     ) -> User: ...
+
+    def update_email_verified(self, user_id: int, *, email_verified: bool) -> User: ...
 
     def update_account_status(
         self,
@@ -275,6 +283,14 @@ class ProjectRepository(Protocol):
         health_computed_at: datetime,
     ) -> Project: ...
 
+    def update_last_at_risk_email_sent(
+        self,
+        project_id: int,
+        sent_at: datetime,
+    ) -> Project: ...
+
+    def clear_last_at_risk_email_sent(self, project_id: int) -> Project: ...
+
 
 class ProjectHealthSnapshotRepository(Protocol):
     def find_latest_for_project(self, project_id: int) -> ProjectHealthSnapshot | None: ...
@@ -363,6 +379,29 @@ class TimesheetRepository(Protocol):
         user_id: int,
         week_start_date: date,
     ) -> TimesheetWeek: ...
+
+    def delete_missed_week(
+        self,
+        user_id: int,
+        week_start_date: date,
+    ) -> bool: ...
+
+
+class TimesheetSubmissionRestoreRepository(Protocol):
+    def find_by_user_and_week(
+        self,
+        user_id: int,
+        week_start_date: date,
+    ) -> bool: ...
+
+    def create(
+        self,
+        *,
+        user_id: int,
+        week_start_date: date,
+        restored_by_user_id: int,
+        restored_at: datetime | None = None,
+    ) -> None: ...
 
 
 class PermissionRepository(Protocol):

@@ -30,7 +30,7 @@ from prm.infrastructure.db.seed import seed_bootstrap_admin, seed_default_system
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.security.password import BcryptPasswordHasher
 from tests.unit.credentials import TEST_EMAIL, TEST_FULL_NAME, TEST_PASSWORD, TEST_USERNAME
-from tests.unit.engineer_fixtures import create_user, set_engineer_status
+from tests.unit.engineer_fixtures import create_user, mark_user_onboarded, set_engineer_status
 
 MANAGER_USERNAME = "test_manager"
 MANAGER_PASSWORD = "TestPass9"
@@ -95,6 +95,7 @@ def client() -> Generator[TestClient, None, None]:
             full_name=TEST_FULL_NAME,
             email=TEST_EMAIL,
         )
+        mark_user_onboarded(setup, username=TEST_USERNAME, password=TEST_PASSWORD)
         seed_default_system_configuration(setup)
         manager_id = create_user(
             setup,

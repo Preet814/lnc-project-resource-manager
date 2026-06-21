@@ -34,6 +34,7 @@ class UserModel(Base):
         user_account_status_enum, nullable=False, default=UserAccountStatus.ACTIVE
     )
     force_password_change: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    email_verified: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, server_default=func.now()
     )

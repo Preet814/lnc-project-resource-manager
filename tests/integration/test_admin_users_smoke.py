@@ -26,7 +26,7 @@ def _unique_username(prefix: str) -> str:
 def test_admin_create_and_list_users_smoke() -> None:
     """Admin can create a user and see it in the list."""
     username = _unique_username("smoke_emp")
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     headers = _admin_headers()
 
     create = _request_or_skip(
@@ -59,7 +59,7 @@ def test_admin_create_and_list_users_smoke() -> None:
 def test_admin_deactivate_and_reactivate_smoke() -> None:
     """Admin can deactivate and reactivate a user account."""
     username = _unique_username("smoke_cycle")
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     headers = _admin_headers()
 
     create = _request_or_skip(
@@ -98,7 +98,7 @@ def test_admin_deactivate_and_reactivate_smoke() -> None:
 def test_admin_reset_password_smoke() -> None:
     """Admin can reset a user's password by username."""
     username = _unique_username("smoke_reset")
-    email = f"{username}@example.test"
+    email = f"{username}@example.com"
     headers = _admin_headers()
 
     create = _request_or_skip(

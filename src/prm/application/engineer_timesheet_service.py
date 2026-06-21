@@ -1,5 +1,6 @@
 """Engineer timesheet submit and history (BRD Screen 5.1, 5.2)."""
 
+from collections.abc import Callable
 from datetime import UTC, date, datetime
 
 from prm.application.protocols import (
@@ -7,9 +8,11 @@ from prm.application.protocols import (
     ProjectRepository,
     SystemConfigurationRepository,
     TimesheetRepository,
+    TimesheetSubmissionRestoreRepository,
     UserRepository,
 )
-from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS
+from prm.application.timesheet_week_policy import is_submission_blocked
+from prm.domain.constants import DEFAULT_APP_TIMEZONE, DEFAULT_MAX_WEEKLY_HOURS
 from prm.domain.dtos import (
     MyTimesheetEntryDetail,
     MyTimesheetListResult,
@@ -36,12 +39,21 @@ class EngineerTimesheetService:
         project_repository: ProjectRepository,
         timesheet_repository: TimesheetRepository,
         config_repository: SystemConfigurationRepository,
+        restore_repository: TimesheetSubmissionRestoreRepository,
+        *,
+        timesheet_notifications_enabled: bool = True,
+        app_timezone: str = DEFAULT_APP_TIMEZONE,
+        now_provider: Callable[[], datetime] | None = None,
     ) -> None:
         self._users = user_repository
         self._allocations = allocation_repository
         self._projects = project_repository
         self._timesheets = timesheet_repository
         self._config = config_repository
+        self._restores = restore_repository
+        self._timesheet_notifications_enabled = timesheet_notifications_enabled
+        self._app_timezone = app_timezone
+        self._now = now_provider or (lambda: datetime.now(UTC))
 
     def submit_week(
         self,
@@ -52,6 +64,7 @@ class EngineerTimesheetService:
         week_start = command.week_start_date
         assert_monday_week_start(week_start)
         self._reject_future_week(week_start)
+        self._reject_frozen_week(engineer.id, week_start)
         self._reject_duplicate_week(engineer.id, week_start)
 
         max_weekly_hours = self._max_weekly_hours()
@@ -110,7 +123,7 @@ class EngineerTimesheetService:
                 f"({max_weekly_hours} hrs)."
             )
 
-        submitted_at = datetime.now(UTC)
+        submitted_at = self._now()
         week = self._timesheets.create_week_with_entries(
             user_id=engineer.id,
             week_start_date=week_start,
@@ -199,6 +212,19 @@ class EngineerTimesheetService:
         current_week_start = week_start_on_or_before(date.today())
         if week_start > current_week_start:
             raise ValidationError("Cannot submit a timesheet for a future week.")
+
+    def _reject_frozen_week(self, user_id: int, week_start: date) -> None:
+        is_restored = self._restores.find_by_user_and_week(user_id, week_start)
+        if is_submission_blocked(
+            week_start,
+            now=self._now(),
+            app_timezone=self._app_timezone,
+            enabled=self._timesheet_notifications_enabled,
+            is_restored=is_restored,
+        ):
+            raise ValidationError(
+                "Timesheet submission for this week is closed after Tuesday 17:30 IST."
+            )
 
     def _reject_duplicate_week(self, user_id: int, week_start: date) -> None:
         existing = self._timesheets.find_week_by_user(user_id, week_start)

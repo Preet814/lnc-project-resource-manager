@@ -3,6 +3,10 @@
 from datetime import UTC, date, datetime, timedelta
 
 from prm.application.health_rule_engine import HealthRuleEngine
+from prm.application.project_at_risk_notification_service import (
+    ProjectAtRiskNotificationService,
+)
+from prm.application.timesheet_week_policy import allocation_covers_week
 from prm.application.protocols import (
     AllocationRepository,
     MilestoneRepository,
@@ -20,7 +24,6 @@ from prm.domain.dtos import (
     HealthTimesheetFact,
     SchedulerRunResult,
 )
-from prm.domain.entities.allocation import Allocation
 from prm.domain.enums import ProjectStatus, ResourceWorkStatus, TimesheetWeekStatus
 from prm.domain.week_calendar import last_completed_week_start, week_end
 
@@ -41,6 +44,7 @@ class SchedulerService:
         health_engine: HealthRuleEngine,
         *,
         missed_lookback_weeks: int = SCHEDULER_MISSED_LOOKBACK_WEEKS,
+        at_risk_notifier: ProjectAtRiskNotificationService | None = None,
     ) -> None:
         self._users = user_repository
         self._allocations = allocation_repository
@@ -52,16 +56,16 @@ class SchedulerService:
         self._utilisation = utilisation
         self._health_engine = health_engine
         self._missed_lookback_weeks = missed_lookback_weeks
+        self._at_risk_notifier = at_risk_notifier
 
     def run_all_jobs(self, as_of: date | None = None) -> SchedulerRunResult:
         reference = as_of or date.today()
         engineers_synced = self.recompute_utilisation_and_status(reference)
         projects_evaluated = self.recompute_project_health(reference)
-        missed_weeks_created = self.flag_missed_timesheets(reference)
         return SchedulerRunResult(
             engineers_synced=engineers_synced,
             projects_evaluated=projects_evaluated,
-            missed_weeks_created=missed_weeks_created,
+            missed_weeks_created=0,
         )
 
     def recompute_utilisation_and_status(self, as_of: date) -> int:
@@ -76,10 +80,11 @@ class SchedulerService:
         evaluated = 0
         computed_at = datetime.now(UTC)
         for project in self._projects.list_all(status=ProjectStatus.ACTIVE):
+            previous_status = project.health_status
             evaluation = self._health_engine.evaluate(
                 self._build_health_input(project.id, as_of)
             )
-            self._projects.update_health(
+            updated = self._projects.update_health(
                 project.id,
                 health_status=evaluation.status,
                 health_computed_at=computed_at,
@@ -90,6 +95,13 @@ class SchedulerService:
                 risk_flags=evaluation.risk_flags,
                 computed_at=computed_at,
             )
+            if self._at_risk_notifier is not None:
+                self._at_risk_notifier.maybe_notify_at_risk(
+                    updated,
+                    previous_status=previous_status,
+                    new_status=evaluation.status,
+                    as_of=computed_at,
+                )
             evaluated += 1
         return evaluated
 
@@ -110,7 +122,7 @@ class SchedulerService:
                 if period_end >= as_of:
                     continue
                 if not any(
-                    self._allocation_covers_week(allocation, week_start, period_end)
+                    allocation_covers_week(allocation, week_start, period_end)
                     for allocation in allocations
                 ):
                     continue
@@ -207,15 +219,3 @@ class SchedulerService:
         if config is None:
             return DEFAULT_MAX_WEEKLY_HOURS
         return config.get_max_weekly_hours()
-
-    @staticmethod
-    def _allocation_covers_week(
-        allocation: Allocation,
-        week_start: date,
-        period_end: date,
-    ) -> bool:
-        if allocation.from_date > period_end:
-            return False
-        if allocation.to_date is not None and week_start > allocation.to_date:
-            return False
-        return True

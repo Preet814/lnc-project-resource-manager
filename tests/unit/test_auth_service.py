@@ -50,6 +50,7 @@ def test_login_success_returns_token_and_force_password_change_flag() -> None:
         assert result.username == TEST_USERNAME
         assert result.role == Role.ADMIN
         assert result.force_password_change is True
+        assert result.email_verified is True
 
 
 def test_login_fails_with_wrong_password() -> None:

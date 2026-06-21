@@ -8,6 +8,7 @@ from prm.domain.constants import DEFAULT_MAX_WEEKLY_HOURS, DEFAULT_SCHEDULER_INT
 from prm.domain.enums import LLMProvider, UserAccountStatus
 from prm.infrastructure.db.models import SystemConfigurationModel, UserModel
 from prm.infrastructure.db.seed import (
+    ensure_bootstrap_admin_email_verified,
     seed_bootstrap_admin,
     seed_default_system_configuration,
     seed_default_system_configuration_from_settings,
@@ -49,6 +50,7 @@ def test_seed_creates_admin_with_force_password_change() -> None:
         assert admin.role.code == "ADMIN"
         assert admin.account_status == UserAccountStatus.ACTIVE
         assert admin.force_password_change is True
+        assert admin.email_verified is True
 
         hasher = BcryptPasswordHasher()
         assert hasher.verify(TEST_PASSWORD, admin.password_hash)
@@ -63,6 +65,30 @@ def test_seed_is_idempotent() -> None:
             select(UserModel).where(UserModel.username == TEST_USERNAME)
         )
         assert admin is not None
+
+
+def test_ensure_bootstrap_admin_email_verified_updates_existing_admin() -> None:
+    with _session() as session:
+        _seed(session)
+        admin = session.scalar(
+            select(UserModel).where(UserModel.username == TEST_USERNAME)
+        )
+        assert admin is not None
+        admin.email_verified = False
+        session.commit()
+
+        updated = ensure_bootstrap_admin_email_verified(
+            session,
+            _bootstrap_settings(),
+        )
+        assert updated is True
+
+        reloaded = session.scalar(
+            select(UserModel).where(UserModel.username == TEST_USERNAME)
+        )
+        assert reloaded is not None
+        assert reloaded.email_verified is True
+        assert ensure_bootstrap_admin_email_verified(session, _bootstrap_settings()) is False
 
 
 def test_seed_default_system_configuration_creates_brd_defaults() -> None:

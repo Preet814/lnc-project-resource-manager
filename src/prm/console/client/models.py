@@ -48,6 +48,7 @@ class EngineerSummary:
     designation: str
     work_status: ResourceWorkStatus
     is_active: bool
+    email_verified: bool
 
 
 @dataclass(frozen=True)
@@ -274,6 +275,9 @@ class EngineerTimesheetWeekDetail:
     status: TimesheetWeekStatus
     total_hours: int
     entries: tuple[EngineerTimesheetEntry, ...]
+    submission_frozen: bool = False
+    submission_restored: bool = False
+    can_restore: bool = False
 
 
 @dataclass(frozen=True)

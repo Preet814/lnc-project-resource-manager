@@ -35,6 +35,7 @@ def _to_domain(model: UserModel) -> User:
         manager_id=model.manager_id,
         account_status=model.account_status,
         force_password_change=model.force_password_change,
+        email_verified=model.email_verified,
         created_at=model.created_at,
         updated_at=model.updated_at,
         department_name=model.department.name if model.department is not None else None,
@@ -168,7 +169,11 @@ class SqlAlchemyUserRepository:
         if full_name is not None:
             model.full_name = full_name
         if email is not None:
-            model.email = email
+            if email.casefold() != model.email.casefold():
+                model.email = email
+                model.email_verified = False
+            else:
+                model.email = email
         if department_id is not None:
             model.department_id = department_id
         if designation_id is not None:
@@ -198,6 +203,14 @@ class SqlAlchemyUserRepository:
             raise NotFoundError(f"User {user_id} not found.")
         model.password_hash = password_hash
         model.force_password_change = force_password_change
+        self._session.flush()
+        return self._require_domain(user_id)
+
+    def update_email_verified(self, user_id: int, *, email_verified: bool) -> User:
+        model = self._session.get(UserModel, user_id)
+        if model is None:
+            raise NotFoundError(f"User {user_id} not found.")
+        model.email_verified = email_verified
         self._session.flush()
         return self._require_domain(user_id)
 

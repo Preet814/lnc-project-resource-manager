@@ -1,6 +1,6 @@
 """Project persistence via SQLAlchemy."""
 
-from datetime import date, datetime
+from datetime import UTC, date, datetime
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -9,6 +9,14 @@ from prm.domain.entities.project import Project
 from prm.domain.enums import ProjectHealthStatus, ProjectStatus
 from prm.domain.exceptions import NotFoundError
 from prm.infrastructure.db.models import ProjectModel
+
+
+def _as_utc(value: datetime | None) -> datetime | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=UTC)
+    return value.astimezone(UTC)
 
 
 def _to_domain(model: ProjectModel) -> Project:
@@ -22,7 +30,8 @@ def _to_domain(model: ProjectModel) -> Project:
         manager_user_id=model.manager_user_id,
         total_story_points=model.total_story_points,
         health_status=model.health_status,
-        health_computed_at=model.health_computed_at,
+        health_computed_at=_as_utc(model.health_computed_at),
+        last_at_risk_email_sent_at=_as_utc(model.last_at_risk_email_sent_at),
     )
 
 
@@ -129,6 +138,30 @@ class SqlAlchemyProjectRepository:
 
         model.health_status = health_status
         model.health_computed_at = health_computed_at
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)
+
+    def update_last_at_risk_email_sent(
+        self,
+        project_id: int,
+        sent_at: datetime,
+    ) -> Project:
+        model = self._session.get(ProjectModel, project_id)
+        if model is None:
+            raise NotFoundError(f"Project {project_id} not found.")
+
+        model.last_at_risk_email_sent_at = sent_at
+        self._session.flush()
+        self._session.refresh(model)
+        return _to_domain(model)
+
+    def clear_last_at_risk_email_sent(self, project_id: int) -> Project:
+        model = self._session.get(ProjectModel, project_id)
+        if model is None:
+            raise NotFoundError(f"Project {project_id} not found.")
+
+        model.last_at_risk_email_sent_at = None
         self._session.flush()
         self._session.refresh(model)
         return _to_domain(model)

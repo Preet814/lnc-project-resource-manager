@@ -23,6 +23,10 @@ def _apply_unit_test_env() -> None:
     os.environ.setdefault("GROQ_MODEL", "llama-3.3-70b-versatile")
     os.environ.setdefault("GEMMA_BASE_URL", "http://164.52.211.238")
     os.environ.setdefault("GEMMA_MODEL", "gemma3:12b-it-q8_0")
+    os.environ.setdefault("EMAIL_VERIFICATION_REQUIRED", "false")
+    os.environ.setdefault("SMTP_ENABLED", "false")
+    os.environ.setdefault("TIMESHEET_NOTIFICATIONS_ENABLED", "false")
+    os.environ.setdefault("PROJECT_AT_RISK_NOTIFICATIONS_ENABLED", "false")
 
 
 def _clear_settings_caches() -> None:
@@ -32,9 +36,27 @@ def _clear_settings_caches() -> None:
     get_engine.cache_clear()
 
 
+def _allow_test_email_domains() -> None:
+    """Let route tests use reserved domains such as example.test with EmailStr."""
+    try:
+        import email_validator
+    except ImportError:
+        return
+
+    original_validate = email_validator.validate_email
+
+    def validate_email(email, /, *args, **kwargs):
+        kwargs.setdefault("test_environment", True)
+        kwargs.setdefault("check_deliverability", False)
+        return original_validate(email, *args, **kwargs)
+
+    email_validator.validate_email = validate_email
+
+
 def pytest_configure(config: pytest.Config) -> None:
     """Run before collection so route fixtures never start APScheduler against Postgres."""
     _apply_unit_test_env()
+    _allow_test_email_domains()
     _clear_settings_caches()
 
 
@@ -42,4 +64,5 @@ def pytest_configure(config: pytest.Config) -> None:
 def _disable_scheduler_for_unit_tests() -> None:
     """Re-apply env and clear caches for the test session."""
     _apply_unit_test_env()
+    _allow_test_email_domains()
     _clear_settings_caches()

@@ -32,6 +32,7 @@ def _user(*, role: Role = Role.ADMIN, active: bool = True, user_id: int = 1) -> 
         manager_id=None,
         account_status=UserAccountStatus.ACTIVE if active else UserAccountStatus.INACTIVE,
         force_password_change=False,
+        email_verified=True,
         created_at=now,
         updated_at=now,
     )

@@ -2,6 +2,7 @@
 
 from datetime import date, timedelta
 
+from prm.application.timesheet_restore_service import TimesheetRestoreService
 from prm.application.protocols import (
     AllocationRepository,
     ProjectRepository,
@@ -27,11 +28,13 @@ class TeamTimesheetService:
         user_repository: UserRepository,
         project_repository: ProjectRepository,
         timesheet_repository: TimesheetRepository,
+        restore_service: TimesheetRestoreService,
     ) -> None:
         self._allocations = allocation_repository
         self._users = user_repository
         self._projects = project_repository
         self._timesheets = timesheet_repository
+        self._restore_service = restore_service
 
     def list_team_timesheets(
         self,
@@ -79,6 +82,11 @@ class TeamTimesheetService:
             raise NotFoundError(f"Engineer {user_id} not found.")
 
         self._assert_user_on_team(manager_user_id, user_id, week_start_date)
+        access = self._restore_service.get_access_state(
+            manager_user_id,
+            user_id,
+            week_start_date,
+        )
 
         week = self._timesheets.find_week_by_user(user_id, week_start_date)
         if week is None:
@@ -89,6 +97,9 @@ class TeamTimesheetService:
                 status=TimesheetWeekStatus.MISSED,
                 total_hours=0,
                 entries=(),
+                submission_frozen=access.submission_frozen,
+                submission_restored=access.submission_restored,
+                can_restore=access.can_restore,
             )
 
         entries = tuple(
@@ -109,6 +120,9 @@ class TeamTimesheetService:
             status=week.status,
             total_hours=week.total_hours,
             entries=entries,
+            submission_frozen=access.submission_frozen,
+            submission_restored=access.submission_restored,
+            can_restore=access.can_restore,
         )
 
     def _hours_and_status_for_project(

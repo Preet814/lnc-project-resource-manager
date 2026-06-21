@@ -11,6 +11,7 @@ from prm.application.allocation_service import AllocationService
 from prm.application.allocation_view_service import AllocationViewService
 from prm.application.auth_service import AuthService
 from prm.application.authorization_service import AuthorizationService
+from prm.application.email_verification_service import EmailVerificationService
 from prm.application.engineer_allocation_service import EngineerAllocationService
 from prm.application.engineer_timesheet_service import EngineerTimesheetService
 from prm.application.manager_project_service import ManagerProjectService
@@ -26,6 +27,7 @@ from prm.application.team_assignment_service import TeamAssignmentService
 from prm.application.team_candidate_search_service import TeamCandidateSearchService
 from prm.application.team_match_service import TeamMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
+from prm.application.timesheet_restore_service import TimesheetRestoreService
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
 from prm.application.user_skill_service import UserSkillService
@@ -35,6 +37,7 @@ from prm.domain.enums import Role
 from prm.domain.exceptions import UnauthorizedError, ValidationError
 from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
+    SqlAlchemyEmailVerificationOtpRepository,
     SqlAlchemyMilestoneRepository,
     SqlAlchemyPermissionRepository,
     SqlAlchemyProjectHealthSnapshotRepository,
@@ -42,11 +45,13 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemySkillRepository,
     SqlAlchemySystemConfigurationRepository,
     SqlAlchemyTimesheetRepository,
+    SqlAlchemyTimesheetSubmissionRestoreRepository,
     SqlAlchemyUserRepository,
     SqlAlchemyUserSkillRepository,
 )
 from prm.infrastructure.db.session import get_db_session
 from prm.infrastructure.llm.factory import create_llm_client_from_settings
+from prm.infrastructure.email.factory import create_email_sender
 from prm.infrastructure.security.jwt import JwtTokenPayload, JwtTokenService
 from prm.infrastructure.security.llm_api_key import FernetLlmApiKeyProtector
 from prm.infrastructure.security.password import BcryptPasswordHasher
@@ -72,7 +77,35 @@ def get_auth_service(
             secret_key=settings.jwt_secret_key,
             expire_minutes=settings.jwt_expire_minutes,
         ),
+        email_verification_required=settings.email_verification_required,
     )
+
+
+def get_email_verification_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> EmailVerificationService:
+    return EmailVerificationService(
+        user_repository=SqlAlchemyUserRepository(db),
+        otp_repository=SqlAlchemyEmailVerificationOtpRepository(db),
+        email_sender=create_email_sender(settings),
+        token_service=JwtTokenService(
+            secret_key=settings.jwt_secret_key,
+            expire_minutes=settings.jwt_expire_minutes,
+        ),
+        otp_secret=settings.jwt_secret_key,
+        email_verification_required=settings.email_verification_required,
+    )
+
+
+def _assert_onboarded(
+    current_user: JwtTokenPayload,
+    settings: Settings,
+) -> None:
+    if current_user.force_password_change:
+        raise UnauthorizedError("Password change is required before using this feature.")
+    if settings.email_verification_required and not current_user.email_verified:
+        raise UnauthorizedError("Email verification is required before using this feature.")
 
 
 def get_current_user(
@@ -160,31 +193,37 @@ def get_system_config_service(
 
 def require_admin(
     current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JwtTokenPayload:
     if current_user.role != Role.ADMIN:
         raise UnauthorizedError(
             f"Role {current_user.role.value} is not permitted for this action."
         )
+    _assert_onboarded(current_user, settings)
     return current_user
 
 
 def require_manager(
     current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JwtTokenPayload:
     if current_user.role != Role.MANAGER:
         raise UnauthorizedError(
             f"Role {current_user.role.value} is not permitted for this action."
         )
+    _assert_onboarded(current_user, settings)
     return current_user
 
 
 def require_engineer(
     current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> JwtTokenPayload:
     if current_user.role != Role.ENGINEER:
         raise UnauthorizedError(
             f"Role {current_user.role.value} is not permitted for this action."
         )
+    _assert_onboarded(current_user, settings)
     return current_user
 
 
@@ -194,8 +233,10 @@ def require_permission(permission_code: str):
     def _checker(
         current_user: Annotated[JwtTokenPayload, Depends(get_current_user)],
         permission_service: Annotated[PermissionService, Depends(get_permission_service)],
+        settings: Annotated[Settings, Depends(get_settings)],
     ) -> JwtTokenPayload:
         permission_service.assert_permission(current_user.user_id, permission_code)
+        _assert_onboarded(current_user, settings)
         return current_user
 
     return _checker
@@ -203,6 +244,7 @@ def require_permission(permission_code: str):
 
 def get_engineer_timesheet_service(
     db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> EngineerTimesheetService:
     return EngineerTimesheetService(
         user_repository=SqlAlchemyUserRepository(db),
@@ -210,6 +252,9 @@ def get_engineer_timesheet_service(
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
         config_repository=SqlAlchemySystemConfigurationRepository(db),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(db),
+        timesheet_notifications_enabled=settings.timesheet_notifications_enabled,
+        app_timezone=settings.app_timezone,
     )
 
 
@@ -265,14 +310,38 @@ def get_manager_project_service(
     )
 
 
+def get_timesheet_restore_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TimesheetRestoreService:
+    return TimesheetRestoreService(
+        user_repository=SqlAlchemyUserRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(db),
+        email_sender=create_email_sender(settings),
+        notifications_enabled=settings.timesheet_notifications_enabled,
+        app_timezone=settings.app_timezone,
+    )
+
+
 def get_team_timesheet_service(
     db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> TeamTimesheetService:
+    restore_service = TimesheetRestoreService(
+        user_repository=SqlAlchemyUserRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(db),
+        email_sender=create_email_sender(settings),
+        notifications_enabled=settings.timesheet_notifications_enabled,
+        app_timezone=settings.app_timezone,
+    )
     return TeamTimesheetService(
         allocation_repository=SqlAlchemyAllocationRepository(db),
         user_repository=SqlAlchemyUserRepository(db),
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        restore_service=restore_service,
     )
 
 

@@ -7,6 +7,7 @@ from sqlalchemy import JSON
 from sqlalchemy.orm import Session
 
 from prm.application.team_timesheet_service import TeamTimesheetService
+from prm.application.timesheet_restore_service import TimesheetRestoreService
 from prm.domain.enums import ActivityTag, Role, TimesheetWeekStatus
 from prm.domain.exceptions import NotFoundError, UnauthorizedError
 from prm.infrastructure.db.models import (
@@ -19,8 +20,10 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyAllocationRepository,
     SqlAlchemyProjectRepository,
     SqlAlchemyTimesheetRepository,
+    SqlAlchemyTimesheetSubmissionRestoreRepository,
     SqlAlchemyUserRepository,
 )
+from tests.unit.test_email_verification_service import FakeEmailSender
 from tests.unit.engineer_fixtures import (
     create_allocation_tables,
     create_memory_session,
@@ -39,11 +42,19 @@ def _session() -> Session:
 
 
 def _service(session: Session) -> TeamTimesheetService:
+    restore_service = TimesheetRestoreService(
+        user_repository=SqlAlchemyUserRepository(session),
+        timesheet_repository=SqlAlchemyTimesheetRepository(session),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(session),
+        email_sender=FakeEmailSender(),
+        notifications_enabled=False,
+    )
     return TeamTimesheetService(
         allocation_repository=SqlAlchemyAllocationRepository(session),
         user_repository=SqlAlchemyUserRepository(session),
         project_repository=SqlAlchemyProjectRepository(session),
         timesheet_repository=SqlAlchemyTimesheetRepository(session),
+        restore_service=restore_service,
     )
 
 

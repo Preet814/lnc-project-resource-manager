@@ -1,13 +1,13 @@
 """Admin user-management API request and response schemas."""
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, EmailStr, Field
 
 from prm.domain.enums import Role, UserAccountStatus
 
 
 class CreateUserRequest(BaseModel):
     full_name: str = Field(min_length=1)
-    email: str = Field(min_length=1)
+    email: EmailStr
     username: str = Field(min_length=1)
     temporary_password: str = Field(min_length=1)
     role: Role
