@@ -15,6 +15,7 @@ from prm.api.deps import (
     get_skill_match_service,
     get_team_match_service,
     get_team_timesheet_service,
+    get_timesheet_restore_service,
     require_manager,
 )
 from prm.api.schemas.admin_allocations import AllocationSummaryResponse
@@ -34,6 +35,7 @@ from prm.api.schemas.manager import (
     ManagerProjectResourceResponse,
     ManagerProjectSummaryResponse,
     ProjectAllocationListResponse,
+    RestoreTimesheetSubmissionResponse,
     ResourceDashboardResponse,
     RiskSummaryResponse,
     SkillMatchRequest,
@@ -54,6 +56,7 @@ from prm.application.risk_summary_service import RiskSummaryService
 from prm.application.skill_match_service import SkillMatchService
 from prm.application.team_match_service import TeamMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
+from prm.application.timesheet_restore_service import TimesheetRestoreService
 from prm.domain.dtos import (
     AllocationSummary,
     EngineerResourceDetail,
@@ -67,6 +70,7 @@ from prm.domain.dtos import (
     TeamTimesheetListResult,
 )
 from prm.domain.entities.allocation import Allocation
+from prm.domain.week_calendar import last_completed_week_start
 from prm.infrastructure.security.jwt import JwtTokenPayload
 
 router = APIRouter(prefix="/manager", tags=["manager"])
@@ -154,6 +158,13 @@ def _to_project_allocation_list_response(
 def _default_week_start() -> date:
     today = date.today()
     return today - timedelta(days=today.weekday())
+
+
+def _default_restore_week_start() -> date:
+    week = last_completed_week_start(date.today())
+    if week is None:
+        return _default_week_start()
+    return week
 
 
 def _to_manager_project_list_response(
@@ -244,6 +255,9 @@ def _to_engineer_timesheet_week_detail_response(
             )
             for entry in detail.entries
         ],
+        submission_frozen=detail.submission_frozen,
+        submission_restored=detail.submission_restored,
+        can_restore=detail.can_restore,
     )
 
 
@@ -353,6 +367,25 @@ def get_engineer_timesheet_detail(
     week = week_start_date or _default_week_start()
     detail = service.get_engineer_timesheet_detail(manager.user_id, user_id, week)
     return _to_engineer_timesheet_week_detail_response(detail)
+
+
+@router.post(
+    "/timesheets/{user_id}/restore-submission",
+    response_model=RestoreTimesheetSubmissionResponse,
+)
+def restore_engineer_timesheet_submission(
+    user_id: int,
+    manager: Annotated[JwtTokenPayload, Depends(require_manager)],
+    service: Annotated[TimesheetRestoreService, Depends(get_timesheet_restore_service)],
+    week_start_date: Annotated[date | None, Query()] = None,
+) -> RestoreTimesheetSubmissionResponse:
+    week = week_start_date or _default_restore_week_start()
+    result = service.restore_submission_access(manager.user_id, user_id, week)
+    return RestoreTimesheetSubmissionResponse(
+        user_id=result.user_id,
+        week_start_date=result.week_start_date,
+        restored_at=result.restored_at,
+    )
 
 
 @router.get("/resources", response_model=ResourceDashboardResponse)

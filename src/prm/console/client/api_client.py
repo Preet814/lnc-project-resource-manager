@@ -1077,6 +1077,28 @@ class PrmApiClient:
                 )
                 for item in body["entries"]
             ),
+            submission_frozen=body.get("submission_frozen", False),
+            submission_restored=body.get("submission_restored", False),
+            can_restore=body.get("can_restore", False),
+        )
+
+    def restore_engineer_timesheet_submission(
+        self,
+        access_token: str,
+        user_id: int,
+        *,
+        week_start_date: date | None = None,
+    ) -> None:
+        params = (
+            {"week_start_date": week_start_date.isoformat()}
+            if week_start_date is not None
+            else None
+        )
+        self._request(
+            "POST",
+            f"/manager/timesheets/{user_id}/restore-submission",
+            params=params,
+            headers=self._auth_header(access_token),
         )
 
     @staticmethod

@@ -6,8 +6,10 @@ from sqlalchemy.orm import Session
 
 from prm.application.timesheet_notification_service import TimesheetNotificationService
 from prm.domain.constants import (
+    TIMESHEET_ENGINEER_FREEZE_SUBJECT,
     TIMESHEET_ENGINEER_REMINDER_SUBJECT,
     TIMESHEET_MANAGER_DIGEST_SUBJECT,
+    TIMESHEET_MANAGER_FREEZE_SUBJECT,
 )
 from prm.domain.enums import ProjectStatus, Role, TimesheetWeekStatus
 from prm.domain.week_calendar import last_completed_week_start
@@ -236,15 +238,34 @@ def test_notifications_disabled_skips_email_send() -> None:
         assert sender.messages == []
 
 
+def test_send_freeze_notifications_emails_engineer_and_manager() -> None:
+    with _session() as session:
+        _seed_engineer_with_allocation(session)
+        session.commit()
+        sender = FakeEmailSender()
+        service = _service(session, sender)
+
+        engineer_sent, manager_sent = service.send_freeze_notifications(date(2026, 5, 20))
+
+        assert engineer_sent == 1
+        assert manager_sent == 1
+        subjects = {message[1] for message in sender.messages}
+        assert TIMESHEET_ENGINEER_FREEZE_SUBJECT in subjects
+        assert TIMESHEET_MANAGER_FREEZE_SUBJECT in subjects
+
+
 def test_run_wednesday_jobs_returns_counts() -> None:
     with _session() as session:
         _seed_engineer_with_allocation(session)
         session.commit()
         service = _service(session, FakeEmailSender())
 
-        reminders, digests, missed = service.run_wednesday_jobs(date(2026, 5, 20))
+        engineer_freeze, manager_freeze, digests, missed = service.run_wednesday_jobs(
+            date(2026, 5, 20)
+        )
 
-        assert reminders == 1
+        assert engineer_freeze == 1
+        assert manager_freeze == 1
         assert digests == 1
         assert missed == 1
 

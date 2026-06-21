@@ -372,6 +372,29 @@ class TimesheetRepository(Protocol):
         week_start_date: date,
     ) -> TimesheetWeek: ...
 
+    def delete_missed_week(
+        self,
+        user_id: int,
+        week_start_date: date,
+    ) -> bool: ...
+
+
+class TimesheetSubmissionRestoreRepository(Protocol):
+    def find_by_user_and_week(
+        self,
+        user_id: int,
+        week_start_date: date,
+    ) -> bool: ...
+
+    def create(
+        self,
+        *,
+        user_id: int,
+        week_start_date: date,
+        restored_by_user_id: int,
+        restored_at: datetime | None = None,
+    ) -> None: ...
+
 
 class PermissionRepository(Protocol):
     def list_codes_for_role(self, role_id: int) -> frozenset[str]: ...

@@ -16,8 +16,10 @@ from prm.application.timesheet_week_policy import (
     is_timesheet_complete,
 )
 from prm.domain.constants import (
+    TIMESHEET_ENGINEER_FREEZE_SUBJECT,
     TIMESHEET_ENGINEER_REMINDER_SUBJECT,
     TIMESHEET_MANAGER_DIGEST_SUBJECT,
+    TIMESHEET_MANAGER_FREEZE_SUBJECT,
 )
 from prm.domain.week_calendar import last_completed_week_start
 
@@ -133,6 +135,52 @@ class TimesheetNotificationService:
             sent += 1
         return sent
 
+    def send_freeze_notifications(self, as_of: date) -> tuple[int, int]:
+        """Notify engineers and their managers that submission access is restricted."""
+        if not self._notifications_enabled:
+            return 0, 0
+
+        engineer_sent = 0
+        manager_sent = 0
+        for target in self.find_engineers_missing_last_completed_week(as_of):
+            engineer = self._users.find_by_id(target.user_id)
+            if engineer is None:
+                continue
+            if engineer.email_verified:
+                self._email.send(
+                    to=target.email,
+                    subject=TIMESHEET_ENGINEER_FREEZE_SUBJECT,
+                    body=(
+                        f"Hello {target.full_name},\n\n"
+                        f"Your timesheet submission access for the week starting "
+                        f"{target.week_start_date.isoformat()} has been restricted after "
+                        "the submission deadline.\n"
+                        "You can still log in and view your timesheets, but you cannot "
+                        "submit for this week until your manager restores access.\n"
+                    ),
+                )
+                engineer_sent += 1
+
+            if target.manager_id is None:
+                continue
+            manager = self._users.find_by_id(target.manager_id)
+            if manager is None or not manager.is_active() or not manager.email_verified:
+                continue
+            self._email.send(
+                to=manager.email,
+                subject=TIMESHEET_MANAGER_FREEZE_SUBJECT,
+                body=(
+                    f"Hello {manager.full_name},\n\n"
+                    f"Timesheet submission for {target.full_name} ({target.email}) "
+                    f"has been restricted for the week starting "
+                    f"{target.week_start_date.isoformat()}.\n"
+                    "Please review the situation in the PRM console. You may restore "
+                    "submission access after follow-up.\n"
+                ),
+            )
+            manager_sent += 1
+        return engineer_sent, manager_sent
+
     def flag_missed_for_last_completed_week(self, as_of: date) -> int:
         week_start = last_completed_week_start(as_of)
         if week_start is None:
@@ -154,9 +202,9 @@ class TimesheetNotificationService:
             created += 1
         return created
 
-    def run_wednesday_jobs(self, as_of: date) -> tuple[int, int, int]:
-        """Final reminder, manager digest, and MISSED rows for the last completed week."""
-        reminders = self.send_engineer_reminders(as_of)
+    def run_wednesday_jobs(self, as_of: date) -> tuple[int, int, int, int]:
+        """Freeze notices, manager digest, and MISSED rows for the last completed week."""
+        engineer_freeze, manager_freeze = self.send_freeze_notifications(as_of)
         digests = self.send_manager_digests(as_of)
         missed = self.flag_missed_for_last_completed_week(as_of)
-        return reminders, digests, missed
+        return engineer_freeze, manager_freeze, digests, missed

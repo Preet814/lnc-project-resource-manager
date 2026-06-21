@@ -357,6 +357,18 @@ class EngineerTimesheetWeekDetail:
     status: TimesheetWeekStatus
     total_hours: int
     entries: tuple[EngineerTimesheetEntryDetail, ...]
+    submission_frozen: bool = False
+    submission_restored: bool = False
+    can_restore: bool = False
+
+
+@dataclass(frozen=True, slots=True)
+class RestoreTimesheetSubmissionResult:
+    """Outcome when a manager restores frozen submission access."""
+
+    user_id: int
+    week_start_date: date
+    restored_at: datetime
 
 
 @dataclass(frozen=True, slots=True)

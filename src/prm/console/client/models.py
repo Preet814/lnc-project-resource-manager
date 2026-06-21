@@ -275,6 +275,9 @@ class EngineerTimesheetWeekDetail:
     status: TimesheetWeekStatus
     total_hours: int
     entries: tuple[EngineerTimesheetEntry, ...]
+    submission_frozen: bool = False
+    submission_restored: bool = False
+    can_restore: bool = False
 
 
 @dataclass(frozen=True)

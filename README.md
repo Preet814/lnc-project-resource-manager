@@ -383,6 +383,7 @@ curl -s "http://localhost:8000/manager/timesheets/2?week_start_date=2026-05-12" 
 | `GET /manager/projects/{project_id}` | Manager JWT | Project health detail |
 | `GET /manager/timesheets` | Manager JWT | Team timesheets for week (incl. MISSED) |
 | `GET /manager/timesheets/{employee_id}` | Manager JWT | Employee timesheet detail for week |
+| `POST /manager/timesheets/{employee_id}/restore-submission` | Manager JWT | Restore frozen timesheet submission for last completed week |
 
 ### Employee timesheets and allocations (BRD Screen 5)
 
@@ -433,7 +434,9 @@ The `api` service starts **APScheduler** on boot (when `SCHEDULER_ENABLED=true`)
 |---------------|----------|--------|
 | `TIMESHEET_REMINDER_CRON` | Mon/Tue/Wed 09:00 | Email engineers missing the last completed week (verified emails only) |
 | `TIMESHEET_FREEZE_CRON` | Tue 17:30 | Submission freeze for the last completed week (enforced at submit time) |
-| `TIMESHEET_WEDNESDAY_CRON` | Wed 09:00 | Manager digest email + create `MISSED` rows for still-missing engineers |
+| `TIMESHEET_WEDNESDAY_CRON` | Wed 09:00 | Freeze notification emails (engineer + manager), manager digest, `MISSED` rows |
+
+Managers can restore frozen submission access from the console (Team timesheets → employee detail → Restore) or `POST /manager/timesheets/{user_id}/restore-submission`.
 
 MISSED timesheet rows are **no longer** created on every interval tick; they are created on the Wednesday cron only.
 

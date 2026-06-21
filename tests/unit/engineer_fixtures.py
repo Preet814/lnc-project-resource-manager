@@ -24,6 +24,7 @@ from prm.infrastructure.db.models import (
     SkillModel,
     SystemConfigurationModel,
     TimesheetEntryModel,
+    TimesheetSubmissionRestoreModel,
     TimesheetWeekModel,
     UserModel,
     UserSkillModel,
@@ -125,6 +126,7 @@ def create_timesheet_tables(session: Session) -> None:
     TimesheetWeekModel.__table__.create(session.get_bind(), checkfirst=True)
     TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
     TimesheetEntryModel.__table__.create(session.get_bind(), checkfirst=True)
+    TimesheetSubmissionRestoreModel.__table__.create(session.get_bind(), checkfirst=True)
 
 
 def create_skill_tables(session: Session) -> None:
@@ -157,6 +159,7 @@ def create_route_tables(
         TimesheetWeekModel.__table__.create(engine, checkfirst=True)
         TimesheetEntryModel.__table__.c.activity_tags.type = JSON()
         TimesheetEntryModel.__table__.create(engine, checkfirst=True)
+        TimesheetSubmissionRestoreModel.__table__.create(engine, checkfirst=True)
     if include_skill:
         SkillModel.__table__.create(engine, checkfirst=True)
         UserSkillModel.__table__.create(engine, checkfirst=True)

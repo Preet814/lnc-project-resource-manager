@@ -12,6 +12,7 @@ from prm.console.ui import (
     print_banner,
     print_divider,
     print_error,
+    print_success,
     read_line,
 )
 from prm.console.ui.dates import format_date_input
@@ -82,22 +83,53 @@ def _view_employee_detail(
         pause()
         return
 
-    clear_screen()
-    print_banner("EMPLOYEE TIMESHEET DETAIL")
-    print(f"── {detail.user_full_name} ─────────────────────────────────")
-    print(f"Week Start : {format_date_input(detail.week_start_date)}")
-    print(f"Status     : {timesheet_status_label(detail.status)}")
-    print(f"Total Hours: {detail.total_hours}")
-    print()
-    if detail.entries:
-        print(f"{'Project':<18}{'Hours':<8}{'Activity Tags'}")
-        print_divider()
-        for entry in detail.entries:
-            tags = ", ".join(entry.activity_tags) if entry.activity_tags else "-"
-            print(f"{entry.project_name:<18}{entry.hours_worked:<8}{tags}")
-    else:
-        print("No entries for this week.")
-    print()
-    print("[B] Back")
-    read_line()
-    pause()
+    while True:
+        clear_screen()
+        print_banner("EMPLOYEE TIMESHEET DETAIL")
+        print(f"── {detail.user_full_name} ─────────────────────────────────")
+        print(f"Week Start : {format_date_input(detail.week_start_date)}")
+        print(f"Status     : {timesheet_status_label(detail.status)}")
+        print(f"Total Hours: {detail.total_hours}")
+        if detail.submission_frozen:
+            print("Submission : RESTRICTED (frozen after deadline)")
+        if detail.submission_restored:
+            print("Submission : RESTORED by manager")
+        print()
+        if detail.entries:
+            print(f"{'Project':<18}{'Hours':<8}{'Activity Tags'}")
+            print_divider()
+            for entry in detail.entries:
+                tags = ", ".join(entry.activity_tags) if entry.activity_tags else "-"
+                print(f"{entry.project_name:<18}{entry.hours_worked:<8}{tags}")
+        else:
+            print("No entries for this week.")
+        print()
+        if detail.can_restore:
+            print("[R] Restore submission access     [B] Back")
+        else:
+            print("[B] Back")
+        action = read_line("Enter action: ").strip().upper()
+        if action in {"B", "BACK"}:
+            return
+        if action in {"R", "RESTORE"} and detail.can_restore:
+            try:
+                client.restore_engineer_timesheet_submission(
+                    session.access_token,
+                    user_id,
+                    week_start_date=week_start,
+                )
+                print_success(
+                    "Submission access restored. The engineer can submit this week again."
+                )
+                pause()
+                return
+            except ApiError as exc:
+                print_error(str(exc))
+                pause()
+                continue
+        if action in {"R", "RESTORE"}:
+            print_error("Submission access cannot be restored for this employee/week.")
+            pause()
+            continue
+        print_error("Invalid action.")
+        pause()

@@ -8,9 +8,10 @@ from prm.application.protocols import (
     ProjectRepository,
     SystemConfigurationRepository,
     TimesheetRepository,
+    TimesheetSubmissionRestoreRepository,
     UserRepository,
 )
-from prm.application.timesheet_week_policy import is_last_completed_week_frozen
+from prm.application.timesheet_week_policy import is_submission_blocked
 from prm.domain.constants import DEFAULT_APP_TIMEZONE, DEFAULT_MAX_WEEKLY_HOURS
 from prm.domain.dtos import (
     MyTimesheetEntryDetail,
@@ -38,6 +39,7 @@ class EngineerTimesheetService:
         project_repository: ProjectRepository,
         timesheet_repository: TimesheetRepository,
         config_repository: SystemConfigurationRepository,
+        restore_repository: TimesheetSubmissionRestoreRepository,
         *,
         timesheet_notifications_enabled: bool = True,
         app_timezone: str = DEFAULT_APP_TIMEZONE,
@@ -48,6 +50,7 @@ class EngineerTimesheetService:
         self._projects = project_repository
         self._timesheets = timesheet_repository
         self._config = config_repository
+        self._restores = restore_repository
         self._timesheet_notifications_enabled = timesheet_notifications_enabled
         self._app_timezone = app_timezone
         self._now = now_provider or (lambda: datetime.now(UTC))
@@ -61,7 +64,7 @@ class EngineerTimesheetService:
         week_start = command.week_start_date
         assert_monday_week_start(week_start)
         self._reject_future_week(week_start)
-        self._reject_frozen_week(week_start)
+        self._reject_frozen_week(engineer.id, week_start)
         self._reject_duplicate_week(engineer.id, week_start)
 
         max_weekly_hours = self._max_weekly_hours()
@@ -210,12 +213,14 @@ class EngineerTimesheetService:
         if week_start > current_week_start:
             raise ValidationError("Cannot submit a timesheet for a future week.")
 
-    def _reject_frozen_week(self, week_start: date) -> None:
-        if is_last_completed_week_frozen(
+    def _reject_frozen_week(self, user_id: int, week_start: date) -> None:
+        is_restored = self._restores.find_by_user_and_week(user_id, week_start)
+        if is_submission_blocked(
             week_start,
             now=self._now(),
             app_timezone=self._app_timezone,
             enabled=self._timesheet_notifications_enabled,
+            is_restored=is_restored,
         ):
             raise ValidationError(
                 "Timesheet submission for this week is closed after Tuesday 17:30 IST."

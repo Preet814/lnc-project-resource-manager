@@ -161,3 +161,20 @@ class SqlAlchemyTimesheetRepository:
         self._session.flush()
         self._session.refresh(week_model)
         return _week_to_domain(week_model)
+
+    def delete_missed_week(
+        self,
+        user_id: int,
+        week_start_date: date,
+    ) -> bool:
+        model = self._session.scalar(
+            select(TimesheetWeekModel)
+            .where(TimesheetWeekModel.user_id == user_id)
+            .where(TimesheetWeekModel.week_start_date == week_start_date)
+            .where(TimesheetWeekModel.status == TimesheetWeekStatus.MISSED)
+        )
+        if model is None:
+            return False
+        self._session.delete(model)
+        self._session.flush()
+        return True

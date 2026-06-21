@@ -27,6 +27,7 @@ from prm.application.team_assignment_service import TeamAssignmentService
 from prm.application.team_candidate_search_service import TeamCandidateSearchService
 from prm.application.team_match_service import TeamMatchService
 from prm.application.team_timesheet_service import TeamTimesheetService
+from prm.application.timesheet_restore_service import TimesheetRestoreService
 from prm.application.user_management_service import UserManagementService
 from prm.application.user_profile_service import UserProfileService
 from prm.application.user_skill_service import UserSkillService
@@ -44,6 +45,7 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemySkillRepository,
     SqlAlchemySystemConfigurationRepository,
     SqlAlchemyTimesheetRepository,
+    SqlAlchemyTimesheetSubmissionRestoreRepository,
     SqlAlchemyUserRepository,
     SqlAlchemyUserSkillRepository,
 )
@@ -250,6 +252,7 @@ def get_engineer_timesheet_service(
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
         config_repository=SqlAlchemySystemConfigurationRepository(db),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(db),
         timesheet_notifications_enabled=settings.timesheet_notifications_enabled,
         app_timezone=settings.app_timezone,
     )
@@ -307,14 +310,38 @@ def get_manager_project_service(
     )
 
 
+def get_timesheet_restore_service(
+    db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
+) -> TimesheetRestoreService:
+    return TimesheetRestoreService(
+        user_repository=SqlAlchemyUserRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(db),
+        email_sender=create_email_sender(settings),
+        notifications_enabled=settings.timesheet_notifications_enabled,
+        app_timezone=settings.app_timezone,
+    )
+
+
 def get_team_timesheet_service(
     db: Annotated[Session, Depends(get_db_session)],
+    settings: Annotated[Settings, Depends(get_settings)],
 ) -> TeamTimesheetService:
+    restore_service = TimesheetRestoreService(
+        user_repository=SqlAlchemyUserRepository(db),
+        timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(db),
+        email_sender=create_email_sender(settings),
+        notifications_enabled=settings.timesheet_notifications_enabled,
+        app_timezone=settings.app_timezone,
+    )
     return TeamTimesheetService(
         allocation_repository=SqlAlchemyAllocationRepository(db),
         user_repository=SqlAlchemyUserRepository(db),
         project_repository=SqlAlchemyProjectRepository(db),
         timesheet_repository=SqlAlchemyTimesheetRepository(db),
+        restore_service=restore_service,
     )
 
 

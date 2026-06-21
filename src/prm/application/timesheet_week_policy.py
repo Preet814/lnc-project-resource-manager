@@ -69,3 +69,21 @@ def is_last_completed_week_frozen(
     reference = now if now.tzinfo is not None else now.replace(tzinfo=UTC)
     freeze_at = freeze_datetime_for_completed_week(last_week, tz)
     return reference.astimezone(tz) >= freeze_at
+
+
+def is_submission_blocked(
+    week_start: date,
+    *,
+    now: datetime,
+    app_timezone: str,
+    enabled: bool,
+    is_restored: bool,
+) -> bool:
+    if is_restored:
+        return False
+    return is_last_completed_week_frozen(
+        week_start,
+        now=now,
+        app_timezone=app_timezone,
+        enabled=enabled,
+    )

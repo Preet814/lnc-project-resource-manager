@@ -23,6 +23,7 @@ from prm.infrastructure.db.repositories import (
     SqlAlchemyProjectRepository,
     SqlAlchemySystemConfigurationRepository,
     SqlAlchemyTimesheetRepository,
+    SqlAlchemyTimesheetSubmissionRestoreRepository,
     SqlAlchemyUserRepository,
 )
 from tests.unit.engineer_fixtures import (
@@ -58,6 +59,7 @@ def _service(
         project_repository=SqlAlchemyProjectRepository(session),
         timesheet_repository=SqlAlchemyTimesheetRepository(session),
         config_repository=SqlAlchemySystemConfigurationRepository(session),
+        restore_repository=SqlAlchemyTimesheetSubmissionRestoreRepository(session),
         timesheet_notifications_enabled=timesheet_notifications_enabled,
         app_timezone="Asia/Kolkata",
         now_provider=now_provider,
@@ -344,6 +346,35 @@ def test_submit_week_allows_last_completed_week_before_tuesday_freeze() -> None:
         assert week_start == PAST_MONDAY
         before_freeze = datetime(2026, 5, 19, 12, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
         service = _service(session, now_provider=lambda: before_freeze)
+
+        result = service.submit_week(
+            user_id,
+            _submit_command(project_id, week_start=week_start),
+        )
+
+        assert result.status == TimesheetWeekStatus.SUBMITTED
+
+
+def test_submit_week_allowed_after_manager_restore() -> None:
+    with _session() as session:
+        user_id, project_id = _seed_user_with_allocation(session)
+        engineer = SqlAlchemyUserRepository(session).find_by_id(user_id)
+        assert engineer is not None
+        assert engineer.manager_id is not None
+        session.commit()
+        as_of = date(2026, 5, 20)
+        week_start = last_completed_week_start(as_of)
+        assert week_start == PAST_MONDAY
+        after_freeze = datetime(2026, 5, 19, 18, 0, tzinfo=ZoneInfo("Asia/Kolkata"))
+        restore_repo = SqlAlchemyTimesheetSubmissionRestoreRepository(session)
+        restore_repo.create(
+            user_id=user_id,
+            week_start_date=week_start,
+            restored_by_user_id=engineer.manager_id,
+            restored_at=after_freeze,
+        )
+        session.commit()
+        service = _service(session, now_provider=lambda: after_freeze)
 
         result = service.submit_week(
             user_id,

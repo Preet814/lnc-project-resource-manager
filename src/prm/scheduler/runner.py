@@ -149,11 +149,15 @@ class SchedulerRunner:
         try:
             service = create_timesheet_notification_service(session, self._settings)
             as_of = date.today()
+            engineer_freeze, manager_freeze = service.send_freeze_notifications(as_of)
             digests = service.send_manager_digests(as_of)
             missed = service.flag_missed_for_last_completed_week(as_of)
             session.commit()
             logger.info(
-                "Timesheet Wednesday jobs complete (digests=%s missed=%s)",
+                "Timesheet Wednesday jobs complete "
+                "(engineer_freeze=%s manager_freeze=%s digests=%s missed=%s)",
+                engineer_freeze,
+                manager_freeze,
                 digests,
                 missed,
             )

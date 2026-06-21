@@ -43,6 +43,9 @@ TIMESHEET_FREEZE_HOUR = 17
 TIMESHEET_FREEZE_MINUTE = 30
 TIMESHEET_ENGINEER_REMINDER_SUBJECT = "PRM: Timesheet reminder"
 TIMESHEET_MANAGER_DIGEST_SUBJECT = "PRM: Team timesheet status"
+TIMESHEET_ENGINEER_FREEZE_SUBJECT = "PRM: Timesheet submission restricted"
+TIMESHEET_MANAGER_FREEZE_SUBJECT = "PRM: Team member timesheet submission restricted"
+TIMESHEET_ENGINEER_RESTORE_SUBJECT = "PRM: Timesheet submission access restored"
 
 # RBAC lookup values seeded into departments / designations tables.
 SEEDED_DEPARTMENTS = (
